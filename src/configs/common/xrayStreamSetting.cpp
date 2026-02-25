@@ -442,19 +442,55 @@ namespace Configs {
         return {ExportToJson(), ""};
     }
 
+    bool xrayGrpc::ParseFromLink(const QString& link) {
+        auto url = QUrl(link);
+        if (!url.isValid()) return false;
+        auto query = QUrlQuery(url.query());
+        if (query.hasQueryItem("serviceName")) serviceName = query.queryItemValue("serviceName", QUrl::FullyDecoded);
+        if (query.hasQueryItem("mode")) mode = query.queryItemValue("mode");
+
+        return true;
+    }
+
+    bool xrayGrpc::ParseFromJson(const QJsonObject& object) {
+        if (object.isEmpty()) return false;
+        if (object.contains("serviceName")) serviceName = object["serviceName"].toString();
+        if (object.contains("multiMode")) mode = (object["multiMode"].toBool() == true ? "multi" : "");
+        return true;
+    }
+
+    QString xrayGrpc::ExportToLink() {
+        QUrlQuery query;
+        if (!serviceName.isEmpty()) query.addQueryItem("serviceName", serviceName);
+        if (!mode.isEmpty() && mode == "multi") query.addQueryItem("mode", "multi");
+        return query.toString(QUrl::FullyEncoded);
+    }
+
+    QJsonObject xrayGrpc::ExportToJson() {
+        QJsonObject obj;
+        if (!serviceName.isEmpty()) obj["serviceName"] = serviceName;
+        if (!mode.isEmpty() && mode=="multi") obj["multiMode"] = true;
+        return obj;
+    }
+
+    BuildResult xrayGrpc::Build() {
+        return { ExportToJson(), "" };
+    }
+
     bool xrayStreamSetting::ParseFromLink(const QString &link) {
         auto url = QUrl(link);
         if (!url.isValid()) return false;
         auto query = QUrlQuery(url.query());
 
         if (query.hasQueryItem("type")) network = query.queryItemValue("type").replace("tcp", "raw");
-        if (network != "raw" && network != "xhttp" && network != "ws" && network != "httpupgrade") return false;
+        if (network != "raw" && network != "xhttp" && network != "ws" && network != "httpupgrade" && network != "grpc") return false;
         if (query.hasQueryItem("security")) security = query.queryItemValue("security");
         if (security == "tls") TLS->ParseFromLink(link);
         else if (security == "reality") reality->ParseFromLink(link);
         if (network == "xhttp") xhttp->ParseFromLink(link);
         else if (network == "ws") ws->ParseFromLink(link);
         else if (network == "httpupgrade") httpupgrade->ParseFromLink(link);
+        else if (network == "grpc") grpc->ParseFromLink(link);
 
         return true;
     }
@@ -463,13 +499,14 @@ namespace Configs {
         if (object.isEmpty()) return false;
 
         if (object.contains("network")) network = object.value("network").toString();
-        if (network != "raw" && network != "xhttp" && network != "ws" && network != "httpupgrade") return false;
+        if (network != "raw" && network != "xhttp" && network != "ws" && network != "httpupgrade" && network != "grpc") return false;
         if (object.contains("security")) security = object.value("security").toString();
         if (security == "tls" && object["tlsSettings"].isObject()) TLS->ParseFromJson(object["tlsSettings"].toObject());
         else if (security == "reality" && object["realitySettings"].isObject()) reality->ParseFromJson(object["realitySettings"].toObject());
         if (network == "xhttp" && object["xhttpSettings"].isObject()) xhttp->ParseFromJson(object["xhttpSettings"].toObject());
         if (network == "ws" && object["wsSettings"].isObject()) ws->ParseFromJson(object["wsSettings"].toObject());
         if (network == "httpupgrade" && object["httpupgradeSettings"].isObject()) httpupgrade->ParseFromJson(object["httpupgradeSettings"].toObject());
+        if (network == "grpc" && object["grpcSettings"].isObject()) grpc->ParseFromJson(object["grpcSettings"].toObject());
         return true;
     }
 
@@ -505,6 +542,7 @@ namespace Configs {
         if (network == "xhttp") mergeUrlQuery(query, xhttp->ExportToLink());
         if (network == "ws") mergeUrlQuery(query, ws->ExportToLink());
         if (network == "httpupgrade") mergeUrlQuery(query, httpupgrade->ExportToLink());
+        if (network == "grpc") mergeUrlQuery(query, grpc->ExportToLink());
         return query.toString(QUrl::FullyEncoded);
     }
 
@@ -517,6 +555,7 @@ namespace Configs {
         if (network == "xhttp") object["xhttpSettings"] = xhttp->ExportToJson();
         if (network == "ws") object["wsSettings"] = ws->ExportToJson();
         if (network == "httpupgrade") object["httpupgradeSettings"] = httpupgrade->ExportToJson();
+        if (network == "grpc") object["grpcSettings"] = grpc->ExportToJson();
         return object;
     }
 

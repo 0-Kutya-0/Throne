@@ -52,6 +52,11 @@ namespace Configs
         if (!url.isValid()) return false;
         auto query = QUrlQuery(url.query());
 
+        //fix for me
+        //Because grpc doesn't work on XrayVles right now
+        //upd: I made grpc support for xray, it seems to work for my configuration
+        //if (query.queryItemValue("type") == "grpc") return false;
+
         if (query.queryItemValue("type") == "xhttp"
             || (query.queryItemValue("security") == "reality" && dataManager->settingsRepo->xray_vless_preference == Xray::XhttpAndReality)
             || (query.queryItemValue("encryption") != "none" && query.queryItemValue("encryption") != "")
