@@ -830,12 +830,14 @@ namespace Configs {
     void buildXrayConfig(std::shared_ptr<BuildSingBoxConfigContext> &ctx) {
         if (ctx->xrayOutbounds.isEmpty()) return;
         ctx->buildConfigResult->isXrayNeeded = true;
-        QJsonObject dnsObj;
+        //QJsonObject dnsObj;
         QJsonArray inbounds;
         QJsonArray outbounds;
         QJsonArray routeRules;
 
-        dnsObj = {
+        //fix for me
+        //very long connection time
+        /*dnsObj = {
             {"servers", QJsonArray{
                 QJsonObject{
                     {"address", "127.0.0.1"},
@@ -843,7 +845,7 @@ namespace Configs {
                     {"skipFallBack", true}
                 }
             }}
-        };
+        };*/
 
         for (auto [port, outboundObj] : ctx->xrayOutbounds) {
             auto inboundTag = outboundObj["tag"].toString() + "-inbound";
@@ -878,7 +880,7 @@ namespace Configs {
         {"loglevel", Configs::dataManager->settingsRepo->xray_log_level},
         {"access", Configs::dataManager->settingsRepo->xray_log_level == "info" ? "" : "none"}
         };
-        ctx->buildConfigResult->xrayConfig["dns"] = dnsObj;
+        //ctx->buildConfigResult->xrayConfig["dns"] = dnsObj;
         ctx->buildConfigResult->xrayConfig["inbounds"] = inbounds;
         ctx->buildConfigResult->xrayConfig["outbounds"] = outbounds;
         ctx->buildConfigResult->xrayConfig["routing"] = QJsonObject{
