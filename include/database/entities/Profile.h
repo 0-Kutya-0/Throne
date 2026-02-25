@@ -36,6 +36,8 @@ namespace Configs {
         QString test_country;
         std::shared_ptr<Configs::outbound> outbound;
         std::shared_ptr<Stats::TrafficData> traffic_data = std::make_shared<Stats::TrafficData>("");
+        int usersCount = -1;
+        QString usersCountString = "Нет данных";
 
         QString ip_out;
 
