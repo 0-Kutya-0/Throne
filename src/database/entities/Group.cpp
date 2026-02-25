@@ -75,6 +75,10 @@ namespace Configs
                                               return sortAction.descending ? profA->ip_out > profB->ip_out : profA->ip_out < profB->ip_out;
                                           }
                                       }
+                                      else if (sortAction.method == GroupSortMethod::ByTraffic) {
+                                          ms_a = profA->traffic_data->DisplayTraffic();
+                                          ms_b = profB->traffic_data->DisplayTraffic();
+                                      }
                                       return sortAction.descending ? ms_a > ms_b : ms_a < ms_b;
                                   });
                 break;

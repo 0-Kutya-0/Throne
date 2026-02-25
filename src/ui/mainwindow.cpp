@@ -323,6 +323,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             action.method = GroupSortMethod::ByName;
         } else if (logicalIndex == 3) {
             action.method = GroupSortMethod::ByTestResult;
+        } else if (logicalIndex == 4) {
+            action.method = GroupSortMethod::ByTraffic;
         } else if (logicalIndex == 5) {
             action.method = GroupSortMethod::ByUsersCount;
         } else {
