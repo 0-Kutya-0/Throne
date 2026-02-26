@@ -1,16 +1,6 @@
 ﻿#include "include/global/LocationMappingConfig.hpp"
 #include "include/global/Utils.hpp"
-#include <qstring.h>
-#include <qbytearray.h>
-#include <qjsonparseerror.h>
-#include <qjsondocument.h>
-#include <qfile.h>
-#include <qjsonobject.h>
-#include <qjsonvalue.h>
-#include <qcontainerfwd.h>
-#include <qjsonarray.h>
-#include <qiodevice.h>
-#include <qmap.h>
+#include <QJsonDocument>
 
 
 bool LocationMappingConfig::loadFromFile(const QString & filePath)
