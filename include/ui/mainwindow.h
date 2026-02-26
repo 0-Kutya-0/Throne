@@ -173,8 +173,7 @@ private:
     Ui::MainWindow *ui;
     ProfilesTableModel *profilesTableModel = nullptr;
     QSystemTrayIcon *tray;
-    QShortcut *shortcut_ctrl_f = new QShortcut(QKeySequence("Ctrl+F"), this);
-    QShortcut *shortcut_esc = new QShortcut(QKeySequence("Esc"), this);
+    QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
     //
     QThreadPool *parallelCoreCallPool = new QThreadPool(this);
     std::atomic<bool> stopSpeedtest = false;
@@ -223,7 +222,10 @@ private:
 
     // search
     bool searchEnabled = false;
-    QString searchString;
+    QString addressFilterString;
+    QString nameFilterString;
+    QString typeFilterString;
+    QString countryFilterString;
 
     // log
     QStringList includeKeywords;
@@ -241,8 +243,6 @@ private:
     bool should_print_log(const QString &log);
 
     void updateLogFilterFields();
-
-    void setSearchState(bool enable);
 
     QList<int> filterProfilesList(const QList<int>& profileIDs);
 
