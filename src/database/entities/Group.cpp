@@ -76,8 +76,8 @@ namespace Configs
                                           }
                                       }
                                       else if (sortAction.method == GroupSortMethod::ByTraffic) {
-                                          ms_a = profA->traffic_data->DisplayTraffic();
-                                          ms_b = profB->traffic_data->DisplayTraffic();
+                                          ms_a = profA->DisplayTraffic();
+                                          ms_b = profB->DisplayTraffic();
                                       }
                                       return sortAction.descending ? ms_a > ms_b : ms_a < ms_b;
                                   });

@@ -1,7 +1,6 @@
 #include "include/configs/generate.h"
 #include "include/api/RPC.h"
 #include "include/global/Configs.hpp"
-#include "include/global/Utils.hpp"
 
 #include <QApplication>
 #include <QFileInfo>
@@ -509,7 +508,7 @@ namespace Configs {
             if (Configs::dataManager->settingsRepo->vpn_ipv6) tunAddress += "fdfe:dcba:9876::1/96";
             inboundObj["address"] = tunAddress;
 
-            if (ctx->buildPrerequisities->routingDeps->defaultOutboundID == proxyID && Configs::dataManager->settingsRepo->enable_tun_routing)
+            if (Configs::dataManager->settingsRepo->enable_tun_routing)
             {
                 QJsonArray routeExcludeAddrs = {"127.0.0.0/8"};
                 QJsonArray routeExcludeSets;
@@ -632,9 +631,7 @@ namespace Configs {
             {
                 ctx->outbounds.append(object);
             }
-            ent->traffic_data->id = ent->id;
-            ent->traffic_data->tag = tag.toStdString();
-            ctx->buildConfigResult->outboundEntsForTraffic += ent;
+            ctx->buildConfigResult->outboundEntsForTraffic.append({ent, tag});
         }
     }
 
