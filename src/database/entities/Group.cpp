@@ -21,6 +21,21 @@ namespace Configs
             case GroupSortMethod::ById: {
                 break;
             }
+            case GroupSortMethod::ByUsersCount:
+            {
+                std::ranges::sort(profiles,
+                    [&](int a, int b){
+                        auto profA = dataManager->profilesRepo->GetProfile(a);
+                        auto profB = dataManager->profilesRepo->GetProfile(b);
+                        int ms_a;
+                        int ms_b;
+                        ms_a = profA->usersCount;
+                        ms_b = profB->usersCount;
+                        return sortAction.descending ? ms_a > ms_b : ms_a < ms_b;
+                    });
+                break;
+            }
+            case GroupSortMethod::ByTraffic:
             case GroupSortMethod::ByAddress:
             case GroupSortMethod::ByName:
             case GroupSortMethod::ByTestResult:
@@ -59,6 +74,10 @@ namespace Configs
                                           if (test_sort_by == testBy::ipOut) {
                                               return sortAction.descending ? profA->ip_out > profB->ip_out : profA->ip_out < profB->ip_out;
                                           }
+                                      }
+                                      else if (sortAction.method == GroupSortMethod::ByTraffic) {
+                                          ms_a = profA->DisplayTraffic();
+                                          ms_b = profB->DisplayTraffic();
                                       }
                                       return sortAction.descending ? ms_a > ms_b : ms_a < ms_b;
                                   });

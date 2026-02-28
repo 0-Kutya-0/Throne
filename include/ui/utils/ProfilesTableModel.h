@@ -43,6 +43,8 @@ public:
     // Row label for vertical header: "✓" for running row, else "row+1  ".
     QString rowLabel(int row) const;
 
+    void setHorizontalHeaderFor5Column(const QString& newHeader);
+
 private:
     void ensureCached(int profileId) const;
     void evictOne() const;

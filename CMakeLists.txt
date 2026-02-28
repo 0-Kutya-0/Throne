@@ -69,6 +69,7 @@ set(PROJECT_SOURCES
         src/global/Utils.cpp
         src/global/HTTPRequestHelper.cpp
         src/global/DeviceDetailsHelper.cpp
+        src/global/LocationMappingConfig.cpp
         src/global/CountryHelper.cpp
 
         3rdparty/base64.cpp

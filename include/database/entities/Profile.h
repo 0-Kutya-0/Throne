@@ -37,6 +37,8 @@ namespace Configs {
 
         qint64 traffic_downlink = 0;
         qint64 traffic_uplink = 0;
+        int usersCount = -1;
+        QString usersCountString = "Нет данных";
 
         QString ip_out;
 
