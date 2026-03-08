@@ -75,6 +75,7 @@
 #include <3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp>
 #include <include/global/HTTPRequestHelper.hpp>
 #include "include/global/DeviceDetailsHelper.hpp"
+#include "include/global/LocationMappingConfig.hpp"
 
 #include "include/sys/macos/MacOS.h"
 
@@ -385,6 +386,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             action.method = GroupSortMethod::ByTestResult;
         } else if (logicalIndex == 4) {
             action.method = GroupSortMethod::ByTraffic;
+        } else if (logicalIndex == 5) {
+            action.method = GroupSortMethod::ByUsersCount;
         } else {
             return;
         }
@@ -911,6 +914,27 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->actionResolve_Out_IP, &QAction::triggered, this, [=,this]() {
         iptest_current_group(Configs::dataManager->groupsRepo->CurrentGroup()->Profiles());
     });
+    connect(ui->actionUpdate_users_count, &QAction::triggered, this, [=, this]() {
+        auto temp = GetUsersCountFromAPI();
+        if (!temp) return;
+        auto profiles = Configs::dataManager->groupsRepo->CurrentGroup()->Profiles();
+        for (const auto& profileId : profiles) {
+            auto profile = Configs::dataManager->profilesRepo->GetProfile(profileId);
+            if (!profile) continue;
+            profileNames.append(profile->outbound->name);
+
+            int usersCount = m_mappingConfig.calculateUsersCount(profile->outbound->name, serverStats);
+            QString usersCountString = m_mappingConfig.calculateUsersCountString(profile->outbound->name, serverStats);
+			profile->usersCount = usersCount;
+			profile->usersCountString = usersCountString; 
+        }
+
+        refresh_proxy_list({}, true);
+
+        ui->actionRefresh_Column_Widths->trigger();
+
+        AfterUsersCountMappingCheck();
+    });
     connect(ui->menu_stop_testing, &QAction::triggered, this, [=,this]() { stopTests(); });
     //
     auto set_selected_or_group = [=,this](int mode) {
@@ -1030,6 +1054,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     TM_auto_update_subsctiption_Reset_Minute(Configs::dataManager->settingsRepo->sub_auto_update);
 
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
+
+    auto gr = Configs::dataManager->groupsRepo->CurrentGroup();
+    if (gr && !gr->url.isEmpty() && gr->url.contains("sub.snowfall.top")){
+        ui->actionUpdate_users_count->trigger();
+    }
 
     ui->data_view->setStyleSheet("background: transparent; border: none;");
 }
@@ -1511,6 +1540,79 @@ bool MainWindow::get_elevated_permissions(int reason) {
 #endif
     return false;
 }
+bool MainWindow::GetUsersCountFromAPI() {
+    MW_show_log("<<<<<<<< Чтение конфиг-файла location_mapping.json");
+    QString configPath = QDir::currentPath() + "/location_mapping.json";
+    if (!m_mappingConfig.loadFromFile(configPath)) {
+        return 0;
+    }
+
+    MW_show_log("<<<<<<<< Запрос кол-ва пользователей");
+    auto resp = NetworkRequestHelper::HttpGet(m_mappingConfig.apiLink);
+    if (!resp.error.isEmpty()) {
+        MW_show_log(">>>>>>>> Ошибка получения кол-ва пользователей : " + resp.error);
+        return 0;
+    }
+
+    QJsonObject json = QString2QJsonObject(resp.data);
+    QJsonArray clusters = json["clusters"].toArray();
+    QJsonObject firstCluster = clusters[0].toObject();
+    QJsonArray servers = firstCluster["servers"].toArray();
+    QJsonObject firstServer = servers[0].toObject();
+    auto allSubOnline = firstServer["online"].toInt();
+
+    if (allSubOnline == 0) {
+        MW_show_log(">>>>>>>> Ошибка получения кол-ва пользователей : походу Кот с ВебАппой отдыхают");
+        return 0;
+    }
+    profileNames.clear();
+    serverStats.clear();
+
+    QDateTime currentDateTime = QDateTime::currentDateTime();
+    QString customFormatString = currentDateTime.toString("hh:mm:ss dd.MM");
+
+    profilesTableModel->setHorizontalHeaderFor5Column("👤 Всего: " + QString::number(allSubOnline) + " (" + customFormatString + ")");
+
+    MW_show_log(">>>>>>>> Получено кол-во пользователей");
+
+    for (const auto& nodeVal : firstServer["nodes"].toArray()) {
+        QJsonObject node = nodeVal.toObject();
+        QString nodeName = node["name"].toString();
+        if (m_mappingConfig.skipProfiles.contains(nodeName))
+            continue;
+        int nodeOnline = node["online"].toInt();
+        serverStats[nodeName] = nodeOnline;
+    }
+
+    QStringList missingKeys = m_mappingConfig.findMissingStatKeys(serverStats);
+    if (!missingKeys.isEmpty()) {
+        MW_show_log(">>>>>>>> Следующие ключи присутствуют в конфиг файле, но отсутствуют в ответе API: " + missingKeys.join(", "));
+    }
+
+    return 1;
+}
+
+void MainWindow::AfterUsersCountMappingCheck() {
+    QStringList unmatchedProfiles = m_mappingConfig.findUnmatchedProfiles(profileNames);
+    if (!unmatchedProfiles.isEmpty()) {
+        MW_show_log(">>>>>>>> Профили, для которых не было найдено соответствие: " + unmatchedProfiles.join(", "));
+    }
+    QStringList unmatchedStats = m_mappingConfig.findUnusedStatKeys(serverStats);
+    if (!unmatchedStats.isEmpty()) {
+        for (int i = 0; i < unmatchedStats.length(); i++)
+        {
+            unmatchedStats[i] += " (👤: " + QString::number(serverStats[unmatchedStats[i]]) + ")";
+        }
+        MW_show_log(">>>>>>>> Следующие ключи присутствуют в ответе API, но отсутствуют в конфиг файле: " + unmatchedStats.join(", "));
+    }
+    QStringList unusedMappingRules = m_mappingConfig.findUnusedMappingRules(profileNames, serverStats);
+    if (!unusedMappingRules.isEmpty()) {
+        MW_show_log(">>>>>>>> Следующие правила в конфиг файле НЕ ИСПОЛЬЗУЮТСЯ:");
+        for (const QString& ruleInfo : unusedMappingRules) {
+            MW_show_log("  • " + ruleInfo);
+        }
+    }
+}
 
 void MainWindow::set_system_proxy(bool mustDisable) {
     if (!mustDisable && Configs::dataManager->settingsRepo->spmode_system_proxy) {
@@ -1949,6 +2051,8 @@ void MainWindow::refresh_proxy_list_column_size() {
             hHeader->setSectionResizeMode(2, QHeaderView::Stretch);
             hHeader->setSectionResizeMode(3, QHeaderView::ResizeToContents);
             hHeader->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+            if (profilesTableModel->columnCount() == 6) 
+                hHeader->setSectionResizeMode(5, QHeaderView::ResizeToContents);
             if (!group->calculated_column_width.empty() && group->calculated_column_width[0] > hHeader->sectionSize(0)) {
                 hHeader->setSectionResizeMode(0, QHeaderView::Fixed);
                 hHeader->resizeSection(0, group->calculated_column_width[0]);
@@ -1961,9 +2065,16 @@ void MainWindow::refresh_proxy_list_column_size() {
                 hHeader->setSectionResizeMode(4, QHeaderView::Fixed);
                 hHeader->resizeSection(4, group->calculated_column_width[4]);
             }
+            if (profilesTableModel->columnCount() == 6)
+            {
+                if (group->calculated_column_width.size() > 5 && group->calculated_column_width[5] > hHeader->sectionSize(5)) {
+                    hHeader->setSectionResizeMode(5, QHeaderView::Fixed);
+                    hHeader->resizeSection(5, group->calculated_column_width[5]);
+                }
+            }
             ui->profilesTableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
             group->clearCalculatedColumnWidth();
-            for (int i=0;i<=4;i++) {
+            for (int i=0;i<= profilesTableModel->columnCount() - 1;i++) {
                 auto size = hHeader->sectionSize(i);
                 hHeader->setSectionResizeMode(i, QHeaderView::Interactive);
                 hHeader->resizeSection(i, size);
@@ -1971,7 +2082,7 @@ void MainWindow::refresh_proxy_list_column_size() {
             }
         } else {
             group->clearCalculatedColumnWidth();
-            for (int i=0;i<=4;i++) {
+            for (int i=0;i<= profilesTableModel->columnCount() - 1;i++) {
                 hHeader->setSectionResizeMode(i, QHeaderView::Interactive);
                 hHeader->resizeSection(i, group->column_width.at(i));
             }
@@ -2818,7 +2929,13 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
         menu->addAction(ui->menu_remove_unavailable);
         menu->addAction(ui->menu_remove_invalid);
     }
-    if (!group->url.isEmpty()) menu->addAction(ui->menu_update_subscription);
+    if (!group->url.isEmpty())
+    {
+        menu->addAction(ui->menu_update_subscription);
+
+        if (group->url.contains("sub.snowfall.top"))
+            menu->addAction(ui->actionUpdate_users_count);
+    }
     if (!speedtestRunning.tryLock()) {
         menu->addAction(ui->menu_stop_testing);
     } else {

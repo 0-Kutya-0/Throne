@@ -389,6 +389,8 @@ namespace Configs {
         }
         auto profile = loadFromDatabase(id);
         if (!profile) return nullptr;
+        profile->usersCount = MainWindow::m_mappingConfig.calculateUsersCount(profile->outbound->name, MainWindow::serverStats);
+        profile->usersCountString = MainWindow::m_mappingConfig.calculateUsersCountString(profile->outbound->name, MainWindow::serverStats);
         identityMap[id] = std::weak_ptr<Profile>(profile);
         return profile;
     }
@@ -408,6 +410,8 @@ namespace Configs {
         if (!query) return result;
         while (query->executeStep()) {
             auto profile = profileFromRow(*query);
+            profile->usersCount = MainWindow::m_mappingConfig.calculateUsersCount(profile->outbound->name, MainWindow::serverStats);
+            profile->usersCountString = MainWindow::m_mappingConfig.calculateUsersCountString(profile->outbound->name, MainWindow::serverStats);
             result[profile->id] = std::move(profile);
         }
         return result;
@@ -436,6 +440,10 @@ namespace Configs {
                 auto it = byId.find(id);
                 if (it != byId.end()) profiles.push_back(it->second);
             }
+            for (const auto& profile : profiles) {
+                profile->usersCount = MainWindow::m_mappingConfig.calculateUsersCount(profile->outbound->name, MainWindow::serverStats);
+                profile->usersCountString = MainWindow::m_mappingConfig.calculateUsersCountString(profile->outbound->name, MainWindow::serverStats);
+            }
             return profiles;
         }
 
@@ -451,6 +459,10 @@ namespace Configs {
         for (int id : ids) {
             auto it = byId.find(id);
             if (it != byId.end()) profiles.push_back(it->second);
+        }
+        for (const auto& profile : profiles) {
+            profile->usersCount = MainWindow::m_mappingConfig.calculateUsersCount(profile->outbound->name, MainWindow::serverStats);
+            profile->usersCountString = MainWindow::m_mappingConfig.calculateUsersCountString(profile->outbound->name, MainWindow::serverStats);
         }
         return profiles;
     }

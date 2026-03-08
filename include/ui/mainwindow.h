@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <include/global/HTTPRequestHelper.hpp>
+#include <include/global/LocationMappingConfig.hpp>
 #ifndef Q_MOC_RUN
 #include <core/server/gen/libcore.pb.h>
 #endif
@@ -93,6 +94,14 @@ public:
     void UpdateDataView(bool force = false);
 
     void setDownloadReport(const DownloadProgressReport& report, bool show);
+
+    bool GetUsersCountFromAPI();
+
+    void AfterUsersCountMappingCheck();
+
+    inline static QMap<QString, int> serverStats;
+    inline static LocationMappingConfig m_mappingConfig;
+    inline static QStringList profileNames;
 
 signals:
 

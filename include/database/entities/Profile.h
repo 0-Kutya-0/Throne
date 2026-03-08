@@ -39,6 +39,8 @@ namespace Configs {
         QString ul_speed;
         QString test_country;
         std::shared_ptr<Configs::outbound> outbound;
+        int usersCount = -1;
+        QString usersCountString = "Нет данных";
 
         qint64 traffic_downlink = 0;
         qint64 traffic_uplink = 0;

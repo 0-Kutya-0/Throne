@@ -19,6 +19,10 @@ int ProfilesTableModel::rowCount(const QModelIndex &parent) const {
 
 int ProfilesTableModel::columnCount(const QModelIndex &parent) const {
     if (parent.isValid()) return 0;
+
+    auto group = Configs::dataManager->groupsRepo->CurrentGroup();
+    if (group && group->url.contains("sub.snowfall.top")) return 6;
+
     return 5;
 }
 
@@ -81,7 +85,7 @@ void ProfilesTableModel::evictOne() const {
 
 QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_profileIds.size()
-        || index.column() < 0 || index.column() >= 5) {
+        || index.column() < 0 || index.column() >= columnCount()) {
         return {};
     }
     const int profileId = m_profileIds[index.row()];
@@ -105,6 +109,7 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
         case 2: return profile->outbound ? profile->outbound->name : QString();
         case 3: return profile->DisplayTestResult();
         case 4: return profile->DisplayTraffic();
+        case 5: return "👤 " + profile->usersCountString;
         default: return {};
         }
     }
@@ -119,6 +124,13 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
     return {};
 }
 
+QString UserCountHeader = "👤 Нет данных";
+void ProfilesTableModel::setHorizontalHeaderFor5Column(const QString& newHeader)
+{
+    UserCountHeader = newHeader;
+    emit headerDataChanged(Qt::Horizontal, 5, 5);
+}
+
 QVariant ProfilesTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
     if (role != Qt::DisplayRole) return {};
     if (orientation == Qt::Horizontal) {
@@ -128,6 +140,7 @@ QVariant ProfilesTableModel::headerData(int section, Qt::Orientation orientation
         case 2: return tr("Name");
         case 3: return tr("Test Result");
         case 4: return tr("Traffic");
+        case 5: return UserCountHeader;
         default: return {};
         }
     }

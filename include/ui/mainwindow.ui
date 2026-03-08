@@ -764,6 +764,7 @@ QTabBar::tab:hover:!selected {
     <addaction name="actionSpeedtest_Group"/>
     <addaction name="actionResolve_Out_IP"/>
     <addaction name="actionRefresh_Column_Widths"/>
+	<addaction name="actionUpdate_users_count"/>
    </widget>
    <widget class="QMenu" name="menuRouting_Menu">
     <property name="title">
@@ -1233,6 +1234,11 @@ QTabBar::tab:hover:!selected {
   <action name="actionClear_Test_Result">
    <property name="text">
     <string>Clear Test Result</string>
+   </property>
+  </action>
+  <action name="actionUpdate_users_count">
+   <property name="text">
+  	 <string>Обновить кол-во пользователей</string>
    </property>
   </action>
  </widget>

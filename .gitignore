@@ -88,3 +88,5 @@ out
 /libs
 srslist.h
 .claude
+/CMakePresets.json
+/CMakeUserPresets.json

@@ -47,6 +47,7 @@ namespace Configs
             case GroupSortMethod::ByName:
             case GroupSortMethod::ByTestResult:
             case GroupSortMethod::ByTraffic:
+            case GroupSortMethod::ByUsersCount:
             case GroupSortMethod::ByType: {
                 auto get_latency_for_sort = [](const std::shared_ptr<Profile>& prof) {
                     auto i = prof->latency;
@@ -94,6 +95,8 @@ namespace Configs
                                           if (traffic_sort_by == trafficBy::ul) {
                                               return sortAction.descending ? profA->traffic_uplink > profB->traffic_uplink : profA->traffic_uplink < profB->traffic_uplink;
                                           }
+                                      } else if (sortAction.method == GroupSortMethod::ByUsersCount) {
+                                          return sortAction.descending ? profA->usersCount > profB->usersCount : profA->usersCount < profB->usersCount;
                                       }
                                       return sortAction.descending ? ms_a > ms_b : ms_a < ms_b;
                                   });
