@@ -3,8 +3,11 @@
 #include "include/ui/mainwindow_interface.h"
 
 #include <QClipboard>
+#include <QHash>
 #include <QStringListModel>
 #include <QCompleter>
+#include <QTimer>
+#include <QAbstractItemView>
 
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
@@ -47,41 +50,92 @@ DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWi
     }
 
     auto proxyListRaw = Configs::dataManager->profilesRepo->GetAllProfileIDNameMapped();
-    QMap<int, QString> idToName;
+    QHash<int, QString> idToName;
+    idToName.reserve(proxyListRaw.size());
     for (const auto& [id, name] : proxyListRaw) idToName.insert(id, name);
     QList<std::pair<int, QString>> proxyList;
     auto groupIDs = Configs::dataManager->groupsRepo->GetGroupsTabOrder();
     for (auto groupID: groupIDs) {
         auto group = Configs::dataManager->groupsRepo->GetGroup(groupID);
         if (!group) continue;
+        const QString prefix = "[" + group->name + "] ";
         for (int profileID : group->profiles) {
-            if (!idToName.contains(profileID)) continue;
-            proxyList << std::make_pair(profileID, QString("[" + group->name + "] ") + idToName[profileID]);
+            auto it = idToName.constFind(profileID);
+            if (it == idToName.constEnd()) continue;
+            proxyList << std::make_pair(profileID, prefix + it.value());
         }
     }
     QStringList proxyNameList;
+    proxyNameToId.clear();
+    proxyNameToId.insert("None", -1);
+    ui->front_proxy->setMaxCount(200);
+    ui->landing_proxy->setMaxCount(200);
     ui->front_proxy->blockSignals(true);
     ui->landing_proxy->blockSignals(true);
+    ui->front_proxy->setUpdatesEnabled(false);
+    ui->landing_proxy->setUpdatesEnabled(false);
     ui->front_proxy->addItem("None", QVariant(-1));
     ui->landing_proxy->addItem("None", QVariant(-1));
+    const int comboCap = ui->front_proxy->maxCount();
+    int comboCount = 1; // "None" already added
     for (const auto&[id, name] : proxyList) {
         proxyNameList.append(name);
-        ui->front_proxy->addItem(name, QVariant(id));
-        ui->landing_proxy->addItem(name, QVariant(id));
-        proxyMapping[id] = name;
+        if (!proxyNameToId.contains(name)) {
+            proxyNameToId.insert(name, id);
+        }
+        if (comboCount < comboCap) {
+            ui->front_proxy->addItem(name, QVariant(id));
+            ui->landing_proxy->addItem(name, QVariant(id));
+            ++comboCount;
+        }
     }
     ui->front_proxy->blockSignals(false);
     ui->landing_proxy->blockSignals(false);
+    ui->front_proxy->setUpdatesEnabled(true);
+    ui->landing_proxy->setUpdatesEnabled(true);
+
+    auto proxyCompleterModel = new QStringListModel(proxyNameList, this);
+
+    auto attachDebouncedCompleter = [this](QComboBox* combo, QCompleter* completer) {
+        auto* lineEdit = combo->lineEdit();
+        completer->setWidget(lineEdit);
+        auto* debounce = new QTimer(this);
+        debounce->setSingleShot(true);
+        debounce->setInterval(300);
+        connect(debounce, &QTimer::timeout, completer, [completer, lineEdit] {
+            const QString text = lineEdit->text();
+            if (text.isEmpty()) return;
+            completer->setCompletionPrefix(text);
+            completer->complete();
+        });
+        connect(lineEdit, &QLineEdit::textEdited, debounce, [debounce, completer](const QString& text) {
+            if (text.isEmpty()) {
+                debounce->stop();
+                completer->popup()->hide();
+                return;
+            }
+            debounce->start();
+        });
+        connect(completer, qOverload<const QString&>(&QCompleter::activated),
+                         lineEdit, [combo, lineEdit](const QString& text) {
+            lineEdit->setText(text);
+            const int index = combo->findText(text, Qt::MatchExactly);
+            if (index >= 0) {
+                combo->setCurrentIndex(index);
+            }
+        });
+    };
 
     ui->front_proxy->setEditable(true);
     ui->front_proxy->setCurrentText(get_proxy_name(CACHE.front_proxy));
     ui->front_proxy->setInsertPolicy(QComboBox::NoInsert);
-    auto frontCompleter = new QCompleter(proxyNameList,  this);
+    auto frontCompleter = new QCompleter(this);
+    frontCompleter->setModel(proxyCompleterModel);
     frontCompleter->setCompletionMode(QCompleter::PopupCompletion);
     frontCompleter->setCaseSensitivity(Qt::CaseInsensitive);
     frontCompleter->setFilterMode(Qt::MatchContains);
     ui->front_proxy->setCompleter(nullptr);
-    ui->front_proxy->lineEdit()->setCompleter(frontCompleter);
+    attachDebouncedCompleter(ui->front_proxy, frontCompleter);
     connect(ui->front_proxy, &QComboBox::currentIndexChanged, this, [=,this](int index){
         CACHE.front_proxy = ui->front_proxy->itemData(index).value<int>();
     });
@@ -89,12 +143,13 @@ DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWi
     ui->landing_proxy->setEditable(true);
     ui->landing_proxy->setCurrentText(get_proxy_name(LANDING.landing_proxy));
     ui->landing_proxy->setInsertPolicy(QComboBox::NoInsert);
-    auto landingCompleter = new QCompleter(proxyNameList, this);
+    auto landingCompleter = new QCompleter(this);
+    landingCompleter->setModel(proxyCompleterModel);
     landingCompleter->setCompletionMode(QCompleter::PopupCompletion);
     landingCompleter->setCaseSensitivity(Qt::CaseInsensitive);
     landingCompleter->setFilterMode(Qt::MatchContains);
     ui->landing_proxy->setCompleter(nullptr);
-    ui->landing_proxy->lineEdit()->setCompleter(landingCompleter);
+    attachDebouncedCompleter(ui->landing_proxy, landingCompleter);
     connect(ui->landing_proxy, &QComboBox::currentIndexChanged, this, [=,this](int index){
         LANDING.landing_proxy = ui->landing_proxy->itemData(index).value<int>();
     });
@@ -127,6 +182,25 @@ DialogEditGroup::~DialogEditGroup() {
     delete ui;
 }
 
+int DialogEditGroup::resolve_proxy_selection(QComboBox *combo, int fallback) const {
+    const QString text = combo->currentText().trimmed();
+    if (text.isEmpty() || text == "None") {
+        return -1;
+    }
+
+    const int index = combo->findText(text, Qt::MatchExactly);
+    if (index >= 0) {
+        return combo->itemData(index).value<int>();
+    }
+
+    auto it = proxyNameToId.constFind(text);
+    if (it != proxyNameToId.constEnd()) {
+        return it.value();
+    }
+
+    return fallback;
+}
+
 void DialogEditGroup::accept() {
     if (ent->id >= 0) { // already a group
         if (!ent->url.isEmpty() && ui->url->text().isEmpty()) {
@@ -138,8 +212,8 @@ void DialogEditGroup::accept() {
     ent->auto_clear_unavailable = ui->auto_clear_unavailable->isChecked();
     ent->url = ui->url->text();
     ent->skip_auto_update = ui->skip_auto_update->isChecked();
-    ent->front_proxy_id = CACHE.front_proxy;
-    ent->landing_proxy_id = LANDING.landing_proxy;
+    ent->front_proxy_id = resolve_proxy_selection(ui->front_proxy, CACHE.front_proxy);
+    ent->landing_proxy_id = resolve_proxy_selection(ui->landing_proxy, LANDING.landing_proxy);
     QDialog::accept();
 }
 

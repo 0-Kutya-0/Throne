@@ -103,6 +103,9 @@ set(PROJECT_SOURCES
         include/sys/Process.hpp
         src/sys/Process.cpp
 
+        include/sys/UrlScheme.hpp
+        src/sys/UrlScheme.cpp
+
         include/ui/setting/ThemeManager.hpp
         src/ui/setting/ThemeManager.cpp
         src/ui/setting/Icon.cpp
@@ -123,6 +126,7 @@ set(PROJECT_SOURCES
 
         include/ui/profile/dialog_edit_profile.h
         src/ui/profile/dialog_edit_profile.cpp
+        src/ui/profile/dialog_edit_profile_xhttp.cpp
         include/ui/profile/dialog_edit_profile.ui
         include/ui/group/dialog_edit_group.h
         src/ui/group/dialog_edit_group.cpp

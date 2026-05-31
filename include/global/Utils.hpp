@@ -5,6 +5,7 @@
 #include <memory>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QDebug>
 #include <QApplication>
 #include <QStyle>
@@ -60,7 +61,51 @@ inline QString software_core_name;
 class QWidget;
 inline QWidget *mainwindow;
 inline std::function<void(QString)> MW_show_log;
-inline std::function<void(QString, QString)> MW_dialog_message;
+
+// Commands delivered to the main window from anywhere in the app via
+// MW_dialog_message. The accompanying QStringList carries command-specific
+// arguments; recognized tokens live in the MwArg namespace below.
+enum class MwMessage {
+    UpdateSettings,       // settings were edited; args: MwArg settings-change tokens
+    RestartProgram,       // restart the whole application
+    Raise,                // bring the main window to the front
+    UpdateShortcuts,      // global hotkeys were reconfigured
+    ProfileChanged,       // a profile was saved; arg MwArg::RestartProxy when it is running
+    GroupsChanged,        // groups were added/removed/edited; refresh the group tabs
+    SubscriptionFinished, // a subscription import finished; arg MwArg::Quiet to skip the count line
+    SubscriptionNewGroup, // the updater created a new group
+    CoreCrashed,          // the external core process died
+    CoreStarted,          // the core came up; args: { startedProfileId }
+};
+
+// String tokens carried in a MwMessage's argument list.
+namespace MwArg {
+    // UpdateSettings: which settings changed. Each controls what gets reloaded
+    // and whether restarting the proxy/tun/program is offered.
+    inline const QString Route        = QStringLiteral("route");
+    inline const QString Vpn          = QStringLiteral("vpn");
+    inline const QString NeedRestart  = QStringLiteral("needRestart");
+    inline const QString ChoosePort   = QStringLiteral("choosePort");
+    inline const QString DisableTray  = QStringLiteral("disableTray");
+    inline const QString SystemDns    = QStringLiteral("systemDns");
+    inline const QString TrayIcon     = QStringLiteral("trayIcon");
+    inline const QString MaxLogLines  = QStringLiteral("maxLogLines");
+    inline const QString DisableAdmin = QStringLiteral("disableAdmin");
+    // ProfileChanged: the saved profile is the running one, so offer a proxy restart.
+    inline const QString RestartProxy = QStringLiteral("restartProxy");
+    // SubscriptionFinished: a detailed diff was already logged, so skip the import-count line.
+    inline const QString Quiet        = QStringLiteral("quiet");
+}
+
+inline std::function<void(MwMessage, QStringList)> MW_dialog_message;
+// Handles a "throne://" deeplink. Set by MainWindow; marshals to the UI thread.
+inline std::function<void(QString)> MW_handle_deeplink;
+
+// Deeplink plumbing (see Utils.cpp). Delivery channels feed URLs in here; the
+// pending buffer covers URLs that arrive before the main window exists.
+QString Deeplink_ExtractFromArgs(const QStringList &args);
+void Deeplink_Submit(const QString &url);
+void Deeplink_FlushPending();
 
 // Dispatchers
 
@@ -113,6 +158,13 @@ QString GetQueryValue(const QUrlQuery &q, const QString &key, const QString &def
 QString GetRandomString(int randomStringLength);
 
 quint64 GetRandomUint64();
+
+// Random 127.x.y.z address from the loopback /8. Used to give each internal
+// sing-box <-> xray socks bridge a unique destination so concurrent
+// connections don't share one ephemeral-port pool. On macOS only 127.0.0.1
+// is bound to lo0 by default (other /8 addresses need an `ifconfig alias`),
+// so this falls back to 127.0.0.1 there.
+QString GenRandomLoopback();
 
 // JSON
 

@@ -24,6 +24,12 @@ namespace Configs
         QJsonArray directSuffixes;
         QJsonArray directKeywords;
         QJsonArray directRegexes;
+        bool needProxyDnsRules = false;
+        QJsonArray proxyDomains;
+        QJsonArray proxyRuleSets;
+        QJsonArray proxySuffixes;
+        QJsonArray proxyKeywords;
+        QJsonArray proxyRegexes;
     };
 
     class HijackDeps
@@ -49,9 +55,17 @@ namespace Configs
         QList<int> neededOutbounds;       // kept for compatibility but no longer consumed
         QStringList neededRuleSets;
         std::map<int, QString> outboundMap;
-        // Each entry is one routing outbound group.
-        // Single profile -> [[id]]. Chain -> [[outerHop, ..., innerHop]] (reversed, matching existing chain build order).
-        QList<QList<int>> routeOutboundGroups;
+        // One routing outbound group. hopIDs is the list of profile IDs to
+        // build outbounds for: single profile -> [id], chain -> [outerHop,
+        // ..., innerHop] (reversed, matching existing chain build order).
+        // chainWrapper is set when the route rule's referenced outbound was a
+        // chain, so traffic accounting can also credit the wrapper (which
+        // isn't in hopIDs); nullptr otherwise.
+        struct RouteOutboundGroup {
+            QList<int> hopIDs;
+            std::shared_ptr<Profile> chainWrapper;
+        };
+        QList<RouteOutboundGroup> routeOutboundGroups;
     };
 
     class BuildPrerequisities
@@ -63,23 +77,46 @@ namespace Configs
         std::shared_ptr<RoutingDeps> routingDeps = std::make_shared<RoutingDeps>();
     };
 
+    // One per built chain (main chain + each route outbound group). watchTag is
+    // the sing-box outbound tag whose stats represent total bytes for the chain
+    // — it's the matched outbound of a routing rule. For chains that re-enter
+    // sing-box after an xray hop (e.g. [sing,xray,sing]) there are two such
+    // outbounds; we pick the last one in build order so we read traffic at the
+    // egress side. profiles is every user-visible hop to credit with the bytes,
+    // synthetic socks bridges excluded.
+    struct TrafficChainGroup {
+        QString watchTag;
+        QList<std::shared_ptr<Profile>> profiles;
+    };
+
     class BuildConfigResult {
     public:
         QString error;
-        bool isChained = false;
         QJsonObject coreConfig;
         QString tunIPv4CIDR;
         bool isXrayNeeded = false;
         QJsonObject xrayConfig;
         std::shared_ptr<ExtraCoreData> extraCoreData = std::make_shared<ExtraCoreData>();
 
-        QList<std::pair<std::shared_ptr<Profile>, QString>> outboundEntsForTraffic;
+        QList<TrafficChainGroup> chainGroups;
     };
 
     struct coreBridgeConfig {
         bool needed = false;
         int port = -1;
         QString auth;
+        // When true the sing-box socks inbound for this bridge routes to
+        // `direct` rather than re-entering a sing-box chain hop. Used when
+        // xray is the final egress under TUN, where sing-box's process_path
+        // rule fails to short-circuit xray's outbound and traffic loops back
+        // through TUN. Detouring xray's egress into sing-box `direct` (which
+        // honors auto_detect_interface) breaks the loop.
+        bool loopbackProtect = false;
+        // Loopback host (127.x.y.z) used as both listen and dial address for
+        // this bridge. Randomizing per-bridge spreads ephemeral source-port
+        // allocation across (dst_ip, dst_port) buckets, so a single bridge
+        // under load doesn't starve every other bridge of source ports.
+        QString host = "127.0.0.1";
     };
 
     class BuildSingBoxConfigContext

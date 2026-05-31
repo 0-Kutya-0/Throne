@@ -149,7 +149,7 @@ namespace Subscription {
         // Base64 encoded subscription
         if (!isBase64Decoded) {
             if (auto str2 = DecodeB64IfValid(str); !str2.isEmpty()) {
-                update(str2, needParse, true);
+                update(str2, true, true);
                 return;
             }
         }
@@ -219,7 +219,7 @@ namespace Subscription {
         if (str.count("\n") > 0 && needParse) {
             auto list = Disect(str);
             for (const auto &str2: list) {
-                update(str2.trimmed(), false, isBase64Decoded);
+                update(str2.trimmed(), false);
             }
             return;
         }
@@ -701,7 +701,7 @@ namespace Subscription {
                 group->url = str;
                 Configs::dataManager->groupsRepo->AddGroup(group);
                 gid = group->id;
-                MW_dialog_message("SubUpdater", "NewGroup");
+                MW_dialog_message(MwMessage::SubscriptionNewGroup, {});
             }
             Update(str, gid, asURL);
             emit asyncUpdateCallback(gid);
@@ -849,10 +849,10 @@ namespace Subscription {
             }
 
             MW_show_log("<<<<<<<< " + QObject::tr("Change of %1:").arg(group->name) + "\n" + change_text);
-            MW_dialog_message("SubUpdater", "finish-dingyue");
+            MW_dialog_message(MwMessage::SubscriptionFinished, {MwArg::Quiet});
         } else {
             Configs::dataManager->settingsRepo->imported_count = rawUpdater->updated_order.count();
-            MW_dialog_message("SubUpdater", "finish");
+            MW_dialog_message(MwMessage::SubscriptionFinished, {});
         }
     }
 } // namespace Subscription

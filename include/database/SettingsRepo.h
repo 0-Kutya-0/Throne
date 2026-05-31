@@ -100,6 +100,10 @@ namespace Configs {
         bool use_custom_icons = false;
         bool skip_delete_confirmation = false;
 
+        // throne:// URL scheme: mirror of what we last wrote to the OS (registry/desktop/bundle).
+        // Re-registered on startup only when the current state differs (e.g. install moved).
+        QString url_scheme_mirror = "";
+
         // Network
         bool net_use_proxy = false;
         bool net_insecure = false;
@@ -136,7 +140,7 @@ namespace Configs {
         bool enable_dns_routing = true;
         bool use_dns_object = false;
         QString dns_object = "";
-        QString dns_final_out = "proxy";
+        QString dns_final_out = "remote";
         QString resolve_domain_strategy = "";
         QString default_domain_strategy = "";
         int sniffing_mode = SniffingMode::FOR_ROUTING;

@@ -100,6 +100,17 @@ quint64 GetRandomUint64() {
     return dist(mt);
 }
 
+QString GenRandomLoopback() {
+#ifdef Q_OS_MACOS
+    return "127.0.0.1";
+#else
+    std::random_device rd;
+    std::mt19937 mt(rd());
+    std::uniform_int_distribution<int> octet(1, 254);
+    return QString("127.%1.%2.%3").arg(octet(mt)).arg(octet(mt)).arg(octet(mt));
+#endif
+}
+
 // QString >> QJson
 QJsonObject QString2QJsonObject(const QString &jsonString) {
     QJsonDocument jsonDocument = QJsonDocument::fromJson(jsonString.toUtf8());
@@ -194,12 +205,15 @@ QList<int> MkManyPorts(int num) {
     QList<int> res;
     QList<QTcpServer*> servers;
     for (int i=0;i<num;i++) {
-        QTcpServer s;
-        s.listen();
-        servers.append(&s);
-        res.append(s.serverPort());
+        auto server = new QTcpServer();
+        server->listen();
+        servers.append(server);
+        res.append(server->serverPort());
     }
-    for (const auto s: servers) s->close();
+    for (const auto s: servers) {
+        s->close();
+        delete s;
+    }
     servers.clear();
     return res;
 }
@@ -318,6 +332,31 @@ void runOnUiThread(const std::function<void()> &callback, bool wait) {
     if (wait && QThread::currentThread() != thread) {
         loop.exec();
     }
+}
+
+static QString g_pendingDeeplink;
+
+QString Deeplink_ExtractFromArgs(const QStringList &args) {
+    for (const auto &arg : args) {
+        if (arg.startsWith("throne://")) return arg;
+    }
+    return {};
+}
+
+void Deeplink_Submit(const QString &url) {
+    if (url.isEmpty() || !url.startsWith("throne://")) return;
+    if (MW_handle_deeplink) {
+        MW_handle_deeplink(url);
+    } else {
+        g_pendingDeeplink = url; // main window not up yet; replayed by Deeplink_FlushPending
+    }
+}
+
+void Deeplink_FlushPending() {
+    if (g_pendingDeeplink.isEmpty() || !MW_handle_deeplink) return;
+    const QString url = g_pendingDeeplink;
+    g_pendingDeeplink.clear();
+    MW_handle_deeplink(url);
 }
 
 void runOnNewThread(const std::function<void()> &callback, bool wait) {
