@@ -183,6 +183,8 @@ QJsonObject QMapString2QJsonObject(const QMap<QString,QString> &mp);
 
 QList<QString> QListInt2QListString(const QList<int> &list);
 
+QList<int> QStringList2QListInt(const QList<QString> &list);
+
 #define QJSONARRAY_ADD(arr, add) \
     for (const auto &a: (add)) { \
         (arr) += a;              \

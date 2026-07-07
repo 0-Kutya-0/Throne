@@ -161,6 +161,7 @@ namespace Configs {
             {"dial_bind_ifc_history",    &dial_bind_interface_history},
             {"dial_inet4_bind_history",  &dial_inet4_bind_address_history},
             {"dial_inet6_bind_history",  &dial_inet6_bind_address_history},
+            {"warp_reserved", &warp_reserved},
         };
     }
 

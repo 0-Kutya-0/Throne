@@ -1821,7 +1821,7 @@ void MainWindow::prepare_exit()
     }
     Configs::dataManager->settingsRepo->prepare_exit = true;
     //
-    set_system_proxy(false);
+    if (Configs::dataManager->settingsRepo->spmode_system_proxy) set_system_proxy(false);
     if (Configs::dataManager->settingsRepo->system_dns_set) set_system_dns(false, false);
     RegisterHiddenMenuShortcuts(true);
     RegisterHotkey(true);

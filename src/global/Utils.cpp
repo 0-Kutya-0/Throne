@@ -180,6 +180,12 @@ QList<QString> QListInt2QListString(const QList<int> &list) {
     return resp;
 }
 
+QList<int> QStringList2QListInt(const QList<QString> &list) {
+    QList<int> resp;
+    for (auto item: list) resp.append(item.toInt());
+    return resp;
+}
+
 QByteArray ReadFile(const QString &path) {
     QFile file(path);
     file.open(QFile::ReadOnly);

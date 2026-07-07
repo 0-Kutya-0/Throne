@@ -199,6 +199,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     ui->warp_public_key->setText(Configs::dataManager->settingsRepo->warp_public_key);
     ui->warp_ifc_addrs->setText(Configs::dataManager->settingsRepo->warp_ifc_addrs.join(","));
     ui->warp_ep->setText(Configs::dataManager->settingsRepo->warp_ep);
+    ui->warp_reserved->setText(Configs::dataManager->settingsRepo->warp_reserved.join(","));
     connect(ui->warp_autogen, &QPushButton::clicked, this, [=,this] {
         auto originalText = ui->warp_autogen->text();
         ui->warp_autogen->setText("Getting keypair...");
@@ -225,6 +226,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
         ui->warp_public_key->setText(conf->publicKey);
         ui->warp_ep->setText(conf->endpoint);
         ui->warp_ifc_addrs->setText(conf->ipv4Address + "/32," + conf->ipv6Address + "/128");
+        ui->warp_reserved->setText(QListInt2QListString(conf->reserved).join(","));
         ui->warp_autogen->setText("Success!");
         setTimeout([=,this] { ui->warp_autogen->setText(originalText); }, this, 2000);
     });
@@ -294,6 +296,7 @@ void DialogManageRoutes::accept() {
     Configs::dataManager->settingsRepo->warp_ifc_addrs = SplitAndTrim(ui->warp_ifc_addrs->text(), ",", false);
     Configs::dataManager->settingsRepo->warp_private_key = ui->warp_private_key->text();
     Configs::dataManager->settingsRepo->warp_public_key = ui->warp_public_key->text();
+    Configs::dataManager->settingsRepo->warp_reserved = SplitAndTrim(ui->warp_reserved->text(), ",", false);
 
     //
     MW_dialog_message(MwMessage::UpdateSettings, {MwArg::Route});

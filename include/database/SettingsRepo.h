@@ -221,6 +221,7 @@ namespace Configs {
         QString warp_public_key = "";
         QStringList warp_ifc_addrs = {};
         QString warp_ep = "";
+        QStringList warp_reserved = {};
 
         // Hijack
         bool enable_dns_server = false;
