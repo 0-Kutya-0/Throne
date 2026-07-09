@@ -168,7 +168,7 @@ void DialogRuntimeStats::refreshLive() {
 
     // --- Current connection count, split by TCP/UDP. QueryConnections carries the
     //     closed ring too, so run it off the UI thread; only one poll at a time. ---
-    if (API::defaultClient != nullptr && !connBusy_.exchange(true)) {
+    if (!connBusy_.exchange(true)) {
         QPointer<DialogRuntimeStats> self(this);
         runOnNewThread([self]() {
             const auto conns = API::defaultClient->QueryConnections();
@@ -193,7 +193,7 @@ void DialogRuntimeStats::probeEgress() {
     if (probing_.exchange(true)) return; // a probe is already running
 
     auto* mw = GetMainWindow();
-    if (mw == nullptr || mw->GetRunningConfigName().isEmpty() || API::defaultClient == nullptr) {
+    if (mw == nullptr || mw->GetRunningConfigName().isEmpty()) {
         probing_.store(false);
         return;
     }

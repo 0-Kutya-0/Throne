@@ -27,13 +27,9 @@
 using namespace API;
 
 void MainWindow::setup_rpc(QLocalSocket *socket) {
-    // The Client is long-lived and never recreated; on core restart we only
-    // swap the underlying connection so worker threads holding `defaultClient`
-    // never touch freed memory.
-    QMutexLocker lock(&defaultClientMutex);
-    if (defaultClient == nullptr) {
-        defaultClient = new Client();
-    }
+    // The Client is constructed once at startup and never recreated; on core
+    // restart we only swap the underlying connection, so worker threads holding
+    // `defaultClient` never touch freed memory.
     defaultClient->Reconnect(socket);
 
     // Loopers run for the lifetime of the app, start only once

@@ -212,7 +212,6 @@ private:
     QMutex coreProcessMutex; // serializes core_process init (DS_cores) vs IPC newConnection (UI)
     QLocalServer *core_server = nullptr;
     bool rpc_started = false;
-    QMutex defaultClientMutex;
     qint64 vpn_pid = 0;
     //
     QTextDocument *qvLogDocument = new QTextDocument(this);

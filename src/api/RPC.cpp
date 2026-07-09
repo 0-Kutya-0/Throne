@@ -85,6 +85,8 @@ namespace API {
         std::mutex    pending_mu;
         QMap<quint32, std::shared_ptr<PendingCall>> pending;
 
+        std::atomic<bool> connected_{false};
+
         static constexpr int kIOTimeoutMs = 30000;
 
         // Called on io_thread via readyRead
@@ -95,6 +97,7 @@ namespace API {
         }
 
         void wakeAllWithError() {
+            connected_.store(false, std::memory_order_release);
             std::lock_guard<std::mutex> lock(pending_mu);
             for (auto &call : pending) {
                 QMutexLocker cg(&call->mu);
@@ -194,12 +197,14 @@ namespace API {
                     [this]() { wakeAllWithError(); });
                 if (sock->bytesAvailable() > 0) onReadyRead();
             }, Qt::QueuedConnection);
+
+            connected_.store(true, std::memory_order_release);
         }
 
         // Returns 0 on success, non-zero on failure.
         int Call(const QString &methodName, const std::string &req,
                  std::vector<uint8_t> &rsp, int timeout_ms = 0) {
-            if (!Configs::dataManager->settingsRepo->core_running) return -1919;
+            if (!connected_.load(std::memory_order_acquire)) return -1919;
 
             const int ms = (timeout_ms > 0) ? timeout_ms : kIOTimeoutMs;
 

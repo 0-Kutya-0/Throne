@@ -17,6 +17,7 @@
 
 #include "include/ui/mainwindow_interface.h"
 #include "include/stats/traffic/TrafficStatsManager.hpp"
+#include "include/api/RPC.h"
 
 #ifdef Q_OS_WIN
 #include "include/sys/windows/MiniDump.h"
@@ -298,6 +299,8 @@ int main(int argc, char* argv[]) {
         signal_handler(0);
     });
 #endif
+
+    API::defaultClient = new API::Client();
 
     UI_InitMainWindow();
 
