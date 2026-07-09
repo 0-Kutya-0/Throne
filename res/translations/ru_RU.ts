@@ -427,6 +427,82 @@
         <source>Image Files (*.png)</source>
         <translation>Изображения (*.png)</translation>
     </message>
+    <message>
+        <source>Create Backup</source>
+        <translation>Создать резервную копию</translation>
+    </message>
+    <message>
+        <source>Restore Backup</source>
+        <translation>Восстановить из копии</translation>
+    </message>
+    <message>
+        <source>Backup Created</source>
+        <translation>Резервная копия создана</translation>
+    </message>
+    <message>
+        <source>Backup Failed</source>
+        <translation>Ошибка создания копии</translation>
+    </message>
+    <message>
+        <source>Restore Complete</source>
+        <translation>Восстановление завершено</translation>
+    </message>
+    <message>
+        <source>Restore Failed</source>
+        <translation>Ошибка восстановления</translation>
+    </message>
+    <message>
+        <source>Profiles (groups and proxies)</source>
+        <translation>Профили (группы и прокси)</translation>
+    </message>
+    <message>
+        <source>Routing profiles</source>
+        <translation>Профили маршрутизации</translation>
+    </message>
+    <message>
+        <source>Custom icons</source>
+        <translation>Пользовательские иконки</translation>
+    </message>
+    <message>
+        <source>Throne Backup (*.thrbackup)</source>
+        <translation>Резервная копия Throne (*.thrbackup)</translation>
+    </message>
+    <message>
+        <source>Select at least one part to include in the backup.</source>
+        <translation>Выберите хотя бы один компонент для создания резервной копии.</translation>
+    </message>
+    <message>
+        <source>Backup restored successfully. Throne will now restart for the changes to take effect.</source>
+        <translation>Резервная копия успешно восстановлена. Throne будет перезапущен для применения изменений.</translation>
+    </message>
+    <message>
+        <source>Backup created on %1.
+Select which parts to restore:</source>
+        <translation>Резервная копия создана %1.
+Выберите разделы для восстановления:</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>Восстановить</translation>
+    </message>
+    <message>
+        <source>unknown date</source>
+        <translation>неизвестная дата</translation>
+    </message>
+    <message>
+        <source>Backup created successfully:
+%1
+
+Included: %2</source>
+        <translation>Резервная копия успешно создана:
+%1
+
+Включено: %2</translation>
+    </message>
+    <message>
+        <source>Select at least one part to restore.</source>
+        <translation>Выберите хотя бы один раздел для восстановления.</translation>
+    </message>
 </context>
 <context>
     <name>DialogEditGroup</name>
@@ -1347,6 +1423,62 @@ For more information, see the document &quot;Configuration/DNS&quot;.</source>
     <message>
         <source>Local Override</source>
         <translation>Назначить локал. DNS</translation>
+    </message>
+    <message>
+        <source>Import from clipboard</source>
+        <translation>Импортировать из буфера обмена</translation>
+    </message>
+    <message>
+        <source>Update all</source>
+        <translation>Обновить все</translation>
+    </message>
+    <message>
+        <source>Update selected</source>
+        <translation>Обновить выбранные</translation>
+    </message>
+    <message>
+        <source>Paste a Throne route link, a remoteRoute link, a base64 blob, or a JSON rule array</source>
+        <translation>Вставьте ссылку маршрута Throne, ссылку remoteRoute, base64 или массив правил JSON</translation>
+    </message>
+    <message>
+        <source>Add remote routing profiles</source>
+        <translation>Добавить удалённые профили маршрутизации</translation>
+    </message>
+    <message>
+        <source>No remote profiles</source>
+        <translation>Нет удалённых профилей</translation>
+    </message>
+    <message>
+        <source>Update complete</source>
+        <translation>Обновление завершено</translation>
+    </message>
+    <message>
+        <source>Update cancelled</source>
+        <translation>Обновление отменено</translation>
+    </message>
+    <message>
+        <source>Update finished with errors</source>
+        <translation>Обновление завершено с ошибками</translation>
+    </message>
+    <message>
+        <source>Imported with warnings</source>
+        <translation>Импортировано с предупреждениями</translation>
+    </message>
+    <message>
+        <source>Structured profile</source>
+        <translation>Структурированный профиль</translation>
+    </message>
+    <message>
+        <source>Raw profile</source>
+        <translation>Raw-профиль</translation>
+    </message>
+    <message>
+        <source>Remote profile</source>
+        <translation>Удалённый профиль</translation>
+    </message>
+    <message>
+        <source>Add these remote routing profiles?</source>
+        <translation>Добавить эти удалённые профили маршрутизации?</translation>
     </message>
 </context>
 <context>
@@ -2915,6 +3047,88 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
         <source>Stop: %1</source>
         <translation>Остановить: %1</translation>
     </message>
+    <message>
+        <source>Add subscription</source>
+        <translation>Добавить подписку</translation>
+    </message>
+    <message>
+        <source>Select Routing</source>
+        <translation>Выбор маршрутизации</translation>
+    </message>
+    <message>
+        <source>No servers</source>
+        <translation>Нет серверов</translation>
+    </message>
+    <message>
+        <source>Back to groups</source>
+        <translation>Назад к группам</translation>
+    </message>
+    <message>
+        <source>Previous %1</source>
+        <translation>Предыдущие %1</translation>
+    </message>
+    <message>
+        <source>More (%1)</source>
+        <translation>Ещё (%1)</translation>
+    </message>
+    <message>
+        <source> — page %1/%2</source>
+        <translation> — страница %1/%2</translation>
+    </message>
+    <message>
+        <source>subscriptions</source>
+        <translation>подписки</translation>
+    </message>
+    <message>
+        <source>routing profiles</source>
+        <translation>профили маршрутизации</translation>
+    </message>
+    <message>
+        <source>Import routing profile</source>
+        <translation>Импорт профиля маршрутизации</translation>
+    </message>
+    <message>
+        <source>Imported profile</source>
+        <translation>Профиль импортирован</translation>
+    </message>
+    <message>
+        <source>Update found: %1
+Release note:
+%2</source>
+        <translation>Найдено обновление: %1
+Описание релиза:
+%2</translation>
+    </message>
+    <message>
+        <source>Add this subscription?
+
+Name: %1
+URL: %2
+Auto update: %3</source>
+        <translation>Добавить эту подписку?
+
+Имя: %1
+URL: %2
+Автообновление: %3</translation>
+    </message>
+    <message>
+        <source>Add this routing profile?
+
+Name: %1</source>
+        <translation>Добавить этот профиль маршрутизации?
+
+Имя: %1</translation>
+    </message>
+    <message>
+        <source>The link did not contain a subscription URL.</source>
+        <translation>Ссылка не содержит URL подписки.</translation>
+    </message>
+    <message>
+        <source>The link could not be parsed:
+</source>
+        <translation>Не удалось распознать ссылку:
+</translation>
+    </message>
 </context>
 <context>
     <name>ProfilesTableFilterHeader</name>
@@ -3291,6 +3505,54 @@ Release note:
         <source>Default outbound</source>
         <translation>Outbound по умолчанию</translation>
     </message>
+    <message>
+        <source>%1 — %2 rule(s)</source>
+        <translation>%1 — правил: %2</translation>
+    </message>
+    <message>
+        <source>(unnamed)</source>
+        <translation>(без названия)</translation>
+    </message>
+    <message>
+        <source>Fetch from remote</source>
+        <translation>Загрузить</translation>
+    </message>
+    <message>
+        <source>Fetching...</source>
+        <translation>Загрузка…</translation>
+    </message>
+    <message>
+        <source>Fetched</source>
+        <translation>Загружено</translation>
+    </message>
+    <message>
+        <source>Remote routing profile preview</source>
+        <translation>Предпросмотр удалённого профиля</translation>
+    </message>
+    <message>
+        <source>This will replace the current rules with the ones fetched from the URL. Continue?</source>
+        <translation>Это перезапишет текущие правила новыми из ссылки. Продолжить?</translation>
+    </message>
+    <message>
+        <source>Enter a valid http(s) URL first.</source>
+        <translation>Сначала введите корректный http(s) URL.</translation>
+    </message>
+    <message>
+        <source>Remote routing profiles need a URL.</source>
+        <translation>Для удалённых профилей маршрутизации необходим URL.</translation>
+    </message>
+    <message>
+        <source>Could not fetch routing profile</source>
+        <translation>Не удалось загрузить профиль маршрутизации</translation>
+    </message>
+    <message>
+        <source>Loaded %1 rule(s) from the remote URL.</source>
+        <translation>Загружено правил из URL: %1</translation>
+    </message>
+    <message>
+        <source>Fetched with warnings</source>
+        <translation>Загружено с предупреждениями</translation>
+    </message>
 </context>
 <context>
     <name>SpeedWidget</name>
@@ -3301,6 +3563,145 @@ Release note:
     <message>
         <source>Direct</source>
         <translation>Напрямую</translation>
+    </message>
+</context>
+    <context>
+        <name>StartStopButton</name>
+    <message>
+        <source>Select a profile to start</source>
+        <translation>Выберите профиль для подключения</translation>
+    </message>
+    <message>
+        <source>Connecting…</source>
+        <translation>Подключение…</translation>
+    </message>
+    <message>
+        <source>Stopping…</source>
+        <translation>Отключение…</translation>
+    </message>
+</context>
+    <context>
+        <name>TrafficChartWidget</name>
+    <message>
+        <source>Download</source>
+        <translation>Входящий</translation>
+    </message>
+    <message>
+        <source>Upload</source>
+        <translation>Исходящий</translation>
+    </message>
+    <message>
+        <source>No traffic recorded for this period</source>
+        <translation>Нет данных о трафике за этот период</translation>
+    </message>
+</context>
+    <context>
+        <name>GroupUpdater</name>
+    <message>
+        <source>%1
+How to update?</source>
+        <translation>%1
+Выберите способ обновления:</translation>
+    </message>
+    <message>
+        <source>Added %1 profiles:
+%2
+Deleted %3 Profiles:
+%4</source>
+        <translation>Добавлено профилей: %1
+%2
+Удалено профилей: %3
+%4</translation>
+    </message>
+</context>
+    <context>
+        <name>PeriodicRunner</name>
+    <message>
+        <source>Auto-update: running %1</source>
+        <translation>Автообновление: запуск %1</translation>
+    </message>
+    </context>
+    <context>
+        <name>RouteUpdater</name>
+    <message>
+        <source>remote URL is empty</source>
+        <translation>Удалённый URL не указан</translation>
+    </message>
+    <message>
+        <source>internal error: null profile</source>
+        <translation>Внутренняя ошибка: пустой профиль</translation>
+    </message>
+    <message>
+        <source>not a remote routing profile</source>
+        <translation>Профиль не является удалённым</translation>
+    </message>
+</context>
+    <context>
+        <name>RawRouteItem</name>
+    <message>
+        <source>Raw route</source>
+        <translation>Raw route</translation>
+    </message>
+    <message>
+        <source>Prevent modifications</source>
+        <translation>Запретить изменения</translation>
+    </message>
+</context>
+    <context>
+        <name>DialogRuntimeStats</name>
+    <message>
+        <source>%1 active   ·   %2 TCP   ·   %3 UDP</source>
+        <translation>%1 активных   ·   %2 TCP   ·   %3 UDP</translation>
+    </message>
+    <message>
+        <source>No active config</source>
+        <translation>Нет активного подключения</translation>
+    </message>
+    <message>
+        <source>Due now</source>
+        <translation>Прямо сейчас</translation>
+    </message>
+</context>
+    <context>
+        <name>DialogTrafficStats</name>
+    <message>
+        <source>Download: %1     Upload: %2     Total: %3</source>
+        <translation>Входящий: %1     Исходящий: %2     Всего: %3</translation>
+    </message>
+    <message>
+        <source>Profile #%1 (deleted)</source>
+        <translation>Профиль №%1 (удалён)</translation>
+    </message>
+    <message>
+        <source>Other</source>
+        <translation>Другое</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Неизвестно</translation>
+    </message>
+</context>
+    <context>
+        <name>edit_wireguard</name>
+    <message>
+        <source>Generating config...</source>
+        <translation>Генерация конфигурации…</translation>
+    </message>
+    <message>
+        <source>Success!</source>
+        <translation>Успешно!</translation>
+    </message>
+    <message>
+        <source>Getting keypair...</source>
+        <translation>Получение пары ключей…</translation>
+    </message>
+    <message>
+        <source>Failed to generate warp config</source>
+        <translation>Не удалось сгенерировать конфигурацию Warp</translation>
+    </message>
+    <message>
+        <source>Failed to get key pair</source>
+        <translation>Не удалось получить пару ключей</translation>
     </message>
 </context>
 </TS>
