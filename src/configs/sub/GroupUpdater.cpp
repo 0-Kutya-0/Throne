@@ -91,8 +91,21 @@ namespace Subscription {
         }
         if (doc.isArray() && !doc.array().empty()) {
             auto first = doc.array().first();
-            if (first.isObject() && first.toObject().contains("protocol")) {
-                return XraySubType::outboundJsonArray;
+            if (first.isObject()) {
+                auto obj = first.toObject();
+                // Array of bare outbounds (each tagged with "protocol").
+                if (obj.contains("protocol")) return XraySubType::outboundJsonArray;
+                // Array of complete Xray configs (the "Xray JSON subscription"
+                // format): each element carries an "outbounds" array of its own.
+                // Require a "protocol"-tagged outbound so this only matches Xray
+                // configs, not sing-box ones (whose outbounds use "type").
+                if (obj.contains("outbounds")) {
+                    for (const auto &item : obj["outbounds"].toArray()) {
+                        if (item.isObject() && item.toObject().contains("protocol")) {
+                            return XraySubType::configJsonArray;
+                        }
+                    }
+                }
             }
         }
         return XraySubType::invalid;
@@ -170,7 +183,8 @@ namespace Subscription {
                 }
                 return;
             }
-            if (xrayType == XraySubType::outboundInJson || xrayType == XraySubType::outboundJsonArray) {
+            if (xrayType == XraySubType::outboundInJson || xrayType == XraySubType::outboundJsonArray ||
+                xrayType == XraySubType::configJsonArray) {
                 updateXray(doc, xrayType);
                 return;
             }
@@ -543,6 +557,33 @@ namespace Subscription {
 
     void RawUpdater::updateXray(const QJsonDocument &doc, XraySubType type)
     {
+        // "Xray JSON subscription": an array of complete, self-contained Xray
+        // configs. Each element carries its own inbounds/outbounds/routing and
+        // often relies on balancers and dialerProxy chains between its
+        // outbounds, so it can't be flattened into individual proxies without
+        // losing that logic. Import each as a CustomXrayFullConfig — the whole
+        // config runs verbatim as Throne's Xray instance behind a socks bridge.
+        if (type == XraySubType::configJsonArray) {
+            for (const auto &c : doc.array()) {
+                if (!c.isObject()) continue;
+                auto cfg = c.toObject();
+                if (!cfg.contains("outbounds")) continue;
+                // Drop the subscription's own client inbounds (typically socks
+                // 10808 / http 10809). Throne injects its own bridge inbound at
+                // build time and routes everything through it; the bundled
+                // inbounds are never in the traffic path and would only risk
+                // port-bind conflicts. Safe here because none of these configs'
+                // routing rules match on inboundTag.
+                cfg.remove("inbounds");
+                auto ent = Configs::ProfilesRepo::NewProfile("custom");
+                ent->Custom()->type = Configs::Custom::CustomXrayFullConfig;
+                ent->Custom()->config = QJsonObject2QString(cfg, false);
+                if (auto remarks = cfg["remarks"].toString(); !remarks.isEmpty()) ent->Custom()->name = remarks;
+                updated_order += ent;
+            }
+            return;
+        }
+
         QJsonArray outbounds;
         if (type == XraySubType::outboundInJson) {
             outbounds = doc.object()["outbounds"].toArray();

@@ -14,6 +14,7 @@ namespace Subscription {
         outboundInJson,
         outboundJsonArray,
         outboundObject,
+        configJsonArray,
         invalid,
     };
     class RawUpdater {
