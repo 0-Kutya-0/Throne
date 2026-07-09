@@ -22,7 +22,7 @@
 #include "include/ui/stats/dialog_traffic_stats.h"
 #include "include/ui/stats/dialog_runtime_stats.h"
 #include "include/ui/widget/StartStopButton.hpp"
-#include "include/ui/widget/StayOpenMenu.hpp"
+#include "include/ui/widget/TrayProfileSelector.hpp"
 
 #include "3rdparty/qrcodegen.hpp"
 #include "3rdparty/qv2ray/v2/ui/LogHighlighter.hpp"
@@ -649,52 +649,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     trayMenu->addAction(ui->actionRemember_last_proxy);
     trayMenu->addAction(ui->actionAllow_LAN);
     trayMenu->addSeparator();
-    // Select Server submenu (dynamically populated by groups)
-    trayServerMenu = new StayOpenMenu(tr("Select Server"));
-    trayMenu->addMenu(trayServerMenu);
-    trayMenu->installEventFilter(this);
-    connect(trayServerMenu, &QMenu::aboutToShow, this, [=, this]() {
-        if (getOS() == Darwin) {
-            // macOS tray menus are native NSMenus that can't be rebuilt in place,
-            // so keep the classic hover-to-expand nested submenus there.
-            trayServerMenu->clear();
-            // Stop action if a profile is running
-            if (running) {
-                auto *stopAction = trayServerMenu->addAction(tr("Stop: %1").arg(running->name));
-                connect(stopAction, &QAction::triggered, this, [=, this]() { profile_stop(false, false, true); });
-                trayServerMenu->addSeparator();
-            }
-            auto groupIds = Configs::dataManager->groupsRepo->GetGroupsTabOrder();
-            for (auto gid : groupIds) {
-                auto group = Configs::dataManager->groupsRepo->GetGroup(gid);
-                if (!group || group->archive || group->Profiles().isEmpty()) continue;
 
-                QString groupTitle = group->name;
-                if (running && running->gid == gid) {
-                    groupTitle = QStringLiteral("✓ ") + groupTitle;
-                }
-                auto *groupMenu = new QMenu(groupTitle, trayServerMenu);
-                connect(groupMenu, &QMenu::aboutToShow, this, [=, this]() {
-                    groupMenu->clear();
-                    auto profiles = group->Profiles();
-                    auto neededProfilesIDNames = Configs::dataManager->profilesRepo->GetProfileIDNameMappedBatch(profiles);
-                    for (const auto&[id, name] : neededProfilesIDNames) {
-                        auto *action = groupMenu->addAction(name);
-                        action->setCheckable(true);
-                        action->setChecked(running && running->id == id);
-                        connect(action, &QAction::triggered, this, [=, this]() { profile_start(id); });
-                    }
-                });
-                trayServerMenu->addMenu(groupMenu);
-            }
-            return;
-        }
-        trayServerGroupId = -1;
-        trayServerPage = 0;
-        trayServerMenu->setSticky(false);
-        rebuildTrayServerMenu();
-    });
-    trayMenu->addSeparator();
+    auto *actSelectServer = new QAction(tr("Select Server"), trayMenu);
+    connect(actSelectServer, &QAction::triggered, this, [this]() { openTraySelector(false); });
+    trayMenu->addAction(actSelectServer);
+    auto *actSelectRouting = new QAction(tr("Select Routing"), trayMenu);
+    connect(actSelectRouting, &QAction::triggered, this, [this]() { openTraySelector(true); });
+    trayMenu->addAction(actSelectRouting);
     // MacOS cannot reuse menus across different parents properly
     if (getOS() == Darwin) {
         auto* traySpmodeMenu = new QMenu(ui->menu_spmode->title(), trayMenu);
@@ -710,37 +671,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     } else {
         trayMenu->addMenu(ui->menu_spmode);
     }
-
-    auto* trayRoutingMenu = new QMenu(tr("Select Routing"), trayMenu);
-    connect(trayRoutingMenu, &QMenu::aboutToShow, this, [=,this]() {
-        trayRoutingMenu->clear();
-        for (const auto& route : Configs::dataManager->routesRepo->GetAllRouteProfiles()) {
-            auto* action = new QAction(trayRoutingMenu);
-            action->setText(route->name);
-            action->setData(route->id);
-            action->setCheckable(true);
-            action->setChecked(Configs::dataManager->settingsRepo->current_route_id == route->id);
-            connect(action, &QAction::triggered, this, [=,this]() {
-                auto routeID = action->data().toInt();
-                if (Configs::dataManager->settingsRepo->current_route_id == routeID) return;
-                Configs::dataManager->settingsRepo->current_route_id = routeID;
-                Configs::dataManager->settingsRepo->Save();
-                if (Configs::dataManager->settingsRepo->started_id >= 0) profile_start(Configs::dataManager->settingsRepo->started_id);
-            });
-            trayRoutingMenu->addAction(action);
-        }
-    });
-    trayMenu->addMenu(trayRoutingMenu);
     trayMenu->addSeparator();
+
     trayMenu->addAction(ui->actionRestart_Proxy);
     trayMenu->addAction(ui->actionRestart_Program);
     trayMenu->addAction(ui->menu_exit);
     tray->setVisible(!Configs::dataManager->settingsRepo->disable_tray);
     tray->setContextMenu(trayMenu);
-    connect(trayMenu, &QMenu::aboutToShow, this, [=,this]() {
-       trayServerPage = 0;
-       trayServerGroupId = -1;
-    });
     connect(tray, &QSystemTrayIcon::activated, qApp, [=, this](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger && getOS() != Darwin) {
             ActivateWindow(this);
@@ -1296,137 +1233,28 @@ MainWindow::~MainWindow() {
     delete ui;
 }
 
-void MainWindow::rebuildTrayServerMenu() {
-    if (!trayServerMenu) return;
-    trayServerMenu->clear();
+void MainWindow::openTraySelector(bool routing) {
+    // Recreate on each open so it always shows fresh data. A previous one (if the user
+    // reopened quickly) closes itself; WA_DeleteOnClose frees it and the QPointer clears.
+    if (traySelector) traySelector->close();
 
-    constexpr int kPerPage = 15;
+    TrayProfileSelector::Callbacks cb;
+    cb.startProfile = [this](int id) { profile_start(id); };
+    cb.stopProfile = [this]() { profile_stop(false, false, true); };
+    cb.chooseRoute = [this](int id) {
+        if (Configs::dataManager->settingsRepo->current_route_id == id) return;
+        Configs::dataManager->settingsRepo->current_route_id = id;
+        Configs::dataManager->settingsRepo->Save();
+        if (Configs::dataManager->settingsRepo->started_id >= 0) profile_start(Configs::dataManager->settingsRepo->started_id);
+    };
+    cb.isRunning = [this]() { return running != nullptr; };
+    cb.runningId = [this]() { return running ? running->id : -1; };
+    cb.runningGid = [this]() { return running ? running->gid : -1; };
+    cb.runningName = [this]() { return running ? running->name : QString(); };
 
-    // ---------- Group list view ----------
-    if (trayServerGroupId < 0) {
-        if (running) {
-            auto *stopAction = trayServerMenu->addAction(tr("Stop: %1").arg(running->name));
-            connect(stopAction, &QAction::triggered, this, [=, this]() { profile_stop(false, false, true); });
-            trayServerMenu->addSeparator();
-        }
-        bool any = false;
-        for (auto gid : Configs::dataManager->groupsRepo->GetGroupsTabOrder()) {
-            auto group = Configs::dataManager->groupsRepo->GetGroup(gid);
-            if (!group || group->archive || group->Profiles().isEmpty()) continue;
-            any = true;
-
-            QString groupTitle = group->name;
-            if (running && running->gid == gid) groupTitle = QStringLiteral("✓ ") + groupTitle;
-            // Trailing ▶ hints that clicking opens this group's profiles in place.
-            auto *groupAction = trayServerMenu->addAction(groupTitle + QStringLiteral("   ▶"));
-            groupAction->setProperty(kStayOpenMenuNavProperty, true);
-            connect(groupAction, &QAction::triggered, this, [=, this]() {
-                trayServerGroupId = gid;
-                trayServerPage = 0;
-                trayServerMenu->setSticky(true);
-                QTimer::singleShot(0, this, [this]() { rebuildTrayServerMenu(); });
-            });
-        }
-        if (!any) {
-            auto *empty = trayServerMenu->addAction(tr("No servers"));
-            empty->setEnabled(false);
-        }
-        fitTrayServerMenuOnScreen();
-        return;
-    }
-
-    // ---------- Profile list view (paginated) ----------
-    auto group = Configs::dataManager->groupsRepo->GetGroup(trayServerGroupId);
-    if (!group || group->archive) { // group vanished -> fall back to the group list
-        trayServerGroupId = -1;
-        trayServerPage = 0;
-        rebuildTrayServerMenu();
-        return;
-    }
-
-    auto profiles = group->Profiles();
-    const int total = static_cast<int>(profiles.size());
-    const int pages = qMax(1, (total + kPerPage - 1) / kPerPage);
-    trayServerPage = qBound(0, trayServerPage, pages - 1);
-    const int start = trayServerPage * kPerPage;
-    const int end = qMin(start + kPerPage, total);
-
-    // "Back flash" at the top: return to the group list to pick another group.
-    auto *backAction = trayServerMenu->addAction(QStringLiteral("◀  ") + tr("Back to groups"));
-    backAction->setProperty(kStayOpenMenuNavProperty, true);
-    connect(backAction, &QAction::triggered, this, [this]() {
-        trayServerGroupId = -1;
-        trayServerPage = 0;
-        QTimer::singleShot(0, this, [this]() { rebuildTrayServerMenu(); });
-    });
-
-    // Context header: group name (+ page counter when paginated).
-    QString header = group->name;
-    if (pages > 1) header += tr(" — page %1/%2").arg(trayServerPage + 1).arg(pages);
-    auto *headerAction = trayServerMenu->addAction(header);
-    headerAction->setEnabled(false);
-    trayServerMenu->addSeparator();
-
-    // Upward "flash": extend to the previous page (only when there is one).
-    if (trayServerPage > 0) {
-        auto *upAction = trayServerMenu->addAction(QStringLiteral("▲  ") + tr("Previous %1").arg(kPerPage));
-        upAction->setProperty(kStayOpenMenuNavProperty, true);
-        connect(upAction, &QAction::triggered, this, [this]() {
-            trayServerPage--;
-            QTimer::singleShot(0, this, [this]() { rebuildTrayServerMenu(); });
-        });
-    }
-
-    // Profiles for the current page. Slicing the ordered list and batch-mapping
-    // it preserves order, so paging never skips or duplicates a profile.
-    QList<int> pageIds;
-    pageIds.reserve(end - start);
-    for (int i = start; i < end; ++i) pageIds.append(profiles[i]);
-    auto mappedIdNames = Configs::dataManager->profilesRepo->GetProfileIDNameMappedBatch(pageIds);
-    mappedIdNames = FixProfileDisplayName(mappedIdNames);
-    for (const auto&[id, name] : mappedIdNames) {
-        auto *action = trayServerMenu->addAction(name);
-        action->setCheckable(true);
-        action->setChecked(running && running->id == id);
-        connect(action, &QAction::triggered, this, [=, this]() { profile_start(id); });
-    }
-
-    // Downward "flash": extend to the next page (only when there is one).
-    if (trayServerPage < pages - 1) {
-        const int remaining = total - end;
-        auto *downAction = trayServerMenu->addAction(QStringLiteral("▼  ") + tr("More (%1)").arg(remaining));
-        downAction->setProperty(kStayOpenMenuNavProperty, true);
-        connect(downAction, &QAction::triggered, this, [this]() {
-            trayServerPage++;
-            QTimer::singleShot(0, this, [this]() { rebuildTrayServerMenu(); });
-        });
-    }
-
-    fitTrayServerMenuOnScreen();
-}
-
-void MainWindow::fitTrayServerMenuOnScreen() {
-    // Only relevant for in-place rebuilds: when the menu is already on screen and
-    // grows taller, QMenu resizes from its fixed top-left and can run off the
-    // bottom edge. On the initial popup the menu isn't visible yet and Qt places
-    // it correctly, so there's nothing to do.
-    if (!trayServerMenu || !trayServerMenu->isVisible()) return;
-    QScreen *scr = trayServerMenu->screen();
-    if (!scr) return;
-
-    const QRect avail = scr->availableGeometry();
-    const QSize sz = trayServerMenu->sizeHint();
-    const QPoint pos = trayServerMenu->pos();
-    int x = pos.x();
-    int y = pos.y();
-    if (x + sz.width() > avail.right())   x = avail.right() - sz.width() + 1;
-    if (x < avail.left())                 x = avail.left();
-    if (y + sz.height() > avail.bottom()) y = avail.bottom() - sz.height() + 1;
-    if (y < avail.top())                  y = avail.top();
-    if (QPoint(x, y) != pos) {
-        trayServerMenu->resize(sz);
-        trayServerMenu->move(x, y);
-    }
+    traySelector = new TrayProfileSelector(
+        routing ? TrayProfileSelector::Routing : TrayProfileSelector::Server, cb, this);
+    traySelector->popupAt(QCursor::pos());
 }
 
 // Group tab manage
@@ -3388,19 +3216,6 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
         const int h = ui->toolButton_program->height();
         if (h > 0 && ui->toolButton_startstop->height() != h) {
             ui->toolButton_startstop->setFixedSize(h, h);
-        }
-    }
-    // Pin the "Select Server" submenu when its row is clicked (a hover only peeks).
-    // The parent item has a submenu so it never emits triggered(); instead we map
-    // the release position onto the tray menu and check it landed on that row.
-    // Whichever menu currently holds the grab delivers the release, so both are
-    // filtered. Non-consuming: normal menu handling still runs.
-    if (event->type() == QEvent::MouseButtonRelease && trayMenu && trayServerMenu
-        && obj == trayMenu) {
-        const auto *me = static_cast<QMouseEvent *>(event);
-        const QPoint g = me->globalPosition().toPoint();
-        if (trayMenu->actionAt(trayMenu->mapFromGlobal(g)) == trayServerMenu->menuAction()) {
-            trayServerMenu->setSticky(!trayServerMenu->isSticky());
         }
     }
     if (event->type() == QEvent::MouseButtonPress) {

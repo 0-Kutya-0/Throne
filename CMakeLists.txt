@@ -124,6 +124,8 @@ set(PROJECT_SOURCES
         include/ui/mainwindow.ui
         include/ui/widget/StartStopButton.hpp
         src/ui/widget/StartStopButton.cpp
+        include/ui/widget/TrayProfileSelector.hpp
+        src/ui/widget/TrayProfileSelector.cpp
         include/ui/utils/DataViewHtmlGenerator.h
         src/ui/utils/DataViewHtmlGenerator.cpp
         include/ui/utils/ProfilesTableModel.h

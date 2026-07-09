@@ -18,6 +18,7 @@
 
 #include <QKeyEvent>
 #include <QSystemTrayIcon>
+#include <QPointer>
 #include <QTimer>
 #include <QQueue>
 #include <QWaitCondition>
@@ -45,7 +46,7 @@ namespace Configs_sys {
     class CoreProcess;
 }
 
-class StayOpenMenu;
+class TrayProfileSelector;
 
 namespace Qv2ray::ui { class SyntaxHighlighter; }
 
@@ -183,17 +184,12 @@ private:
     Ui::MainWindow *ui;
     ProfilesTableModel *profilesTableModel = nullptr;
     QSystemTrayIcon *tray;
-    QMenu *trayMenu = nullptr;    // tray context menu (parent of trayServerMenu)
-    StayOpenMenu *trayServerMenu = nullptr;
-    int trayServerPage = 0;       // current profile page within the open group
-    int trayServerGroupId = -1;   // -1 = showing the group list; else the group whose profiles are shown
-    // Rebuilds the tray "Select Server" menu in place from trayServerGroupId/trayServerPage
-    // (click-to-navigate, paginated). Non-macOS only; macOS uses nested submenus.
-    void rebuildTrayServerMenu();
-    // Keeps the (already visible) tray server menu within the screen's available
-    // area after an in-place rebuild, so a taller page can't spill its bottom
-    // items off-screen / under the taskbar where they aren't clickable.
-    void fitTrayServerMenuOnScreen();
+    QMenu *trayMenu = nullptr;    // tray context menu
+    // Tray "Select Server"/"Select Routing" open this small Qt-drawn popup instead of a
+    // submenu, because a tray submenu isn't painted by Qt on Linux (SNI/DBusMenu) or macOS
+    // (native NSMenu) and so can't reliably expand a dynamic list. Recreated on each open.
+    QPointer<TrayProfileSelector> traySelector;
+    void openTraySelector(bool routing);
     QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
     //
     QThreadPool *parallelCoreCallPool = new QThreadPool(this);
