@@ -134,6 +134,8 @@ namespace Configs {
             {"proxy_scheme",               &proxy_scheme},
             {"main_window_geometry",       &mainWindowGeometry},
             {"xray_log_level",             &xray_log_level},
+            {"xray_geoip_url",             &xray_geoip_url},
+            {"xray_geosite_url",           &xray_geosite_url},
             {"remote_dns",                 &remote_dns},
             {"remote_dns_strategy",        &remote_dns_strategy},
             {"direct_dns",                 &direct_dns},

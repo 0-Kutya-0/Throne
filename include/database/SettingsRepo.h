@@ -257,6 +257,12 @@ namespace Configs {
         int xray_mux_concurrency = 8;
         bool xray_mux_default_on = false;
         Xray::XrayVlessPreference xray_vless_preference = Xray::XhttpAndReality;
+        // Download URLs for the Xray routing data files (geoip.dat / geosite.dat).
+        // Needed when a full Xray config's routing references geoip:/geosite: tags.
+        // Fetched on demand into GetBasePath(), which the core exposes to Xray via
+        // the XRAY_LOCATION_ASSET env var.
+        QString xray_geoip_url = "https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geoip.dat";
+        QString xray_geosite_url = "https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geosite.dat";
 
         // Extra Core Paths
         QStringList extraCorePaths = {};

@@ -236,6 +236,10 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->xray_default_mux->setChecked(Configs::dataManager->settingsRepo->xray_mux_default_on);
     ui->vless_xray_pref->addItems(Configs::Xray::XrayVlessPreferenceString);
     ui->vless_xray_pref->setCurrentIndex(Configs::dataManager->settingsRepo->xray_vless_preference);
+    D_LOAD_STRING(xray_geoip_url)
+    D_LOAD_STRING(xray_geosite_url)
+    ui->xray_geoip_url->setPlaceholderText("https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geoip.dat");
+    ui->xray_geosite_url->setPlaceholderText("https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geosite.dat");
 
     // NTP
     ui->ntp_enable->setChecked(Configs::dataManager->settingsRepo->enable_ntp);
@@ -383,6 +387,8 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->xray_mux_concurrency = ui->xray_mux_concurrency->text().toInt();
     Configs::dataManager->settingsRepo->xray_mux_default_on = ui->xray_default_mux->isChecked();
     Configs::dataManager->settingsRepo->xray_vless_preference = static_cast<Configs::Xray::XrayVlessPreference>(ui->vless_xray_pref->currentIndex());
+    D_SAVE_STRING(xray_geoip_url)
+    D_SAVE_STRING(xray_geosite_url)
 
     // Mux
     D_SAVE_INT(mux_concurrency)

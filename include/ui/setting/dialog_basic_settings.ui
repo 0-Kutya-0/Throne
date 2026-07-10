@@ -1342,6 +1342,32 @@ QTabBar::tab:hover:!selected {
           <item row="1" column="1">
            <widget class="QComboBox" name="vless_xray_pref"/>
           </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_xray_geoip_url">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;URL for geoip.dat, downloaded when a full Xray config's routing needs geoip: rules.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>GeoIP Asset URL</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="xray_geoip_url"/>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_xray_geosite_url">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;URL for geosite.dat, downloaded when a full Xray config's routing needs geosite: rules.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>GeoSite Asset URL</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLineEdit" name="xray_geosite_url"/>
+          </item>
          </layout>
         </widget>
        </item>

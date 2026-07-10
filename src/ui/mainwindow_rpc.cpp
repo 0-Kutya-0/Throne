@@ -11,6 +11,7 @@
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QJsonDocument>
+#include <QFile>
 
 #include "include/configs/generate.h"
 #include "include/database/GroupsRepo.h"
@@ -812,6 +813,53 @@ void MainWindow::profile_start(int _id) {
             return false;
         }
         if (!error.isEmpty()) {
+            // The Xray config's routing referenced geoip:/geosite: tags but the
+            // .dat asset(s) aren't in our asset dir (XRAY_LOCATION_ASSET points at
+            // GetBasePath()). Handle this out-of-band: fail this start attempt right
+            // away — blocking here to download would trip the "no response" restart
+            // prompt — then asynchronously prompt, download in the background, and
+            // ask the user to start the profile again. We deliberately don't
+            // auto-start; the env var is already set on the live core, so simply
+            // starting the profile again picks the assets up with no core restart.
+            if (error.contains("geoip.dat") || error.contains("geosite.dat")) {
+                const auto profileName = ent->outbound->DisplayTypeAndName();
+                runOnUiThread([=, this] {
+                    // Small delay so this attempt's UI teardown (Connecting -> idle)
+                    // finishes before the prompt appears.
+                    setTimeout([=, this] {
+                        if (QMessageBox::question(this, tr("Geo asset files required"),
+                                tr("The Xray config \"%1\" uses geoip/geosite routing rules, but the "
+                                   "required data files (geoip.dat / geosite.dat) are not installed.\n\n"
+                                   "Download them now?").arg(profileName)) != QMessageBox::Yes) return;
+                        // Download in the background so the UI stays responsive;
+                        // DownloadAsset reports progress in the data view. Fetch both
+                        // missing files up front (Xray only reports the first it hit).
+                        runOnNewThread([=, this] {
+                            const QString base = Configs::GetBasePath();
+                            QString dlErr;
+                            if (!QFile::exists(base + "/geoip.dat")) {
+                                auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geoip_url, "geoip.dat");
+                                if (!e.isEmpty()) dlErr += "geoip.dat: " + e + "\n";
+                            }
+                            if (!QFile::exists(base + "/geosite.dat")) {
+                                auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geosite_url, "geosite.dat");
+                                if (!e.isEmpty()) dlErr += "geosite.dat: " + e + "\n";
+                            }
+                            runOnUiThread([=, this] {
+                                if (!dlErr.isEmpty()) {
+                                    MessageBoxWarning(tr("Geo asset download failed"), dlErr);
+                                } else {
+                                    MW_show_log(tr("Downloaded Xray geo asset files."));
+                                    QMessageBox::information(this, tr("Geo assets installed"),
+                                        tr("Geo data files were downloaded successfully.\n\n"
+                                           "Please start your profile again."));
+                                }
+                            });
+                        });
+                    }, this, 300);
+                });
+                return false;
+            }
             if (error.contains("configure tun interface")) {
                 runOnUiThread([=, this] {
 
