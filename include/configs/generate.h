@@ -220,6 +220,12 @@ namespace Configs
     public:
         QString error;
         QMap<int, QString> fullConfigs;
+        struct XrayFullConfigTest {
+            QString singbox;
+            QString xray;
+            QString tag;
+        };
+        QMap<int, XrayFullConfigTest> xrayFullConfigs;
         QMap<QString, int> tag2entID;
         QJsonObject coreConfig;
         QJsonObject xrayConfig;

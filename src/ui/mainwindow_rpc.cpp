@@ -283,11 +283,23 @@ void MainWindow::urltest_current_group(const QList<int>& profileIDs) {
             }
 
             std::atomic<int> counter(0);
-            auto testCount = buildObject->fullConfigs.size() + (!buildObject->outboundTags.empty());
+            auto testCount = buildObject->fullConfigs.size() + buildObject->xrayFullConfigs.size() + (!buildObject->outboundTags.empty());
             for (const auto &entID: buildObject->fullConfigs.keys()) {
                 auto configStr = buildObject->fullConfigs[entID];
                 auto func = [this, &counter, testCount, configStr, entID]() {
                     runURLTest(configStr, "", true, {}, {}, entID);
+                    ++counter;
+                    if (counter.load() == testCount) {
+                        speedtestRunning.unlock();
+                    }
+                };
+                parallelCoreCallPool->start(func);
+            }
+
+            for (const auto &entID: buildObject->xrayFullConfigs.keys()) {
+                auto t = buildObject->xrayFullConfigs[entID];
+                auto func = [this, &counter, testCount, t, entID]() {
+                    runURLTest(t.singbox, t.xray, false, {t.tag}, {{t.tag, entID}}, entID);
                     ++counter;
                     if (counter.load() == testCount) {
                         speedtestRunning.unlock();
@@ -398,11 +410,23 @@ void MainWindow::iptest_current_group(const QList<int>& profileIDs) {
             }
 
             std::atomic<int> counter(0);
-            auto testCount = buildObject->fullConfigs.size() + (!buildObject->outboundTags.empty());
+            auto testCount = buildObject->fullConfigs.size() + buildObject->xrayFullConfigs.size() + (!buildObject->outboundTags.empty());
             for (const auto &entID: buildObject->fullConfigs.keys()) {
                 auto configStr = buildObject->fullConfigs[entID];
                 auto func = [this, &counter, testCount, configStr, entID]() {
                     runIPTest(configStr, "", true, {}, {}, entID);
+                    ++counter;
+                    if (counter.load() == testCount) {
+                        speedtestRunning.unlock();
+                    }
+                };
+                parallelCoreCallPool->start(func);
+            }
+
+            for (const auto &entID: buildObject->xrayFullConfigs.keys()) {
+                auto t = buildObject->xrayFullConfigs[entID];
+                auto func = [this, &counter, testCount, t, entID]() {
+                    runIPTest(t.singbox, t.xray, false, {t.tag}, {{t.tag, entID}}, entID);
                     ++counter;
                     if (counter.load() == testCount) {
                         speedtestRunning.unlock();
@@ -473,6 +497,11 @@ void MainWindow::speedtest_current_group(const QList<int>& profileIDs, bool test
                 for (const auto &entID: buildObject->fullConfigs.keys()) {
                     auto configStr = buildObject->fullConfigs[entID];
                     runSpeedTest(configStr, "", true, false, {}, {}, entID);
+                }
+
+                for (const auto &entID: buildObject->xrayFullConfigs.keys()) {
+                    auto t = buildObject->xrayFullConfigs[entID];
+                    runSpeedTest(t.singbox, t.xray, false, false, {t.tag}, {{t.tag, entID}}, entID);
                 }
 
                 if (!buildObject->outboundTags.empty()) {

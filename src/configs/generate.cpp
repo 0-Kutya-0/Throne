@@ -1073,7 +1073,7 @@ namespace Configs {
             custom->bridgeAuth = GetRandomString(32);
             custom->bridgeHost = GenRandomLoopback();
 
-            auto inbounds = userXrayConfig["inbounds"].toArray();
+            auto inbounds = ctx->forTest ? QJsonArray() : userXrayConfig["inbounds"].toArray();
             inbounds.prepend(QJsonObject{
                 {"tag", "throne-bridge"},
                 {"listen", custom->bridgeHost},
@@ -1099,9 +1099,16 @@ namespace Configs {
 
             if (!ctx->defaultInterface.isEmpty()) {
                 userXrayConfig["outbounds"] = bindXrayOutboundsToInterface(userXrayConfig["outbounds"].toArray(), ctx->defaultInterface);
-                injectXrayLoopbackDns(userXrayConfig, dataManager->settingsRepo->core_dns_in_port);
+                // Live builds route Xray's DNS back through sing-box's DNS-in port.
+                // The test wrapper runs no such DNS server, so injecting it would
+                // make every lookup time out against a dead 127.0.0.1:port. Leave
+                // the config's own DNS in place and let Xray resolve directly, the
+                // same as the batch Xray-outbound test path.
+                if (!ctx->forTest) {
+                    injectXrayLoopbackDns(userXrayConfig, dataManager->settingsRepo->core_dns_in_port);
+                    ctx->buildConfigResult->boundInterface = ctx->defaultInterface;
+                }
                 MW_show_log("[interface-bind] custom Xray full config egress bound to default interface " + ctx->defaultInterface);
-                if (!ctx->forTest) ctx->buildConfigResult->boundInterface = ctx->defaultInterface;
             }
 
             ctx->buildConfigResult->xrayConfig = userXrayConfig;
@@ -1743,6 +1750,45 @@ namespace Configs {
         return false;
     }
 
+    bool buildXrayFullConfigTest(const std::shared_ptr<Profile> &item, const QString &defaultInterface,
+                                 const QString &prefix, QString &singboxOut, QString &xrayOut, QString &error)
+    {
+        auto ctx = std::make_shared<BuildSingBoxConfigContext>();
+        ctx->forTest = true;
+        ctx->defaultInterface = defaultInterface;
+
+        ctx->buildPrerequisities->dnsDeps->directDomains = QListStr2QJsonArray(getEntDomains({item->id}, ctx->error));
+        if (!ctx->buildPrerequisities->dnsDeps->directDomains.isEmpty()) ctx->buildPrerequisities->dnsDeps->needDirectDnsRules = true;
+        buildDNSSection(ctx, false);
+        if (!ctx->error.isEmpty()) { error = ctx->error; return false; }
+        buildLogSections(ctx);
+        buildCertificateSection(ctx);
+        buildNTPSection(ctx);
+
+        buildOutboundChain(ctx, {item->id}, prefix, false, true);
+        if (!ctx->error.isEmpty()) { error = ctx->error; return false; }
+        if (!ctx->buildConfigResult->isXrayNeeded || ctx->buildConfigResult->xrayConfig.isEmpty()) {
+            error = "custom Xray full config produced no Xray config";
+            return false;
+        }
+
+        ctx->outbounds << QJsonObject{{"type", "direct"}, {"tag", "direct"}};
+        ctx->buildConfigResult->coreConfig["outbounds"] = ctx->outbounds;
+        ctx->buildConfigResult->coreConfig["endpoints"] = ctx->endpoints;
+        ctx->buildConfigResult->coreConfig["route"] = QJsonObject{
+                {"auto_detect_interface", true},
+                {"default_domain_resolver", QJsonObject{
+                        {"server", "dns-direct"},
+                        {"strategy", Configs::dataManager->settingsRepo->default_domain_strategy},
+                   }}
+        };
+        ctx->buildConfigResult->coreConfig["inbounds"] = QJsonArray();
+
+        singboxOut = QJsonObject2QString(ctx->buildConfigResult->coreConfig, false);
+        xrayOut = QJsonObject2QString(ctx->buildConfigResult->xrayConfig, false);
+        return true;
+    }
+
     std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles)
     {
         auto res = std::make_shared<BuildTestConfigResult>();
@@ -1786,7 +1832,19 @@ namespace Configs {
             }
             if (item->outbound != nullptr && item->outbound->IsXrayFullConfig())
             {
-                MW_show_log("Skipping custom Xray full config (cannot batch-test)");
+                if (!IsValid(item)) {
+                    MW_show_log("Skipping invalid custom Xray full config: " + item->outbound->name);
+                    item->latency = -1;
+                    continue;
+                }
+                auto prefix = "xrayfull-" + Int2String(item->id);
+                QString singbox, xray, err;
+                if (!buildXrayFullConfigTest(item, ctx->defaultInterface, prefix, singbox, xray, err)) {
+                    MW_show_log("Failed to build test config for custom Xray full config " + item->outbound->name + ": " + err);
+                    item->latency = -1;
+                    continue;
+                }
+                res->xrayFullConfigs[item->id] = {singbox, xray, prefix + "-0"};
                 continue;
             }
             if (item->type == "chain")
