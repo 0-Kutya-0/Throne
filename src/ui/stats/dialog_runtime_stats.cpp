@@ -21,14 +21,9 @@
 #include <QTimer>
 
 namespace {
-    // Sparkline series colours (also used for the process legend dots). Picked to
-    // read on both light and dark themes; prefixed to stay unique under the unity
-    // build's shared anonymous namespace.
     const QColor kRuntimeThroneColor(0x4F, 0x8A, 0xF7); // blue
     const QColor kRuntimeCoreColor(0x34, 0xC9, 0x8A);   // green
 
-    // "2d 3h 15m" style; seconds are only shown for sub-hour durations so long
-    // uptimes/countdowns stay compact.
     QString humanizeDuration(qint64 s) {
         if (s < 0) s = 0;
         const qint64 d = s / 86400; s %= 86400;
@@ -54,17 +49,11 @@ namespace {
 DialogRuntimeStats::DialogRuntimeStats(QWidget* parent) : QDialog(parent), ui(new Ui::DialogRuntimeStats) {
     ui->setupUi(this);
 
-    // Balance the two card columns.
     ui->rootGrid->setColumnStretch(0, 1);
     ui->rootGrid->setColumnStretch(1, 1);
-    // Let the two graphs absorb the Process card's spare height (index 0 is the
-    // value table, 1 = CPU graph, 2 = RAM graph) so nothing floats in dead space.
     ui->processLayout->setStretch(1, 1);
     ui->processLayout->setStretch(2, 1);
 
-    // Colour the sparklines and matching legend dots (Throne vs core); give each a
-    // formatter so the in-chart scale labels read in the right units, and a caption
-    // (drawn inside the chart, bottom-right) so the two graphs are self-labelling.
     ui->cpuChart->setColors(kRuntimeThroneColor, kRuntimeCoreColor);
     ui->ramChart->setColors(kRuntimeThroneColor, kRuntimeCoreColor);
     ui->cpuChart->setFormatter([](double v) { return QString::number(v, 'f', 0) + QStringLiteral("%"); });
@@ -81,7 +70,6 @@ DialogRuntimeStats::DialogRuntimeStats(QWidget* parent) : QDialog(parent), ui(ne
     connect(timer_, &QTimer::timeout, this, [this]() { refreshLive(); });
     timer_->start();
 
-    // First paint; refreshLive() also kicks off the initial egress probe.
     refreshLive();
 }
 
@@ -92,7 +80,6 @@ DialogRuntimeStats::~DialogRuntimeStats() {
 void DialogRuntimeStats::refreshLive() {
     auto* mw = GetMainWindow();
 
-    // --- Process memory + CPU: Throne (self) and its core, separated ---
     const auto selfSample = metrics_.sample(QCoreApplication::applicationPid());
     ui->vThroneRam->setText(formatRam(selfSample));
     ui->vThroneCpu->setText(formatCpu(selfSample));
@@ -102,13 +89,11 @@ void DialogRuntimeStats::refreshLive() {
     ui->vCoreRam->setText(formatRam(coreSample));
     ui->vCoreCpu->setText(formatCpu(coreSample));
 
-    // Feed the rolling sparklines (0 for a series whose process isn't running).
     ui->cpuChart->push(selfSample.ok ? selfSample.cpuPercent : 0.0,
                        coreSample.ok ? coreSample.cpuPercent : 0.0);
     ui->ramChart->push(selfSample.ok ? static_cast<double>(selfSample.rssBytes) : 0.0,
                        coreSample.ok ? static_cast<double>(coreSample.rssBytes) : 0.0);
 
-    // --- Current traffic speed (proxied and direct), from the rate accumulator ---
     const auto rate = [](double bps) { return ReadableSize(static_cast<qint64>(bps)) + QStringLiteral("/s"); };
     if (Stats::trafficLooper && Stats::trafficLooper->proxy) {
         const auto p = Stats::trafficLooper->proxy;
@@ -123,8 +108,6 @@ void DialogRuntimeStats::refreshLive() {
         ui->vSpeedDirect->setText(QStringLiteral("—"));
     }
 
-    // --- Next subscription / routing profile update countdowns ---
-    // Intervals are sign-encoded minutes: enabled only when >= 30 (see PeriodicRunner).
     const auto nextUpd = [](int interval, qint64 last) -> QString {
         if (interval < 30) return DialogRuntimeStats::tr("Disabled");
         const qint64 remaining = last > 0
@@ -157,17 +140,20 @@ void DialogRuntimeStats::refreshLive() {
         ui->vCountry->setText(QStringLiteral("—"));
         ui->vPing->setText(QStringLiteral("—"));
         lastProbedConfig_.clear();
+        egressSnapshotDone_ = false;
     } else {
         ui->vCfgName->setText(cfgName);
-        if (cfgName != lastProbedConfig_ || nowSecs - lastProbeSecs_ >= 30) {
+        if (cfgName != lastProbedConfig_) {
             lastProbedConfig_ = cfgName;
+            egressSnapshotDone_ = false;
+            lastProbeSecs_ = 0;
+        }
+        if (!egressSnapshotDone_ && (lastProbeSecs_ == 0 || nowSecs - lastProbeSecs_ >= 30)) {
             lastProbeSecs_ = nowSecs;
             probeEgress();
         }
     }
 
-    // --- Current connection count, split by TCP/UDP. QueryConnections carries the
-    //     closed ring too, so run it off the UI thread; only one poll at a time. ---
     if (!connBusy_.exchange(true)) {
         QPointer<DialogRuntimeStats> self(this);
         runOnNewThread([self]() {
@@ -224,6 +210,7 @@ void DialogRuntimeStats::probeEgress() {
         // Out IP + country: ip-api through the running proxy (as done at profile start).
         QString ipText = DialogRuntimeStats::tr("N/A");
         QString countryText = DialogRuntimeStats::tr("N/A");
+        bool egressOk = false; // did the lookup yield a real out IP?
         const auto resp = NetworkRequestHelper::HttpGet(QStringLiteral("http://ip-api.com/json/"), false, true);
         if (resp.error.isEmpty()) {
             const QJsonDocument doc = QJsonDocument::fromJson(resp.data);
@@ -233,7 +220,10 @@ void DialogRuntimeStats::probeEgress() {
                 const QString countryName = obj[QStringLiteral("country")].toString();
                 const QString countryCode = obj[QStringLiteral("countryCode")].toString();
                 const QString city = obj[QStringLiteral("city")].toString();
-                if (!ip.isEmpty()) ipText = ip;
+                if (!ip.isEmpty()) {
+                    ipText = ip;
+                    egressOk = true;
+                }
                 if (!countryName.isEmpty()) {
                     countryText = CountryCodeToFlag(countryCode) + QStringLiteral(" ") + countryName;
                     if (!city.isEmpty()) countryText += QStringLiteral(", ") + city;
@@ -241,11 +231,14 @@ void DialogRuntimeStats::probeEgress() {
             }
         }
 
-        runOnUiThread([self, pingText, ipText, countryText]() {
+        runOnUiThread([self, pingText, ipText, countryText, egressOk]() {
             if (!self) return;
-            self->ui->vPing->setText(pingText);
-            self->ui->vOutIp->setText(ipText);
-            self->ui->vCountry->setText(countryText);
+            if (!self->egressSnapshotDone_) {
+                self->ui->vPing->setText(pingText);
+                self->ui->vOutIp->setText(ipText);
+                self->ui->vCountry->setText(countryText);
+                if (egressOk) self->egressSnapshotDone_ = true;
+            }
             self->probing_.store(false);
         });
     });
