@@ -16,7 +16,9 @@ namespace Sys {
     public:
         struct Sample {
             bool ok = false;         // false when the pid could not be queried
-            qint64 rssBytes = 0;     // resident set / working-set size, bytes
+            qint64 rssBytes = 0;     // private memory footprint, bytes, as the OS
+                                     // task manager reports it (Windows: private
+                                     // working set; macOS: phys_footprint; Linux: RSS)
             double cpuPercent = 0.0; // 0..100 of total machine CPU; 0 on first sample
         };
 

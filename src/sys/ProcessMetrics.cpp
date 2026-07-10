@@ -61,9 +61,32 @@ namespace {
             r.cpuNs = (k.QuadPart + u.QuadPart) * 100ULL;
         }
 
-        PROCESS_MEMORY_COUNTERS pmc;
-        if (GetProcessMemoryInfo(h, &pmc, sizeof(pmc))) {
-            r.rss = static_cast<qint64>(pmc.WorkingSetSize);
+        struct ProcMemCountersEx2 {
+            DWORD   cb;
+            DWORD   PageFaultCount;
+            SIZE_T  PeakWorkingSetSize;
+            SIZE_T  WorkingSetSize;
+            SIZE_T  QuotaPeakPagedPoolUsage;
+            SIZE_T  QuotaPagedPoolUsage;
+            SIZE_T  QuotaPeakNonPagedPoolUsage;
+            SIZE_T  QuotaNonPagedPoolUsage;
+            SIZE_T  PagefileUsage;
+            SIZE_T  PeakPagefileUsage;
+            SIZE_T  PrivateUsage;
+            SIZE_T  PrivateWorkingSetSize;
+            ULONG64 SharedCommitUsage;
+        };
+        ProcMemCountersEx2 ex2{};
+        ex2.cb = sizeof(ex2);
+        if (GetProcessMemoryInfo(h, reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&ex2), sizeof(ex2))
+            && ex2.PrivateWorkingSetSize > 0) {
+            r.rss = static_cast<qint64>(ex2.PrivateWorkingSetSize);
+        } else {
+            PROCESS_MEMORY_COUNTERS_EX pmcx{};
+            pmcx.cb = sizeof(pmcx);
+            if (GetProcessMemoryInfo(h, reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmcx), sizeof(pmcx))) {
+                r.rss = static_cast<qint64>(pmcx.PrivateUsage);
+            }
         }
 
         r.ok = true;
@@ -79,7 +102,7 @@ namespace {
                             reinterpret_cast<rusage_info_t*>(&ri)) == 0) {
             // ri_user_time / ri_system_time are already in nanoseconds.
             r.cpuNs = ri.ri_user_time + ri.ri_system_time;
-            r.rss = static_cast<qint64>(ri.ri_resident_size);
+            r.rss = static_cast<qint64>(ri.ri_phys_footprint);
             r.ok = true;
         }
         return r;
