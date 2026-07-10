@@ -8,6 +8,11 @@ namespace Configs {
     inline QStringList XrayXHTTPUplinkDataPlacements = {"", "auto", "body", "cookie", "header"};
     inline QStringList XrayXHTTPUplinkMethods = {"", "POST", "PUT", "PATCH", "GET"};
 
+    // Outbound sockopt.domainStrategy derived from the user's direct-DNS
+    // strategy. Defined in xrayStreamSetting.cpp; declared here so other config
+    // builders (custom Xray outbounds, generate.cpp) can reuse the same value.
+    QString getXrayOutboundDomainStrategy();
+
     class xrayTLS : public baseConfig {
         public:
         QString serverName;
