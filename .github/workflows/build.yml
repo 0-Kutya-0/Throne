@@ -160,7 +160,7 @@ jobs:
             qt_version: "6.2.13"
             target: x64
             dest_suffix: windowslegacy-amd64
-          - platform: windows-latest
+          - platform: windows-2022
             qt_version: "6.2.13"
             target: x86
             dest_suffix: windowslegacy-386
