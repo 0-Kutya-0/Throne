@@ -214,6 +214,7 @@ namespace Configs {
         QString ntp_server_address = "";
         int ntp_server_port = 0;
         QString ntp_interval = "";
+        QString ntp_outbound = "direct"; // "direct" or "proxy"
 
         // Warp
         bool enable_warp = false;

@@ -423,6 +423,16 @@ namespace Configs {
             ntpObj["server"] = Configs::dataManager->settingsRepo->ntp_server_address;
             ntpObj["server_port"] = Configs::dataManager->settingsRepo->ntp_server_port;
             ntpObj["interval"] = Configs::dataManager->settingsRepo->ntp_interval;
+            // Send the NTP query through the chosen outbound. Only "direct" and
+            // "proxy" are offered; both tags always exist in the live config.
+            // The test config has no single "proxy" outbound (each tested
+            // profile is tagged "proxy-N-0"), so force "direct" there to keep
+            // it valid.
+            const QString ntpDetour =
+                (Configs::dataManager->settingsRepo->ntp_outbound == "proxy" && !ctx->forTest)
+                    ? "proxy"
+                    : "direct";
+            ntpObj["detour"] = ntpDetour;
             ctx->buildConfigResult->coreConfig["ntp"] = ntpObj;
         }
     }

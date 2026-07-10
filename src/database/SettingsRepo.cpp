@@ -127,6 +127,7 @@ namespace Configs {
             {"core_box_underlying_dns",    &core_box_underlying_dns},
             {"ntp_server_address",         &ntp_server_address},
             {"ntp_interval",               &ntp_interval},
+            {"ntp_outbound",               &ntp_outbound},
             {"dns_v4_resp",                &dns_v4_resp},
             {"dns_v6_resp",                &dns_v6_resp},
             {"redirect_listen_address",    &redirect_listen_address},

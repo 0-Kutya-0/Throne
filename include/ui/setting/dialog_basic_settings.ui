@@ -1256,6 +1256,30 @@ QTabBar::tab:hover:!selected {
                  </item>
                 </widget>
                </item>
+               <item>
+                <widget class="QLabel" name="ntp_outbound_l">
+                 <property name="text">
+                  <string>outbound</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="ntp_outbound">
+                 <property name="toolTip">
+                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Which outbound the NTP query is sent through&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 </property>
+                 <item>
+                  <property name="text">
+                   <string notr="true">direct</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string notr="true">proxy</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
               </layout>
              </item>
             </layout>

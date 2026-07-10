@@ -242,13 +242,16 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->ntp_server->setEnabled(Configs::dataManager->settingsRepo->enable_ntp);
     ui->ntp_port->setEnabled(Configs::dataManager->settingsRepo->enable_ntp);
     ui->ntp_interval->setEnabled(Configs::dataManager->settingsRepo->enable_ntp);
+    ui->ntp_outbound->setEnabled(Configs::dataManager->settingsRepo->enable_ntp);
     ui->ntp_server->setText(Configs::dataManager->settingsRepo->ntp_server_address);
     ui->ntp_port->setText(Int2String(Configs::dataManager->settingsRepo->ntp_server_port));
     ui->ntp_interval->setCurrentText(Configs::dataManager->settingsRepo->ntp_interval);
+    ui->ntp_outbound->setCurrentText(Configs::dataManager->settingsRepo->ntp_outbound);
     connect(ui->ntp_enable, &QCheckBox::stateChanged, this, [=,this](const bool &state) {
         ui->ntp_server->setEnabled(state);
         ui->ntp_port->setEnabled(state);
         ui->ntp_interval->setEnabled(state);
+        ui->ntp_outbound->setEnabled(state);
     });
 
     // Security
@@ -397,6 +400,7 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->ntp_server_address = ui->ntp_server->text();
     Configs::dataManager->settingsRepo->ntp_server_port = ui->ntp_port->text().toInt();
     Configs::dataManager->settingsRepo->ntp_interval = ui->ntp_interval->currentText();
+    Configs::dataManager->settingsRepo->ntp_outbound = ui->ntp_outbound->currentText();
 
     // Security
 
