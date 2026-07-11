@@ -8,13 +8,12 @@
 #include <QAtomicInt>
 #include <QMap>
 #include <QMutex>
-#include <QWaitCondition>
-#include <QDeadlineTimer>
 #include <QObject>
 #include <QThread>
 
-#include <climits>
 #include <mutex>
+#include <condition_variable>
+#include <chrono>
 #include <atomic>
 #include <exception>
 #include <memory>
@@ -52,29 +51,12 @@ namespace API {
     class Client::LocalSocketChannel {
 
         struct PendingCall {
-            QMutex              mu;
-            QWaitCondition      cv;
+            std::mutex          mu;
+            std::condition_variable cv;
             bool                done   = false;
             quint8              status = 1;     // default: error
             QByteArray          data;
         };
-
-        // QWaitCondition has no predicate+timeout overload (and unlike
-        // std::condition_variable it doesn't pull GetSystemTimePreciseAsFileTime
-        // into the import table, which breaks Win7). Block until the call
-        // completes or `ms` elapses, looping past spurious wakeups. `call.mu`
-        // must be held on entry and is still held on return.
-        static bool awaitDone(PendingCall &call, int ms) {
-            QDeadlineTimer deadline(ms);
-            while (!call.done) {
-                qint64 remaining = deadline.remainingTime();
-                if (remaining == 0) break;                  // timed out
-                call.cv.wait(&call.mu, remaining < 0
-                    ? ULONG_MAX
-                    : static_cast<unsigned long>(remaining));
-            }
-            return call.done;
-        }
 
         QThread      *io_thread;
         QObject      *io_anchor;          // stable dispatch target on io_thread
@@ -100,9 +82,9 @@ namespace API {
             connected_.store(false, std::memory_order_release);
             std::lock_guard<std::mutex> lock(pending_mu);
             for (auto &call : pending) {
-                QMutexLocker cg(&call->mu);
+                std::lock_guard<std::mutex> cg(call->mu);
                 call->done = true;
-                call->cv.wakeOne();
+                call->cv.notify_one();
             }
             pending.clear();
         }
@@ -135,11 +117,11 @@ namespace API {
                 if (call) {
                     // Hold call->mu across the notify so the cv/mutex cannot
                     // be destroyed by a waking Call() mid-notification.
-                    QMutexLocker cg(&call->mu);
+                    std::lock_guard<std::mutex> cg(call->mu);
                     call->status = status;
                     call->data   = std::move(data);
                     call->done   = true;
-                    call->cv.wakeOne();
+                    call->cv.notify_one();
                 }
             }
         }
@@ -239,9 +221,11 @@ namespace API {
             }, Qt::QueuedConnection);
 
             // Wait for response
-            call->mu.lock();
-            bool ok = awaitDone(*call, ms);
-            call->mu.unlock();   // never hold call->mu while taking pending_mu
+            std::unique_lock<std::mutex> lock(call->mu);
+            bool ok = call->cv.wait_for(lock,
+                std::chrono::milliseconds(ms),
+                [&call] { return call->done; });
+            lock.unlock();   // never hold call->mu while taking pending_mu
 
             if (!ok) {
                 // Timed out — reclaim our slot unless processBuffer took it.
@@ -252,13 +236,15 @@ namespace API {
                 }
                 if (claimedByReader) {
                     // A response is inbound; give it a brief bounded chance.
-                    call->mu.lock();
-                    ok = awaitDone(*call, ms);
-                    call->mu.unlock();
+                    lock.lock();
+                    ok = call->cv.wait_for(lock,
+                        std::chrono::milliseconds(ms),
+                        [&call] { return call->done; });
+                    lock.unlock();
                 }
             }
 
-            QMutexLocker g(&call->mu);
+            std::lock_guard<std::mutex> g(call->mu);
             if (!ok || call->status != 0) {
                 if (ok && call->status != 0)
                     MW_show_log("[Core error] " + QString::fromUtf8(call->data));
