@@ -837,10 +837,9 @@ namespace Configs {
     }
 
     BuildResult xrayStreamSetting::Build() {
-        auto obj = ExportToJson();
-        obj["sockopt"] = QJsonObject{
-            {"domainStrategy", getXrayOutboundDomainStrategy()}
-        };
-        return {obj, ""};
+        // Egress interface binding and outbound domain resolution are wired onto
+        // the Xray instance after creation (ThroneWiring), not baked into the
+        // config, so no sockopt is emitted here.
+        return {ExportToJson(), ""};
     }
 }

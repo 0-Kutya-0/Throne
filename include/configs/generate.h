@@ -99,34 +99,17 @@ namespace Configs
         std::shared_ptr<ExtraCoreData> extraCoreData = std::make_shared<ExtraCoreData>();
 
         QList<TrafficChainGroup> chainGroups;
-
-        // Non-empty when the Xray egress was bound to a physical interface
-        // (streamSettings.sockopt.interface) instead of the loopback bridge.
-        // Drives the default-interface watch/restart while this profile runs.
-        QString boundInterface;
     };
 
     struct coreBridgeConfig {
         bool needed = false;
         int port = -1;
         QString auth;
-        // When true the sing-box socks inbound for this bridge routes to
-        // `direct` rather than re-entering a sing-box chain hop. Used when
-        // xray is the final egress under TUN, where sing-box's process_path
-        // rule fails to short-circuit xray's outbound and traffic loops back
-        // through TUN. Detouring xray's egress into sing-box `direct` (which
-        // honors auto_detect_interface) breaks the loop.
-        bool loopbackProtect = false;
         // Loopback host (127.x.y.z) used as both listen and dial address for
         // this bridge. Randomizing per-bridge spreads ephemeral source-port
         // allocation across (dst_ip, dst_port) buckets, so a single bridge
         // under load doesn't starve every other bridge of source ports.
         QString host = "127.0.0.1";
-        // When non-empty, the xray egress hop binds its socket to this physical
-        // interface (streamSettings.sockopt.interface) and no socks loopback
-        // bridge is created. Mutually exclusive with loopbackProtect; used for
-        // the xray-final-egress-under-TUN case to drop the egress SOCKS hop.
-        QString bindInterface = "";
     };
 
     class BuildSingBoxConfigContext
@@ -141,10 +124,6 @@ namespace Configs
         std::shared_ptr<Profile> ent = std::make_shared<Profile>(nullptr, nullptr);
         std::shared_ptr<BuildPrerequisities> buildPrerequisities = std::make_shared<BuildPrerequisities>();
         osType os;
-        // Physical default-route interface name, resolved once per build via the
-        // core's GetDefaultInterface RPC (only when tunEnabled and not a
-        // test/export build). Empty => fall back to the egress loopback bridge.
-        QString defaultInterface;
 
         QString error;
         QStringList warnings;

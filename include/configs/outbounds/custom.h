@@ -142,20 +142,10 @@ namespace Configs
         BuildResult BuildXray() override
         {
             if (type == CustomXrayOutbound) {
-                auto obj = QString2QJsonObject(config);
-                // Resolve the server domain through Xray's internal DNS (pointed
-                // at sing-box by buildXrayConfig) like first-class Xray outbounds
-                // do, instead of Xray's system resolver — which under TUN can
-                // loop or fail once the egress socket is interface-bound. Respect
-                // an explicit user-provided strategy.
-                auto streamSettings = obj["streamSettings"].toObject();
-                auto sockopt = streamSettings["sockopt"].toObject();
-                if (!sockopt.contains("domainStrategy")) {
-                    sockopt["domainStrategy"] = getXrayOutboundDomainStrategy();
-                    streamSettings["sockopt"] = sockopt;
-                    obj["streamSettings"] = streamSettings;
-                }
-                return {obj, ""};
+                // Outbound server-domain resolution is wired onto the Xray
+                // instance after creation (ThroneWiring), not baked into the
+                // config as a sockopt.domainStrategy.
+                return {QString2QJsonObject(config), ""};
             }
             return {};
         }

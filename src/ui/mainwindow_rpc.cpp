@@ -14,6 +14,7 @@
 #include <QFile>
 
 #include "include/configs/generate.h"
+#include "include/configs/common/xrayStreamSetting.h"
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
 
@@ -731,28 +732,6 @@ bool MainWindow::set_system_dns(bool set, bool save_set) {
     return true;
 }
 
-void MainWindow::checkDefaultInterfaceChange() {
-    if (running == nullptr || m_boundEgressInterface.isEmpty()) {
-        if (m_defaultInterfaceWatch) m_defaultInterfaceWatch->stop();
-        m_ifcChangeStreak = 0;
-        return;
-    }
-    bool ok = false;
-    QString cur = defaultClient->GetDefaultInterface(&ok);
-    if (!ok || cur.isEmpty() || cur == m_boundEgressInterface) {
-        m_ifcChangeStreak = 0;
-        return;
-    }
-    if (++m_ifcChangeStreak < 2) return;
-
-    m_ifcChangeStreak = 0;
-    if (m_defaultInterfaceWatch) m_defaultInterfaceWatch->stop(); // re-armed on successful restart
-    const int startedId = running->id;
-    MW_show_log(tr("[interface-bind] default route changed (%1 -> %2), restarting profile")
-                    .arg(m_boundEgressInterface, cur));
-    profile_start(startedId);
-}
-
 int MainWindow::get_profile_to_start() {
     auto ents = get_now_selected_list();
     if (ents.size() == 1) {
@@ -827,6 +806,15 @@ void MainWindow::profile_start(int _id) {
         req.disable_stats = Configs::dataManager->settingsRepo->disable_traffic_stats;
         req.xray_config = QJsonObject2QString(result->xrayConfig, true).toStdString();
         req.need_xray = !result->xrayConfig.isEmpty();
+        if (req.need_xray) {
+            // Outbound server-domain resolution for the live Xray instance is
+            // wired in the core (ThroneWiring), not baked into the config: point
+            // it at sing-box's loopback DNS-in with the user's direct-DNS
+            // strategy and let the instance build the resolver internally. Test
+            // instances build their own req and leave these empty.
+            req.xray_outbound_dns_address = ("127.0.0.1:" + QString::number(Configs::dataManager->settingsRepo->core_dns_in_port)).toStdString();
+            req.xray_outbound_dns_strategy = Configs::getXrayOutboundDomainStrategy().toStdString();
+        }
         if (!result->extraCoreData->path.isEmpty())
         {
             req.need_extra_process = true;
@@ -927,13 +915,6 @@ void MainWindow::profile_start(int _id) {
         runOnUiThread([=, this] {
             refresh_status();
             refresh_proxy_list({ent->id});
-
-            // Arm the default-interface watch when this profile baked a static
-            // egress interface bind; otherwise make sure it's stopped.
-            m_boundEgressInterface = result->boundInterface;
-            m_ifcChangeStreak = 0;
-            if (m_boundEgressInterface.isEmpty()) m_defaultInterfaceWatch->stop();
-            else m_defaultInterfaceWatch->start();
 
             auto resp = NetworkRequestHelper::HttpGet("http://ip-api.com/json/", false, true);
             if (resp.error.isEmpty()) {
@@ -1084,11 +1065,6 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
             restartMsgboxTimer->cancel();
             restartMsgboxTimer->deleteLater();
             restartMsgbox->deleteLater();
-
-            // Interface-bound egress (if any) is gone; stop watching the route.
-            if (m_defaultInterfaceWatch) m_defaultInterfaceWatch->stop();
-            m_boundEgressInterface.clear();
-            m_ifcChangeStreak = 0;
 
             m_profileDisconnecting = false;
             refresh_status();

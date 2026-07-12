@@ -26,75 +26,6 @@ namespace {
         return (it != ruleSetList.end() && it->first == key) ? it->second : std::string_view{};
     }
 
-    QJsonArray bindXrayOutboundsToInterface(const QJsonArray &outbounds, const QString &iface) {
-        auto targetsLoopback = [](const QJsonObject &out) {
-            auto settings = out["settings"].toObject();
-            QString addr;
-            if (settings.contains("vnext")) addr = settings["vnext"].toArray().first().toObject()["address"].toString();
-            else if (settings.contains("servers")) addr = settings["servers"].toArray().first().toObject()["address"].toString();
-            else if (settings.contains("address")) addr = settings["address"].toString();
-            return addr == "localhost" || addr == "::1" || addr.startsWith("127.");
-        };
-        QJsonArray result;
-        for (const auto &v : outbounds) {
-            auto out = v.toObject();
-            const auto protocol = out["protocol"].toString();
-            if (protocol == "blackhole" || protocol == "dns" || protocol == "loopback" || targetsLoopback(out)) {
-                result.append(out);
-                continue;
-            }
-            auto streamSettings = out["streamSettings"].toObject();
-            auto sockopt = streamSettings["sockopt"].toObject();
-            sockopt["interface"] = iface;
-            if (!sockopt.contains("domainStrategy"))
-                sockopt["domainStrategy"] = Configs::getXrayOutboundDomainStrategy();
-            const auto network = streamSettings["network"].toString();
-            if (network == "xhttp" || network == "splithttp") {
-                auto xhttpSettings = streamSettings["xhttpSettings"].toObject();
-                if (xhttpSettings.isEmpty()) xhttpSettings = streamSettings["splithttpSettings"].toObject();
-                if (xhttpSettings["extra"].toObject().contains("downloadSettings")) {
-                    // XHTTP's download leg gets its own stream config; penetrate
-                    // makes Xray copy this sockopt (interface bind included) onto it.
-                    sockopt["penetrate"] = true;
-                }
-            }
-            streamSettings["sockopt"] = sockopt;
-            out["streamSettings"] = streamSettings;
-            result.append(out);
-        }
-        return result;
-    }
-
-    void injectXrayLoopbackDns(QJsonObject &xrayConfig, int dnsPort) {
-        xrayConfig["dns"] = QJsonObject{
-            {"servers", QJsonArray{
-                QJsonObject{
-                    {"address", "127.0.0.1"}, {"port", dnsPort},
-                    {"queryStrategy", "UseIPv4"}, {"skipFallBack", true}
-                },
-                QJsonObject{
-                    {"address", "127.0.0.1"}, {"port", dnsPort},
-                    {"queryStrategy", "UseIPv6"}, {"skipFallBack", true}
-                }
-            }}
-        };
-        auto outbounds = xrayConfig["outbounds"].toArray();
-        outbounds.append(QJsonObject{
-            {"tag", "throne-dns-out"},
-            {"protocol", "freedom"},
-        });
-        xrayConfig["outbounds"] = outbounds;
-        auto routing = xrayConfig["routing"].toObject();
-        auto rules = routing["rules"].toArray();
-        rules.prepend(QJsonObject{
-            {"type", "field"},
-            {"ip", QJsonArray{"127.0.0.1"}},
-            {"port", dnsPort},
-            {"outboundTag", "throne-dns-out"},
-        });
-        routing["rules"] = rules;
-        xrayConfig["routing"] = routing;
-    }
 }
 
 namespace Configs {
@@ -209,12 +140,6 @@ namespace Configs {
         if (ctx->os == Linux)
         {
             ctx->isResolvedUsed = isSystemdResolvedDefaultResolver();
-        }
-        if (ctx->tunEnabled)
-        {
-            bool ifcOK = false;
-            auto ifc = API::defaultClient->GetDefaultInterface(&ifcOK);
-            if (ifcOK && !ifc.isEmpty()) ctx->defaultInterface = ifc;
         }
         auto preReqs = ctx->buildPrerequisities;
         
@@ -995,38 +920,6 @@ namespace Configs {
                 return;
             }
             object["tag"] = tag;
-            if (bridgeConfig.loopbackProtect) {
-                auto streamSettings = object["streamSettings"].toObject();
-                const auto network = streamSettings["network"].toString();
-                if (network == "xhttp" || network == "splithttp") {
-                    auto xhttpSettings = streamSettings["xhttpSettings"].toObject();
-                    if (xhttpSettings.isEmpty()) xhttpSettings = streamSettings["splithttpSettings"].toObject();
-                    auto extraSettings = xhttpSettings["extra"].toObject();
-                    if (extraSettings.contains("downloadSettings")) {
-                        // XHTTP downloadSettings gets its own stream config;
-                        // penetrate makes Xray copy this sockopt there too.
-                        auto sockopt = streamSettings["sockopt"].toObject();
-                        sockopt["penetrate"] = true;
-                        streamSettings["sockopt"] = sockopt;
-                        object["streamSettings"] = streamSettings;
-                    }
-                }
-            }
-            if (!bridgeConfig.bindInterface.isEmpty() && idx == ents.size() - 1) {
-                auto streamSettings = object["streamSettings"].toObject();
-                auto sockopt = streamSettings["sockopt"].toObject();
-                sockopt["interface"] = bridgeConfig.bindInterface;
-                const auto network = streamSettings["network"].toString();
-                if (network == "xhttp" || network == "splithttp") {
-                    auto xhttpSettings = streamSettings["xhttpSettings"].toObject();
-                    if (xhttpSettings.isEmpty()) xhttpSettings = streamSettings["splithttpSettings"].toObject();
-                    if (xhttpSettings["extra"].toObject().contains("downloadSettings")) {
-                        sockopt["penetrate"] = true;
-                    }
-                }
-                streamSettings["sockopt"] = sockopt;
-                object["streamSettings"] = streamSettings;
-            }
             if (!nextTag.isEmpty() && (link || bridgeConfig.needed)) object["proxySettings"] = QJsonObject{
                 {"tag", nextTag},
                 {"transportLayer", true}
@@ -1097,20 +990,6 @@ namespace Configs {
             });
             userXrayConfig["inbounds"] = inbounds;
 
-            if (!ctx->defaultInterface.isEmpty()) {
-                userXrayConfig["outbounds"] = bindXrayOutboundsToInterface(userXrayConfig["outbounds"].toArray(), ctx->defaultInterface);
-                // Live builds route Xray's DNS back through sing-box's DNS-in port.
-                // The test wrapper runs no such DNS server, so injecting it would
-                // make every lookup time out against a dead 127.0.0.1:port. Leave
-                // the config's own DNS in place and let Xray resolve directly, the
-                // same as the batch Xray-outbound test path.
-                if (!ctx->forTest) {
-                    injectXrayLoopbackDns(userXrayConfig, dataManager->settingsRepo->core_dns_in_port);
-                    ctx->buildConfigResult->boundInterface = ctx->defaultInterface;
-                }
-                MW_show_log("[interface-bind] custom Xray full config egress bound to default interface " + ctx->defaultInterface);
-            }
-
             ctx->buildConfigResult->xrayConfig = userXrayConfig;
             ctx->buildConfigResult->isXrayNeeded = true;
         }
@@ -1128,7 +1007,7 @@ namespace Configs {
         auto ports = MkManyPorts(2);
         if (ctx->singToXrayTransitioned) {
             coreBridgeConfig singToXrayBridgeConf = {
-                true, singToXrayPort == -1 ? ports[0] : singToXrayPort, GetRandomString(32), false, GenRandomLoopback()
+                true, singToXrayPort == -1 ? ports[0] : singToXrayPort, GetRandomString(32), GenRandomLoopback()
             };
             ctx->singToXrayBridges << singToXrayBridgeConf;
             auto bridgeEnt = ProfilesRepo::NewProfile("socks");
@@ -1139,18 +1018,9 @@ namespace Configs {
             socksOutbound->server_port = singToXrayBridgeConf.port;
             initialSingEnts << bridgeEnt;
         }
-        bool xrayFinalEgress = !xrayEnts.isEmpty() && tailingSingEnts.isEmpty() && !ctx->xrayToSingTransitioned;
         coreBridgeConfig xrayToSingBridgeConf;
         if (ctx->xrayToSingTransitioned) {
-            xrayToSingBridgeConf = {true, xrayToSingPort == -1 ? ports[1] : xrayToSingPort, GetRandomString(32), false, GenRandomLoopback()};
-            ctx->xrayToSingBridges << xrayToSingBridgeConf;
-        } else if (xrayFinalEgress && !ctx->defaultInterface.isEmpty()) {
-            xrayToSingBridgeConf = {};
-            xrayToSingBridgeConf.bindInterface = ctx->defaultInterface;
-            MW_show_log("[interface-bind] " + prefix + " xray egress bound to default interface " + ctx->defaultInterface);
-            if (!ctx->forTest) ctx->buildConfigResult->boundInterface = ctx->defaultInterface;
-        } else if (xrayFinalEgress && ctx->tunEnabled) {
-            xrayToSingBridgeConf = {true, xrayToSingPort == -1 ? ports[1] : xrayToSingPort, GetRandomString(32), true, GenRandomLoopback()};
+            xrayToSingBridgeConf = {true, xrayToSingPort == -1 ? ports[1] : xrayToSingPort, GetRandomString(32), GenRandomLoopback()};
             ctx->xrayToSingBridges << xrayToSingBridgeConf;
         }
         if (!initialSingEnts.isEmpty()) {
@@ -1222,9 +1092,7 @@ namespace Configs {
             routeSuffix += routeGroup.hopIDs.size();
         }
 
-        int loopbackBridgeCount = 0;
-        for (const auto& b : ctx->xrayToSingBridges) if (b.loopbackProtect) loopbackBridgeCount++;
-        if (ctx->xrayToSingBridges.size() - loopbackBridgeCount != ctx->singIngressTags.size()) {
+        if (ctx->xrayToSingBridges.size() != ctx->singIngressTags.size()) {
             ctx->error = "xray to sing-box bridges count does not match ingress tags count";
             return;
         }
@@ -1232,12 +1100,9 @@ namespace Configs {
         if (ctx->buildConfigResult->coreConfig.contains("inbounds")) {
             inboundArr = ctx->buildConfigResult->coreConfig["inbounds"].toArray();
         }
-        int singIngressIdx = 0;
         for (auto idx=0;idx<ctx->xrayToSingBridges.size();idx++) {
             auto bridgeConf = ctx->xrayToSingBridges[idx];
-            QString bridgeTag = bridgeConf.loopbackProtect
-                ? QString("bridge-loopback-") + Int2String(bridgeConf.port)
-                : QString("bridge-") + ctx->singIngressTags[singIngressIdx++];
+            QString bridgeTag = QString("bridge-") + ctx->singIngressTags[idx];
             QJsonObject userObj = {
                 {"username", bridgeConf.auth},
                 {"password", bridgeConf.auth}
@@ -1252,13 +1117,6 @@ namespace Configs {
             inboundArr.append(socksBridge);
         }
         ctx->buildConfigResult->coreConfig["inbounds"] = inboundArr;
-
-        if (loopbackBridgeCount > 0) {
-            ctx->outbounds.append(QJsonObject{
-                {"type", "direct"},
-                {"tag", "xray-direct"}
-            });
-        }
 
         // Add the direct outbound
         ctx->outbounds.append(QJsonObject{
@@ -1380,25 +1238,14 @@ namespace Configs {
                     };
         }
 
-        int routeLoopbackBridgeCount = 0;
-        for (const auto& b : ctx->xrayToSingBridges) if (b.loopbackProtect) routeLoopbackBridgeCount++;
-        if (ctx->xrayToSingBridges.size() - routeLoopbackBridgeCount != ctx->singIngressTags.size()) {
+        if (ctx->xrayToSingBridges.size() != ctx->singIngressTags.size()) {
             ctx->error = "xray to sing-box bridges count does not match ingress tags count";
             return;
         }
         QJsonArray bridgeRules;
-        int routeSingIngressIdx = 0;
         for (auto idx = 0; idx < ctx->xrayToSingBridges.size(); idx++) {
-            auto bridgeConf = ctx->xrayToSingBridges[idx];
-            QString inboundTag, outboundTag;
-            if (bridgeConf.loopbackProtect) {
-                inboundTag = "bridge-loopback-" + Int2String(bridgeConf.port);
-                outboundTag = "xray-direct";
-            } else {
-                inboundTag = "bridge-" + ctx->singIngressTags[routeSingIngressIdx];
-                outboundTag = ctx->singIngressTags[routeSingIngressIdx];
-                routeSingIngressIdx++;
-            }
+            QString inboundTag = "bridge-" + ctx->singIngressTags[idx];
+            QString outboundTag = ctx->singIngressTags[idx];
             bridgeRules.append(QJsonObject{
                 {"inbound", inboundTag},
                 {"action", "route"},
@@ -1485,29 +1332,8 @@ namespace Configs {
     void buildXrayConfig(std::shared_ptr<BuildSingBoxConfigContext> &ctx) {
         if (ctx->xrayOutbounds.isEmpty()) return;
         ctx->buildConfigResult->isXrayNeeded = true;
-        QJsonObject dnsObj;
         QJsonArray inbounds;
         QJsonArray routeRules;
-        int dnsPort = dataManager->settingsRepo->core_dns_in_port;
-
-        if (!ctx->forTest) {
-            dnsObj = {
-                {"servers", QJsonArray{
-                    QJsonObject{
-                        {"address", "127.0.0.1"},
-                        {"port", dnsPort},
-                        {"queryStrategy", "UseIPv4"},
-                        {"skipFallBack", true}
-                    },
-                    QJsonObject{
-                            {"address", "127.0.0.1"},
-                            {"port", dnsPort},
-                            {"queryStrategy", "UseIPv6"},
-                            {"skipFallBack", true}
-                    }
-                }}
-            };
-        }
 
         if (ctx->xrayIngressTags.size() != ctx->singToXrayBridges.size()) {
             ctx->error = "xray ingress tags size does not match bridge count!";
@@ -1541,25 +1367,10 @@ namespace Configs {
             };
         }
 
-        // dnsRouting
-        if (!ctx->forTest) {
-            ctx->xrayOutbounds << QJsonObject{
-                {"tag", "direct"},
-                {"protocol", "freedom"},
-            };
-            routeRules << QJsonObject{
-                {"type", "field"},
-                {"ip", QJsonArray{"127.0.0.1"}},
-                {"port", dnsPort},
-                {"outboundTag", "direct"},
-            };
-        }
-
         ctx->buildConfigResult->xrayConfig["log"] = QJsonObject{
         {"loglevel", Configs::dataManager->settingsRepo->xray_log_level},
         {"access", Configs::dataManager->settingsRepo->xray_log_level == "info" ? "" : "none"}
         };
-        ctx->buildConfigResult->xrayConfig["dns"] = dnsObj;
         ctx->buildConfigResult->xrayConfig["inbounds"] = inbounds;
         ctx->buildConfigResult->xrayConfig["outbounds"] = ctx->xrayOutbounds;
         ctx->buildConfigResult->xrayConfig["routing"] = QJsonObject{
@@ -1750,12 +1561,11 @@ namespace Configs {
         return false;
     }
 
-    bool buildXrayFullConfigTest(const std::shared_ptr<Profile> &item, const QString &defaultInterface,
+    bool buildXrayFullConfigTest(const std::shared_ptr<Profile> &item,
                                  const QString &prefix, QString &singboxOut, QString &xrayOut, QString &error)
     {
         auto ctx = std::make_shared<BuildSingBoxConfigContext>();
         ctx->forTest = true;
-        ctx->defaultInterface = defaultInterface;
 
         ctx->buildPrerequisities->dnsDeps->directDomains = QListStr2QJsonArray(getEntDomains({item->id}, ctx->error));
         if (!ctx->buildPrerequisities->dnsDeps->directDomains.isEmpty()) ctx->buildPrerequisities->dnsDeps->needDirectDnsRules = true;
@@ -1794,11 +1604,6 @@ namespace Configs {
         auto res = std::make_shared<BuildTestConfigResult>();
         auto ctx = std::make_shared<BuildSingBoxConfigContext>();
         ctx->forTest = true;
-        {
-            bool ifcOK = false;
-            auto ifc = API::defaultClient->GetDefaultInterface(&ifcOK);
-            if (ifcOK && !ifc.isEmpty()) ctx->defaultInterface = ifc;
-        }
         QList<int> entIDs;
         for (const auto& proxy : profiles) entIDs << proxy->id;
         ctx->buildPrerequisities->dnsDeps->directDomains = QListStr2QJsonArray(getEntDomains(entIDs, ctx->error));
@@ -1839,7 +1644,7 @@ namespace Configs {
                 }
                 auto prefix = "xrayfull-" + Int2String(item->id);
                 QString singbox, xray, err;
-                if (!buildXrayFullConfigTest(item, ctx->defaultInterface, prefix, singbox, xray, err)) {
+                if (!buildXrayFullConfigTest(item, prefix, singbox, xray, err)) {
                     MW_show_log("Failed to build test config for custom Xray full config " + item->outbound->name + ": " + err);
                     item->latency = -1;
                     continue;

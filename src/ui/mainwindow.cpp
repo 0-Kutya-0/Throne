@@ -1040,13 +1040,6 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
     m_proxyListRefreshDebounce->setSingleShot(true);
     connect(m_proxyListRefreshDebounce, &QTimer::timeout, this, [this] { refresh_proxy_list({}, false); });
 
-    // Polls the default route while an interface-bound xray egress is running
-    // (started/stopped from profile_start/profile_stop). 3s is cheap (a loopback
-    // RPC that just reads the monitor's cached value).
-    m_defaultInterfaceWatch = new QTimer(this);
-    m_defaultInterfaceWatch->setInterval(3000);
-    connect(m_defaultInterfaceWatch, &QTimer::timeout, this, [this] { checkDefaultInterfaceChange(); });
-
     // Periodic auto-update jobs. The runner persists each job's last-run time and re-runs
     // it once its own interval has elapsed, so closing the app past the interval (or the
     // machine sleeping) still triggers an update on the next launch instead of resetting
