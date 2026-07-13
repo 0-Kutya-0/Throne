@@ -2531,7 +2531,7 @@ void MainWindow::on_menu_export_config_triggered() {
         // A custom Xray full config is tested as an isolated sing-box wrapper +
         // Xray pair rather than joining the shared batch config, so surface the
         // wrapper here to keep "Copy test config" meaningful for it.
-        if (!res->xrayFullConfigs.isEmpty()) config_core = res->xrayFullConfigs.first().singbox;
+        if (!res->xrayFullConfigs.isEmpty()) config_core = res->xrayFullConfigs.first();
         else config_core = QJsonObject2QString(res->coreConfig, true);
         QApplication::clipboard()->setText(config_core);
     }

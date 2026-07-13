@@ -42,7 +42,7 @@ void MainWindow::setup_rpc(QLocalSocket *socket) {
     }
 }
 
-void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID) {
+void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID) {
     if (stopSpeedtest.load()) {
         MW_show_log(tr("Profile test aborted"));
         return;
@@ -59,6 +59,7 @@ void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, bo
     req.test_timeout_ms = Configs::dataManager->settingsRepo->url_test_timeout_ms;
     req.xray_config = xrayConfig.toStdString();
     req.need_xray = !xrayConfig.isEmpty();
+    for (const auto &xc : xrayFullConfigs) req.xray_full_configs.push_back(xc.toStdString());
 
     auto done = new QMutex;
     done->lock();
@@ -152,7 +153,7 @@ void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, bo
     }
 }
 
-void MainWindow::runIPTest(const QString& config, const QString& xrayConfig, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID) {
+void MainWindow::runIPTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID) {
     if (stopSpeedtest.load()) {
         MW_show_log(tr("Profile test aborted"));
         return;
@@ -168,6 +169,7 @@ void MainWindow::runIPTest(const QString& config, const QString& xrayConfig, boo
     req.test_timeout_ms = Configs::dataManager->settingsRepo->url_test_timeout_ms;
     req.xray_config = xrayConfig.toStdString();
     req.need_xray = !xrayConfig.isEmpty();
+    for (const auto &xc : xrayFullConfigs) req.xray_full_configs.push_back(xc.toStdString());
 
     auto done = new QMutex;
     done->lock();
@@ -284,23 +286,13 @@ void MainWindow::urltest_current_group(const QList<int>& profileIDs) {
             }
 
             std::atomic<int> counter(0);
-            auto testCount = buildObject->fullConfigs.size() + buildObject->xrayFullConfigs.size() + (!buildObject->outboundTags.empty());
+            // xray-full configs are folded into the single outboundTags test box
+            // (their tags live in outboundTags), so they add no separate tests.
+            auto testCount = buildObject->fullConfigs.size() + (!buildObject->outboundTags.empty());
             for (const auto &entID: buildObject->fullConfigs.keys()) {
                 auto configStr = buildObject->fullConfigs[entID];
                 auto func = [this, &counter, testCount, configStr, entID]() {
-                    runURLTest(configStr, "", true, {}, {}, entID);
-                    ++counter;
-                    if (counter.load() == testCount) {
-                        speedtestRunning.unlock();
-                    }
-                };
-                parallelCoreCallPool->start(func);
-            }
-
-            for (const auto &entID: buildObject->xrayFullConfigs.keys()) {
-                auto t = buildObject->xrayFullConfigs[entID];
-                auto func = [this, &counter, testCount, t, entID]() {
-                    runURLTest(t.singbox, t.xray, false, {t.tag}, {{t.tag, entID}}, entID);
+                    runURLTest(configStr, "", {}, true, {}, {}, entID);
                     ++counter;
                     if (counter.load() == testCount) {
                         speedtestRunning.unlock();
@@ -312,7 +304,7 @@ void MainWindow::urltest_current_group(const QList<int>& profileIDs) {
             if (!buildObject->outboundTags.empty()) {
                 auto func = [this, &buildObject, &counter, testCount]() {
                     auto xrayConf = buildObject->isXrayNeeded ? QJsonObject2QString(buildObject->xrayConfig, false) : "";
-                    runURLTest(QJsonObject2QString(buildObject->coreConfig, false),xrayConf, false, buildObject->outboundTags, buildObject->tag2entID);
+                    runURLTest(QJsonObject2QString(buildObject->coreConfig, false),xrayConf, buildObject->xrayFullConfigs, false, buildObject->outboundTags, buildObject->tag2entID);
                     ++counter;
                     if (counter.load() == testCount) {
                         speedtestRunning.unlock();
@@ -411,23 +403,13 @@ void MainWindow::iptest_current_group(const QList<int>& profileIDs) {
             }
 
             std::atomic<int> counter(0);
-            auto testCount = buildObject->fullConfigs.size() + buildObject->xrayFullConfigs.size() + (!buildObject->outboundTags.empty());
+            // xray-full configs are folded into the single outboundTags test box
+            // (their tags live in outboundTags), so they add no separate tests.
+            auto testCount = buildObject->fullConfigs.size() + (!buildObject->outboundTags.empty());
             for (const auto &entID: buildObject->fullConfigs.keys()) {
                 auto configStr = buildObject->fullConfigs[entID];
                 auto func = [this, &counter, testCount, configStr, entID]() {
-                    runIPTest(configStr, "", true, {}, {}, entID);
-                    ++counter;
-                    if (counter.load() == testCount) {
-                        speedtestRunning.unlock();
-                    }
-                };
-                parallelCoreCallPool->start(func);
-            }
-
-            for (const auto &entID: buildObject->xrayFullConfigs.keys()) {
-                auto t = buildObject->xrayFullConfigs[entID];
-                auto func = [this, &counter, testCount, t, entID]() {
-                    runIPTest(t.singbox, t.xray, false, {t.tag}, {{t.tag, entID}}, entID);
+                    runIPTest(configStr, "", {}, true, {}, {}, entID);
                     ++counter;
                     if (counter.load() == testCount) {
                         speedtestRunning.unlock();
@@ -439,7 +421,7 @@ void MainWindow::iptest_current_group(const QList<int>& profileIDs) {
             if (!buildObject->outboundTags.empty()) {
                 auto func = [this, &buildObject, &counter, testCount]() {
                     auto xrayConf = buildObject->isXrayNeeded ? QJsonObject2QString(buildObject->xrayConfig, false) : "";
-                    runIPTest(QJsonObject2QString(buildObject->coreConfig, false), xrayConf, false, buildObject->outboundTags, buildObject->tag2entID);
+                    runIPTest(QJsonObject2QString(buildObject->coreConfig, false), xrayConf, buildObject->xrayFullConfigs, false, buildObject->outboundTags, buildObject->tag2entID);
                     ++counter;
                     if (counter.load() == testCount) {
                         speedtestRunning.unlock();
@@ -497,17 +479,12 @@ void MainWindow::speedtest_current_group(const QList<int>& profileIDs, bool test
 
                 for (const auto &entID: buildObject->fullConfigs.keys()) {
                     auto configStr = buildObject->fullConfigs[entID];
-                    runSpeedTest(configStr, "", true, false, {}, {}, entID);
-                }
-
-                for (const auto &entID: buildObject->xrayFullConfigs.keys()) {
-                    auto t = buildObject->xrayFullConfigs[entID];
-                    runSpeedTest(t.singbox, t.xray, false, false, {t.tag}, {{t.tag, entID}}, entID);
+                    runSpeedTest(configStr, "", {}, true, false, {}, {}, entID);
                 }
 
                 if (!buildObject->outboundTags.empty()) {
                     auto xrayConf = buildObject->isXrayNeeded ? QJsonObject2QString(buildObject->xrayConfig, true) : "";
-                    runSpeedTest(QJsonObject2QString(buildObject->coreConfig, false), xrayConf, false, false, buildObject->outboundTags, buildObject->tag2entID, -1);
+                    runSpeedTest(QJsonObject2QString(buildObject->coreConfig, false), xrayConf, buildObject->xrayFullConfigs, false, false, buildObject->outboundTags, buildObject->tag2entID, -1);
                 }
             };
             int stepSize = Configs::dataManager->settingsRepo->speed_test_mode == Configs::TestConfig::COUNTRY ? 100 : 1;
@@ -520,7 +497,7 @@ void MainWindow::speedtest_current_group(const QList<int>& profileIDs, bool test
         } else
         {
             dataViewHtmlGenerator_.seedSpeedTest(1);
-            runSpeedTest("", "", false, true, {}, {}, -1);
+            runSpeedTest("", "", {}, false, true, {}, {}, -1);
             currentUnderTest.store(false);
         }
         dataViewHtmlGenerator_.clearTestSections();
@@ -614,7 +591,7 @@ void MainWindow::queryCountryTest(const QMap<QString, int>& tag2entID, bool test
 }
 
 
-void MainWindow::runSpeedTest(const QString& config, const QString& xrayConfig, bool useDefault, bool testCurrent, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID)
+void MainWindow::runSpeedTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, bool testCurrent, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID)
 {
     if (stopSpeedtest.load()) {
         MW_show_log(tr("Profile speed test aborted"));
@@ -638,6 +615,7 @@ void MainWindow::runSpeedTest(const QString& config, const QString& xrayConfig, 
     req.country_concurrency = Configs::dataManager->settingsRepo->test_concurrent;
     req.xray_config = xrayConfig.toStdString();
     req.need_xray = !xrayConfig.isEmpty();
+    for (const auto &xc : xrayFullConfigs) req.xray_full_configs.push_back(xc.toStdString());
 
     if (speedtestConf != Configs::TestConfig::COUNTRY) {
         dataViewHtmlGenerator_.addTestProgress();

@@ -199,12 +199,12 @@ namespace Configs
     public:
         QString error;
         QMap<int, QString> fullConfigs;
-        struct XrayFullConfigTest {
-            QString singbox;
-            QString xray;
-            QString tag;
-        };
-        QMap<int, XrayFullConfigTest> xrayFullConfigs;
+        // Opaque, standalone Xray full configs (one entry per xray-full profile).
+        // Their socks outbounds are folded into `coreConfig` and their tags into
+        // `outboundTags` / `tag2entID`, so all xray-full profiles share the single
+        // test box; each entry here still becomes its own Xray instance on the Go
+        // side (TestReq.xray_full_configs). See BuildTestConfig.
+        QStringList xrayFullConfigs;
         QMap<QString, int> tag2entID;
         QJsonObject coreConfig;
         QJsonObject xrayConfig;

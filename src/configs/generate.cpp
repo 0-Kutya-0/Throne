@@ -1561,44 +1561,6 @@ namespace Configs {
         return false;
     }
 
-    bool buildXrayFullConfigTest(const std::shared_ptr<Profile> &item,
-                                 const QString &prefix, QString &singboxOut, QString &xrayOut, QString &error)
-    {
-        auto ctx = std::make_shared<BuildSingBoxConfigContext>();
-        ctx->forTest = true;
-
-        ctx->buildPrerequisities->dnsDeps->directDomains = QListStr2QJsonArray(getEntDomains({item->id}, ctx->error));
-        if (!ctx->buildPrerequisities->dnsDeps->directDomains.isEmpty()) ctx->buildPrerequisities->dnsDeps->needDirectDnsRules = true;
-        buildDNSSection(ctx, false);
-        if (!ctx->error.isEmpty()) { error = ctx->error; return false; }
-        buildLogSections(ctx);
-        buildCertificateSection(ctx);
-        buildNTPSection(ctx);
-
-        buildOutboundChain(ctx, {item->id}, prefix, false, true);
-        if (!ctx->error.isEmpty()) { error = ctx->error; return false; }
-        if (!ctx->buildConfigResult->isXrayNeeded || ctx->buildConfigResult->xrayConfig.isEmpty()) {
-            error = "custom Xray full config produced no Xray config";
-            return false;
-        }
-
-        ctx->outbounds << QJsonObject{{"type", "direct"}, {"tag", "direct"}};
-        ctx->buildConfigResult->coreConfig["outbounds"] = ctx->outbounds;
-        ctx->buildConfigResult->coreConfig["endpoints"] = ctx->endpoints;
-        ctx->buildConfigResult->coreConfig["route"] = QJsonObject{
-                {"auto_detect_interface", true},
-                {"default_domain_resolver", QJsonObject{
-                        {"server", "dns-direct"},
-                        {"strategy", Configs::dataManager->settingsRepo->default_domain_strategy},
-                   }}
-        };
-        ctx->buildConfigResult->coreConfig["inbounds"] = QJsonArray();
-
-        singboxOut = QJsonObject2QString(ctx->buildConfigResult->coreConfig, false);
-        xrayOut = QJsonObject2QString(ctx->buildConfigResult->xrayConfig, false);
-        return true;
-    }
-
     std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles)
     {
         auto res = std::make_shared<BuildTestConfigResult>();
@@ -1643,13 +1605,30 @@ namespace Configs {
                     continue;
                 }
                 auto prefix = "xrayfull-" + Int2String(item->id);
-                QString singbox, xray, err;
-                if (!buildXrayFullConfigTest(item, prefix, singbox, xray, err)) {
-                    MW_show_log("Failed to build test config for custom Xray full config " + item->outbound->name + ": " + err);
+                // Fold this full config into the shared test box: buildOutboundChain
+                // adds its socks outbound (prefix+"-0") to ctx->outbounds and writes
+                // the standalone Xray config into ctx->buildConfigResult->xrayConfig.
+                // We capture that opaque config (each full config is still its own
+                // Xray instance) and clear the single slot so the next profile — a
+                // further full config, or the regular buildXrayConfig assembly — gets
+                // a clean slate. All full configs thus share one sing-box, instead of
+                // one box each.
+                buildOutboundChain(ctx, {item->id}, prefix, false, true);
+                if (!ctx->error.isEmpty()) {
+                    res->error = ctx->error;
+                    return res;
+                }
+                if (!ctx->buildConfigResult->isXrayNeeded || ctx->buildConfigResult->xrayConfig.isEmpty()) {
+                    MW_show_log("Custom Xray full config produced no Xray config: " + item->outbound->name);
                     item->latency = -1;
                     continue;
                 }
-                res->xrayFullConfigs[item->id] = {singbox, xray, prefix + "-0"};
+                res->xrayFullConfigs << QJsonObject2QString(ctx->buildConfigResult->xrayConfig, false);
+                ctx->buildConfigResult->xrayConfig = QJsonObject();
+                ctx->buildConfigResult->isXrayNeeded = false;
+                auto tag = prefix + "-0";
+                res->outboundTags << tag;
+                res->tag2entID.insert(tag, item->id);
                 continue;
             }
             if (item->type == "chain")
