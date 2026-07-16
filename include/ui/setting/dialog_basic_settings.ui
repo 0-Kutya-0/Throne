@@ -1353,7 +1353,35 @@ QTabBar::tab:hover:!selected {
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="xray_geoip_url"/>
+           <widget class="QWidget" name="xray_geoip_url_row" native="true">
+            <layout class="QHBoxLayout" name="xray_geoip_url_layout">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLineEdit" name="xray_geoip_url"/>
+             </item>
+             <item>
+              <widget class="QPushButton" name="xray_geoip_download">
+               <property name="toolTip">
+                <string>Download geoip.dat now from the URL on the left</string>
+               </property>
+               <property name="text">
+                <string>Download</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
           </item>
           <item row="3" column="0">
            <widget class="QLabel" name="label_xray_geosite_url">
@@ -1366,7 +1394,35 @@ QTabBar::tab:hover:!selected {
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="xray_geosite_url"/>
+           <widget class="QWidget" name="xray_geosite_url_row" native="true">
+            <layout class="QHBoxLayout" name="xray_geosite_url_layout">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLineEdit" name="xray_geosite_url"/>
+             </item>
+             <item>
+              <widget class="QPushButton" name="xray_geosite_download">
+               <property name="toolTip">
+                <string>Download geosite.dat now from the URL on the left</string>
+               </property>
+               <property name="text">
+                <string>Download</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
           </item>
          </layout>
         </widget>

@@ -464,6 +464,45 @@ static Configs::BackupParts BackupPartsFromMeta(quint32 formatVersion, const QJs
     return p;
 }
 
+void DialogBasicSettings::downloadXrayGeoAsset(const QString &url, const QString &fileName) {
+    const QString effectiveUrl = url.trimmed();
+    if (effectiveUrl.isEmpty()) {
+        QMessageBox::warning(this, tr("Download geo asset"),
+            tr("Please enter a URL for %1 first.").arg(fileName));
+        return;
+    }
+    MW_show_log(tr("Downloading Xray geo asset: %1").arg(fileName));
+    // DownloadAsset drives a blocking event loop and reports progress through the
+    // main window's data view, so it must run off the UI thread. Don't capture the
+    // dialog — it may be closed before the download finishes; report through the
+    // (long-lived) main window instead.
+    runOnNewThread([effectiveUrl, fileName] {
+        const auto err = NetworkRequestHelper::DownloadAsset(effectiveUrl, fileName);
+        runOnUiThread([err, fileName] {
+            if (err.isEmpty()) {
+                MW_show_log(QObject::tr("Downloaded Xray geo asset: %1").arg(fileName));
+                QMessageBox::information(GetMainWindow(), QObject::tr("Download geo asset"),
+                    QObject::tr("%1 was downloaded successfully.").arg(fileName));
+            } else {
+                MessageBoxWarning(QObject::tr("Download geo asset"),
+                    QObject::tr("Failed to download %1:\n%2").arg(fileName, err));
+            }
+        });
+    });
+}
+
+void DialogBasicSettings::on_xray_geoip_download_clicked() {
+    QString url = ui->xray_geoip_url->text().trimmed();
+    if (url.isEmpty()) url = ui->xray_geoip_url->placeholderText();
+    downloadXrayGeoAsset(url, "geoip.dat");
+}
+
+void DialogBasicSettings::on_xray_geosite_download_clicked() {
+    QString url = ui->xray_geosite_url->text().trimmed();
+    if (url.isEmpty()) url = ui->xray_geosite_url->placeholderText();
+    downloadXrayGeoAsset(url, "geosite.dat");
+}
+
 void DialogBasicSettings::on_backup_create_clicked() {
     Configs::BackupParts parts;
     parts.profiles = ui->backup_inc_profiles->isChecked();

@@ -119,10 +119,23 @@ void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, co
         delete done;
     });
     bool rpcOK;
-    auto result = defaultClient->Test(&rpcOK, req);
+    QString coreError;
+    auto result = defaultClient->Test(&rpcOK, req, &coreError);
     done->unlock();
     //
-    if (!rpcOK || result.results.empty()) return;
+    if (!rpcOK || result.results.empty()) {
+        // A failed Test RPC (e.g. an Xray full config that needs geoip.dat /
+        // geosite.dat) never yields per-result errors, so inspect the RPC error here
+        // to offer the geo-asset download — the same flow profile start uses.
+        if (!rpcOK) {
+            QString ctxName = tr("a tested profile");
+            if (entID != -1) {
+                if (auto e = Configs::dataManager->profilesRepo->GetProfile(entID)) ctxName = e->outbound->DisplayTypeAndName();
+            }
+            handleXrayGeoAssetError(coreError, ctxName);
+        }
+        return;
+    }
 
     for (const auto &res: result.results) {
         if (!tag2entID.empty()) {
@@ -230,10 +243,21 @@ void MainWindow::runIPTest(const QString& config, const QString& xrayConfig, con
         delete done;
     });
     bool rpcOK;
-    auto result = defaultClient->IPTest(&rpcOK, req);
+    QString coreError;
+    auto result = defaultClient->IPTest(&rpcOK, req, &coreError);
     done->unlock();
     //
-    if (!rpcOK || result.results.empty()) return;
+    if (!rpcOK || result.results.empty()) {
+        // Detect missing Xray geo assets from a failed IPTest RPC (see runURLTest).
+        if (!rpcOK) {
+            QString ctxName = tr("a tested profile");
+            if (entID != -1) {
+                if (auto e = Configs::dataManager->profilesRepo->GetProfile(entID)) ctxName = e->outbound->DisplayTypeAndName();
+            }
+            handleXrayGeoAssetError(coreError, ctxName);
+        }
+        return;
+    }
 
     for (const auto &res: result.results) {
         if (!tag2entID.empty()) {
@@ -645,10 +669,22 @@ void MainWindow::runSpeedTest(const QString& config, const QString& xrayConfig, 
         delete doneMu;
     });
     bool rpcOK;
-    auto result = defaultClient->SpeedTest(&rpcOK, req);
+    QString coreError;
+    auto result = defaultClient->SpeedTest(&rpcOK, req, &coreError);
     doneMu->unlock();
     //
-    if (!rpcOK || result.results.empty()) return;
+    if (!rpcOK || result.results.empty()) {
+        // Detect missing Xray geo assets from a failed SpeedTest RPC (see runURLTest).
+        if (!rpcOK) {
+            QString ctxName = tr("a tested profile");
+            int nameId = testCurrent ? (running ? running->id : -1) : entID;
+            if (nameId != -1) {
+                if (auto e = Configs::dataManager->profilesRepo->GetProfile(nameId)) ctxName = e->outbound->DisplayTypeAndName();
+            }
+            handleXrayGeoAssetError(coreError, ctxName);
+        }
+        return;
+    }
 
     for (const auto &res: result.results) {
         if (testCurrent) entID = running ? running->id : -1;
@@ -737,6 +773,58 @@ int MainWindow::get_profile_to_start() {
     return -1;
 }
 
+bool MainWindow::handleXrayGeoAssetError(const QString& error, const QString& contextName) {
+    // The Xray config's routing referenced geoip:/geosite: rules but the .dat
+    // asset(s) aren't in our asset dir (XRAY_LOCATION_ASSET points at
+    // GetBasePath()). This surfaces both when starting a profile (in-band Start
+    // error) and when testing one (RPC error payload); handle both the same way.
+    if (!error.contains("geoip.dat") && !error.contains("geosite.dat")) return false;
+
+    runOnUiThread([=, this] {
+        // A batch test can raise this for many profiles at once — only prompt once.
+        if (m_xrayGeoAssetBusy) return;
+        m_xrayGeoAssetBusy = true;
+        // Small delay so any in-flight UI teardown (e.g. Connecting -> idle)
+        // settles before the modal prompt appears.
+        setTimeout([=, this] {
+            if (QMessageBox::question(this, tr("Geo asset files required"),
+                    tr("The Xray config \"%1\" uses geoip/geosite routing rules, but the "
+                       "required data files (geoip.dat / geosite.dat) are not installed.\n\n"
+                       "Download them now?").arg(contextName)) != QMessageBox::Yes) {
+                m_xrayGeoAssetBusy = false;
+                return;
+            }
+            // Download in the background so the UI stays responsive; DownloadAsset
+            // reports progress in the data view. Fetch both missing files up front
+            // (Xray only reports the first one it hit).
+            runOnNewThread([=, this] {
+                const QString base = Configs::GetBasePath();
+                QString dlErr;
+                if (!QFile::exists(base + "/geoip.dat")) {
+                    auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geoip_url, "geoip.dat");
+                    if (!e.isEmpty()) dlErr += "geoip.dat: " + e + "\n";
+                }
+                if (!QFile::exists(base + "/geosite.dat")) {
+                    auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geosite_url, "geosite.dat");
+                    if (!e.isEmpty()) dlErr += "geosite.dat: " + e + "\n";
+                }
+                runOnUiThread([=, this] {
+                    m_xrayGeoAssetBusy = false;
+                    if (!dlErr.isEmpty()) {
+                        MessageBoxWarning(tr("Geo asset download failed"), dlErr);
+                    } else {
+                        MW_show_log(tr("Downloaded Xray geo asset files."));
+                        QMessageBox::information(this, tr("Geo assets installed"),
+                            tr("Geo data files were downloaded successfully.\n\n"
+                               "Please try again."));
+                    }
+                });
+            });
+        }, this, 300);
+    });
+    return true;
+}
+
 void MainWindow::profile_start(int _id) {
     if (Configs::dataManager->settingsRepo->prepare_exit) return;
 #ifdef Q_OS_LINUX
@@ -808,51 +896,14 @@ void MainWindow::profile_start(int _id) {
             return false;
         }
         if (!error.isEmpty()) {
-            // The Xray config's routing referenced geoip:/geosite: tags but the
-            // .dat asset(s) aren't in our asset dir (XRAY_LOCATION_ASSET points at
-            // GetBasePath()). Handle this out-of-band: fail this start attempt right
-            // away — blocking here to download would trip the "no response" restart
-            // prompt — then asynchronously prompt, download in the background, and
-            // ask the user to start the profile again. We deliberately don't
-            // auto-start; the env var is already set on the live core, so simply
-            // starting the profile again picks the assets up with no core restart.
-            if (error.contains("geoip.dat") || error.contains("geosite.dat")) {
-                const auto profileName = ent->outbound->DisplayTypeAndName();
-                runOnUiThread([=, this] {
-                    // Small delay so this attempt's UI teardown (Connecting -> idle)
-                    // finishes before the prompt appears.
-                    setTimeout([=, this] {
-                        if (QMessageBox::question(this, tr("Geo asset files required"),
-                                tr("The Xray config \"%1\" uses geoip/geosite routing rules, but the "
-                                   "required data files (geoip.dat / geosite.dat) are not installed.\n\n"
-                                   "Download them now?").arg(profileName)) != QMessageBox::Yes) return;
-                        // Download in the background so the UI stays responsive;
-                        // DownloadAsset reports progress in the data view. Fetch both
-                        // missing files up front (Xray only reports the first it hit).
-                        runOnNewThread([=, this] {
-                            const QString base = Configs::GetBasePath();
-                            QString dlErr;
-                            if (!QFile::exists(base + "/geoip.dat")) {
-                                auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geoip_url, "geoip.dat");
-                                if (!e.isEmpty()) dlErr += "geoip.dat: " + e + "\n";
-                            }
-                            if (!QFile::exists(base + "/geosite.dat")) {
-                                auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geosite_url, "geosite.dat");
-                                if (!e.isEmpty()) dlErr += "geosite.dat: " + e + "\n";
-                            }
-                            runOnUiThread([=, this] {
-                                if (!dlErr.isEmpty()) {
-                                    MessageBoxWarning(tr("Geo asset download failed"), dlErr);
-                                } else {
-                                    MW_show_log(tr("Downloaded Xray geo asset files."));
-                                    QMessageBox::information(this, tr("Geo assets installed"),
-                                        tr("Geo data files were downloaded successfully.\n\n"
-                                           "Please start your profile again."));
-                                }
-                            });
-                        });
-                    }, this, 300);
-                });
+            // The Xray config's routing referenced geoip:/geosite: tags but the .dat
+            // asset(s) aren't installed. Handle this out-of-band: fail this start
+            // attempt right away — blocking here to download would trip the "no
+            // response" restart prompt — while handleXrayGeoAssetError asynchronously
+            // prompts and downloads. We deliberately don't auto-start; the env var is
+            // already set on the live core, so starting the profile again picks the
+            // assets up with no core restart.
+            if (handleXrayGeoAssetError(error, ent->outbound->DisplayTypeAndName())) {
                 return false;
             }
             if (error.contains("configure tun interface")) {

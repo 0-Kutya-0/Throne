@@ -221,6 +221,10 @@ private:
     bool m_profileConnecting = false;
     // True while a profile stop is in progress; drives the "Disconnecting" state.
     bool m_profileDisconnecting = false;
+    // Single-flight guard for the Xray geo-asset (geoip.dat/geosite.dat) download
+    // prompt: a batch test can surface the missing-asset error for many profiles at
+    // once, and we only want one prompt/download. Touched on the UI thread only.
+    bool m_xrayGeoAssetBusy = false;
     QString traffic_update_cache;
     qint64 last_test_time = 0;
     //
@@ -397,6 +401,13 @@ private:
     void runURLTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID = -1);
 
     void runIPTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID = -1);
+
+    // If `error` reports missing Xray geo assets (geoip.dat / geosite.dat), prompt
+    // once (guarded by m_xrayGeoAssetBusy) and download the missing .dat files in
+    // the background. Shared by profile start and the test paths. `contextName` is
+    // the profile/config name shown in the prompt. Returns true when the error was
+    // a geo-asset error (and thus handled), false otherwise.
+    bool handleXrayGeoAssetError(const QString& error, const QString& contextName);
 
     void url_test_current();
 

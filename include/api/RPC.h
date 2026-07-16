@@ -26,13 +26,16 @@ namespace API {
 
         libcore::QueryStatsResp QueryStats();
 
-        libcore::TestResp Test(bool *rpcOK, const libcore::TestReq &request);
+        // coreError (optional): on RPC failure, receives the core's error message
+        // so callers can react to it (e.g. missing Xray geo assets) rather than
+        // silently dropping the failed test.
+        libcore::TestResp Test(bool *rpcOK, const libcore::TestReq &request, QString *coreError = nullptr);
 
         void StopTests(bool *rpcOK);
 
         libcore::QueryURLTestResponse QueryURLTest(bool *rpcOK);
 
-        libcore::IPTestResp IPTest(bool *rpcOK, const libcore::IPTestRequest &request);
+        libcore::IPTestResp IPTest(bool *rpcOK, const libcore::IPTestRequest &request, QString *coreError = nullptr);
 
         libcore::QueryIPTestResponse QueryIPTest(bool *rpcOK);
 
@@ -46,7 +49,7 @@ namespace API {
 
         bool IsPrivileged(bool *rpcOK) const;
 
-        libcore::SpeedTestResponse SpeedTest(bool *rpcOK, const libcore::SpeedTestRequest &request);
+        libcore::SpeedTestResponse SpeedTest(bool *rpcOK, const libcore::SpeedTestRequest &request, QString *coreError = nullptr);
 
         libcore::QuerySpeedTestResponse QueryCurrentSpeedTests(bool *rpcOK);
 

@@ -246,8 +246,14 @@ namespace API {
 
             std::lock_guard<std::mutex> g(call->mu);
             if (!ok || call->status != 0) {
-                if (ok && call->status != 0)
+                if (ok && call->status != 0) {
                     MW_show_log("[Core error] " + QString::fromUtf8(call->data));
+                    // Surface the core's error payload to the caller too, so it can be
+                    // inspected instead of just logged (e.g. detecting missing Xray geo
+                    // assets when a Test/IPTest/SpeedTest RPC fails). Callers only read
+                    // `rsp` when the call succeeds, so this is inert for the rest.
+                    rsp.assign(call->data.begin(), call->data.end());
+                }
                 return 1;
             }
             rsp.assign(call->data.begin(), call->data.end());
@@ -335,7 +341,7 @@ namespace API {
         return {};
     }
 
-    libcore::TestResp Client::Test(bool *rpcOK, const libcore::TestReq &request) {
+    libcore::TestResp Client::Test(bool *rpcOK, const libcore::TestReq &request, QString *coreError) {
         libcore::TestResp reply;
         std::vector<uint8_t> resp;
         auto status = channel->Call("Test", spb::pb::serialize<std::string>(request), resp);
@@ -344,6 +350,8 @@ namespace API {
             *rpcOK = true;
             return reply;
         } else {
+            if (coreError && !resp.empty())
+                *coreError = QString::fromUtf8(reinterpret_cast<const char *>(resp.data()), static_cast<int>(resp.size()));
             NOT_OK
             return {};
         }
@@ -377,7 +385,7 @@ namespace API {
         }
     }
 
-    libcore::IPTestResp Client::IPTest(bool *rpcOK, const libcore::IPTestRequest &request) {
+    libcore::IPTestResp Client::IPTest(bool *rpcOK, const libcore::IPTestRequest &request, QString *coreError) {
         libcore::IPTestResp reply;
         std::vector<uint8_t> resp;
         auto status = channel->Call("IPTest", spb::pb::serialize<std::string>(request), resp);
@@ -386,6 +394,8 @@ namespace API {
             *rpcOK = true;
             return reply;
         } else {
+            if (coreError && !resp.empty())
+                *coreError = QString::fromUtf8(reinterpret_cast<const char *>(resp.data()), static_cast<int>(resp.size()));
             NOT_OK
             return {};
         }
@@ -478,7 +488,7 @@ namespace API {
         }
     }
 
-    libcore::SpeedTestResponse Client::SpeedTest(bool *rpcOK, const libcore::SpeedTestRequest &request)
+    libcore::SpeedTestResponse Client::SpeedTest(bool *rpcOK, const libcore::SpeedTestRequest &request, QString *coreError)
     {
         libcore::SpeedTestResponse reply;
         std::vector<uint8_t> resp;
@@ -488,6 +498,8 @@ namespace API {
             *rpcOK = true;
             return reply;
         } else {
+            if (coreError && !resp.empty())
+                *coreError = QString::fromUtf8(reinterpret_cast<const char *>(resp.data()), static_cast<int>(resp.size()));
             NOT_OK
             return {};
         }
