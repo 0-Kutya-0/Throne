@@ -19,6 +19,7 @@ extern QString ReadFileText(const QString &path);
 static const QMap<QString, QColor> feiyangBaseColor = {
     {"flatgray",  QColor("#FFFFFF")},
     {"lightblue", QColor("#EAF7FF")},
+    {"softpink",  QColor("#FFF0FB")},
     {"blacksoft", QColor("#444444")},
 };
 

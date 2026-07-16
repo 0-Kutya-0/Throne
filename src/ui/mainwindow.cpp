@@ -145,7 +145,7 @@ bool MainWindow::verify_core_pid(QLocalSocket *socket) {
 // Stylesheet themes have a known brightness; plain QStyle themes follow the OS preference.
 static bool themeUsesDarkLog(const QString &theme) {
     const auto lower = theme.toLower();
-    if (lower.contains("vista") || lower.contains("flatgray") || lower.contains("lightblue")) {
+    if (lower.contains("vista") || lower.contains("flatgray") || lower.contains("lightblue") || lower.contains("softpink")) {
         return false; // light themes
     }
     if (lower.contains("qdarkstyle") || lower.contains("blacksoft")) {
