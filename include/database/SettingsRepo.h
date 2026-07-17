@@ -157,7 +157,7 @@ namespace Configs {
         // sub_auto_update (negative = disabled, magnitude = minutes). Default: daily.
         int route_auto_update = -1440;
         qint64 route_auto_update_last = 0;
-        QString remote_dns = "8.8.8.8";
+        QString remote_dns = "https://8.8.8.8/dns-query";
         QString remote_dns_strategy = "";
         QString direct_dns = "localhost";
         QString direct_dns_strategy = "";
