@@ -121,6 +121,7 @@ namespace Configs
         bool isResolvedUsed = false;
         bool singToXrayTransitioned = false;
         bool xrayToSingTransitioned = false;
+        bool proxyUsesXray = false;
         std::shared_ptr<Profile> ent = std::make_shared<Profile>(nullptr, nullptr);
         std::shared_ptr<BuildPrerequisities> buildPrerequisities = std::make_shared<BuildPrerequisities>();
         osType os;

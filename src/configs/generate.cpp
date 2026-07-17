@@ -173,6 +173,19 @@ namespace Configs {
         auto isXrayFullConfig = [](const std::shared_ptr<Profile>& p) {
             return p->outbound != nullptr && p->outbound->IsXrayFullConfig();
         };
+        auto usesXrayCore = [](const std::shared_ptr<Profile>& p) {
+            return p->outbound != nullptr && (p->outbound->IsXray() || p->outbound->IsXrayFullConfig());
+        };
+        if (ctx->ent->type == "chain") {
+            if (auto chain = ctx->ent->Chain(); chain != nullptr) {
+                for (int pid : chain->list) {
+                    auto pe = Configs::dataManager->profilesRepo->GetProfile(pid);
+                    if (pe != nullptr && usesXrayCore(pe)) { ctx->proxyUsesXray = true; break; }
+                }
+            }
+        } else if (usesXrayCore(ctx->ent)) {
+            ctx->proxyUsesXray = true;
+        }
         for (const auto &item: *neededOutbounds) {
             if (item < 0) continue;
             auto neededEnt = Configs::dataManager->profilesRepo->GetProfile(item);
@@ -458,6 +471,28 @@ namespace Configs {
         return res;
     }
 
+    QString upgradeUdpDnsToDoH(const QString& server) {
+        static const QMap<QString, QString> known = {
+            // Google
+            {"8.8.8.8", "https://8.8.8.8/dns-query"},
+            {"8.8.4.4", "https://8.8.4.4/dns-query"},
+            // Cloudflare
+            {"1.1.1.1", "https://1.1.1.1/dns-query"},
+            {"1.0.0.1", "https://1.0.0.1/dns-query"},
+            {"1.1.1.2", "https://1.1.1.2/dns-query"},
+            {"1.0.0.2", "https://1.0.0.2/dns-query"},
+            {"1.1.1.3", "https://1.1.1.3/dns-query"},
+            {"1.0.0.3", "https://1.0.0.3/dns-query"},
+            // Quad9
+            {"9.9.9.9", "https://9.9.9.9/dns-query"},
+            {"149.112.112.112", "https://149.112.112.112/dns-query"},
+            // AdGuard
+            {"94.140.14.14", "https://94.140.14.14/dns-query"},
+            {"94.140.15.15", "https://94.140.15.15/dns-query"},
+        };
+        return known.value(server, "https://8.8.8.8/dns-query");
+    }
+
     void buildDNSSection(std::shared_ptr<BuildSingBoxConfigContext> &ctx, bool useDnsObj) {
         if (getOS() == Darwin && Configs::dataManager->settingsRepo->core_box_underlying_dns.isEmpty() && Configs::dataManager->settingsRepo->spmode_vpn)
         {
@@ -479,6 +514,10 @@ namespace Configs {
         // remote
         if (!ctx->forTest) {
             auto remoteDnsObj = buildDnsObj(Configs::dataManager->settingsRepo->remote_dns, ctx);
+            // overwrite remote dns to TCP based since Xray is shit
+            if (ctx->proxyUsesXray && ( remoteDnsObj.value("type").toString() == "udp" || remoteDnsObj.value("type").toString() == "quic" )) {
+                remoteDnsObj = buildDnsObj(upgradeUdpDnsToDoH(remoteDnsObj.value("server").toString()), ctx);
+            }
             remoteDnsObj["tag"] = "dns-remote";
             remoteDnsObj["domain_resolver"] = "dns-local";
             remoteDnsObj["detour"] = "proxy";
