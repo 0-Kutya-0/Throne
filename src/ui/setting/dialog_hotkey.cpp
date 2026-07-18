@@ -1,5 +1,6 @@
 #include "include/ui/setting/dialog_hotkey.h"
 
+#include "include/ui/utils/ResponsiveDialog.h"
 #include <include/global/GuiUtils.hpp>
 
 #include "include/ui/mainwindow_interface.h"
@@ -16,6 +17,8 @@ DialogHotkey::DialogHotkey(QWidget *parent, const QList<QAction*>& actions) : QD
     generateShortcutItems(actions);
 
     GetMainWindow()->RegisterHotkey(true);
+
+    makeDialogResponsive(this);
 }
 
 void DialogHotkey::generateShortcutItems(const QList<QAction*>& actions)

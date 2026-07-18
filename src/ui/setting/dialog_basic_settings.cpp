@@ -1,5 +1,6 @@
 #include "include/ui/setting/dialog_basic_settings.h"
 
+#include "include/ui/utils/ResponsiveDialog.h"
 #include "3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.hpp"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/setting/Icon.hpp"
@@ -267,6 +268,8 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
 
     D_LOAD_BOOL(skip_cert)
     ui->utlsFingerprint->setCurrentText(Configs::dataManager->settingsRepo->utlsFingerprint);
+
+    makeDialogResponsive(this);
 }
 
 DialogBasicSettings::~DialogBasicSettings() {

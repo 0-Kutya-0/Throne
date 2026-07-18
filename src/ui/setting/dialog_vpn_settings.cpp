@@ -1,5 +1,6 @@
 #include "include/ui/setting/dialog_vpn_settings.h"
 
+#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/global/GuiUtils.hpp"
 #include "include/global/Configs.hpp"
 #include "include/ui/mainwindow_interface.h"
@@ -60,6 +61,7 @@ DialogVPNSettings::DialogVPNSettings(QWidget *parent) : QDialog(parent), ui(new 
     ui->tun_ipv4_cidr->setText(Configs::dataManager->settingsRepo->vpn_tun_ipv4_cidr);
     ui->tun_ipv6_cidr->setText(Configs::dataManager->settingsRepo->vpn_tun_ipv6_cidr);
     ui->disable_priv_range->setChecked(Configs::dataManager->settingsRepo->disable_private_range_bypass);
+    makeDialogResponsive(this);
     ADJUST_SIZE
 }
 

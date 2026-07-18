@@ -1,5 +1,6 @@
 #include "include/ui/group/dialog_edit_group.h"
 
+#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/ui/mainwindow_interface.h"
 
 #include <QClipboard>
@@ -175,6 +176,7 @@ DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWi
 
     ui->name->setFocus();
 
+    makeDialogResponsive(this);
     ADJUST_SIZE
 }
 
