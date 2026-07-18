@@ -10,13 +10,6 @@
 #include <QRadialGradient>
 #include <QStyle>
 #include <QStyleOptionToolButton>
-#include <QTimer>
-#include <QtMath>
-
-namespace {
-constexpr int kGlowPeriodMs = 3400;  // one full breath
-constexpr int kGlowIntervalMs = 33;  // ~30fps; the slow breath needs no more
-}  // namespace
 
 StartStopButton::StartStopButton(QWidget *parent) : QToolButton(parent) {
     setFocusPolicy(Qt::NoFocus);
@@ -28,25 +21,12 @@ StartStopButton::StartStopButton(QWidget *parent) : QToolButton(parent) {
     m_pressAnim = new QPropertyAnimation(this, "press", this);
     m_ringColorAnim = new QPropertyAnimation(this, "ringColor", this);
 
-    // Looping animations: the connecting spinner and the running glow.
     m_spinAnim = new QPropertyAnimation(this, "spin", this);
     m_spinAnim->setStartValue(0.0);
     m_spinAnim->setEndValue(360.0);
     m_spinAnim->setDuration(900);
     m_spinAnim->setLoopCount(-1);
     m_spinAnim->setEasingCurve(QEasingCurve::Linear);
-
-    // glow is a 0..1 phase advanced at a constant rate; paint maps it through a
-    // raised cosine, so the breath rises and falls at equal rates and dwells
-    // equally at bright and dim (InOutSine here lingered dim and rushed the peak).
-    // A 3.4s breath needs nowhere near the display refresh rate, so we drive it
-    // from a ~30fps timer instead of a vsync-locked QPropertyAnimation; the phase
-    // is read from an elapsed clock so the cadence is immune to timer jitter.
-    m_glowTimer = new QTimer(this);
-    m_glowTimer->setInterval(kGlowIntervalMs);
-    m_glowTimer->setTimerType(Qt::CoarseTimer);
-    connect(m_glowTimer, &QTimer::timeout, this,
-            [this] { setGlow((m_glowClock.elapsed() % kGlowPeriodMs) / qreal(kGlowPeriodMs)); });
 
     connect(this, &QAbstractButton::pressed, this, [this] { animate(m_pressAnim, 1.0, 110); });
     connect(this, &QAbstractButton::released, this, [this] { animate(m_pressAnim, 0.0, 160); });
@@ -129,26 +109,10 @@ void StartStopButton::setLoopRunning(QPropertyAnimation *anim, bool running) {
     update();
 }
 
-void StartStopButton::setGlowRunning(bool running) {
-    if (running) {
-        if (!m_glowTimer->isActive()) {
-            m_glowClock.restart();
-            setGlow(0.0);
-            m_glowTimer->start();
-        }
-        return;
-    }
-    m_glowTimer->stop();
-    setGlow(0.0);
-}
 
-// Start/stop the looping animations for the current state, but only while the
-// button is on screen; hideEvent/showEvent toggle m_shown so a minimised or
-// hidden-to-tray window stops driving repaints for nobody.
 void StartStopButton::updateLoops() {
     const bool spinning = m_state == State::Connecting || m_state == State::Disconnecting;
     setLoopRunning(m_spinAnim, m_shown && spinning);
-    setGlowRunning(m_shown && m_state == State::Running);
 }
 
 void StartStopButton::showEvent(QShowEvent *e) {
@@ -160,7 +124,6 @@ void StartStopButton::showEvent(QShowEvent *e) {
 void StartStopButton::hideEvent(QHideEvent *e) {
     m_shown = false;
     setLoopRunning(m_spinAnim, false);
-    setGlowRunning(false);
     QToolButton::hideEvent(e);
 }
 
@@ -309,18 +272,12 @@ void StartStopButton::paintEvent(QPaintEvent *) {
         const int spanAngle = -110 * 16;                       // sweep clockwise
         p.drawArc(rr, startAngle, spanAngle);
     } else if (m_state == State::Running) {
-        // The whole ring "breathes": a soft interior wash + a gentle outer bloom
-        // rise and fall with the glow phase. Kept subtle so it reads as a calm
-        // breath rather than a hard pulsing light.
-        // Linear phase -> raised cosine: smooth, symmetric, equal dwell/rise/fall.
-        const qreal pulse = 0.5 - 0.5 * qCos(m_glow * 2.0 * M_PI);
+        constexpr qreal kSteadyGlow = 0.5;
 
-        // Soft glow that peaks at the ring and fades to nothing outward, so the
-        // halo melts into the background instead of being a flat band of colour.
         const qreal glowR = R + penW * 2.4;
         const qreal ringStop = R / glowR;
         QColor gPeak = m_ringColor;
-        gPeak.setAlphaF(0.20 + 0.40 * pulse);
+        gPeak.setAlphaF(0.20 + 0.40 * kSteadyGlow);
         QColor gEdge = m_ringColor;
         gEdge.setAlphaF(0.0);
         // Outward only: the interior stays clear (the inner stops are transparent,
@@ -335,9 +292,9 @@ void StartStopButton::paintEvent(QPaintEvent *) {
         p.setBrush(g);
         p.drawEllipse(c, glowR, glowR);
 
-        // Crisp core ring on top, barely brightening at the peak.
+        // Crisp core ring on top.
         p.setBrush(Qt::NoBrush);
-        QColor base = m_ringColor.lighter(static_cast<int>(101 + 9 * pulse));
+        QColor base = m_ringColor.lighter(static_cast<int>(101 + 9 * kSteadyGlow));
         base.setAlphaF(0.95); // a touch dimmer than the full mode colour
         QConicalGradient cg(c, 90.0);
         cg.setColorAt(0.0, base.lighter(116));

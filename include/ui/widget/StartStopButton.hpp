@@ -2,11 +2,9 @@
 
 #include <QToolButton>
 #include <QColor>
-#include <QElapsedTimer>
 #include <QPixmap>
 
 class QPropertyAnimation;
-class QTimer;
 
 // A self-painted start/stop control for the main toolbar.
 //
@@ -22,7 +20,6 @@ class StartStopButton : public QToolButton {
     Q_OBJECT
     Q_PROPERTY(qreal morph READ morph WRITE setMorph)
     Q_PROPERTY(qreal spin READ spin WRITE setSpin)
-    Q_PROPERTY(qreal glow READ glow WRITE setGlow)
     Q_PROPERTY(qreal dim READ dim WRITE setDim)
     Q_PROPERTY(qreal press READ press WRITE setPress)
     Q_PROPERTY(QColor ringColor READ ringColor WRITE setRingColor)
@@ -51,8 +48,6 @@ public:
     void setMorph(qreal v) { m_morph = v; update(); }
     qreal spin() const { return m_spin; }
     void setSpin(qreal v) { m_spin = v; update(); }
-    qreal glow() const { return m_glow; }
-    void setGlow(qreal v) { m_glow = v; update(); }
     qreal dim() const { return m_dim; }
     void setDim(qreal v) { m_dim = v; update(); }
     qreal press() const { return m_press; }
@@ -70,7 +65,6 @@ private:
     void applyState(bool animated);
     void animate(QPropertyAnimation *anim, const QVariant &to, int duration);
     void setLoopRunning(QPropertyAnimation *anim, bool running);
-    void setGlowRunning(bool running);
     void updateLoops();
     void ensureChromeCache();
 
@@ -84,7 +78,6 @@ private:
 
     qreal m_morph = 0.0; // 0 = play triangle, 1 = stop square
     qreal m_spin = 0.0;  // connecting arc rotation, degrees
-    qreal m_glow = 0.0;  // running "breathing" inner glow, 0..1
     qreal m_dim = 1.0;   // indicator opacity multiplier (low while disabled)
     qreal m_press = 0.0; // press depth, 0..1
     QColor m_ringColor;
@@ -95,13 +88,7 @@ private:
     QPropertyAnimation *m_ringColorAnim = nullptr;
     QPropertyAnimation *m_spinAnim = nullptr;
 
-    // The running "breath" is a slow 3.4s cycle, so it is driven by a ~30fps
-    // timer rather than a vsync-locked animation. Phase comes from an elapsed
-    // clock so the cadence is independent of timer jitter.
-    QTimer *m_glowTimer = nullptr;
-    QElapsedTimer m_glowClock;
-
-    // Looping animations run only while the button is actually on screen.
+    // The looping spinner runs only while the button is actually on screen.
     bool m_shown = false;
 
     // The standard tool-button chrome never animates; it is rendered through
