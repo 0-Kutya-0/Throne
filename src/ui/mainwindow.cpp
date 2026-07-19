@@ -370,6 +370,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->toolButton_testing->setMenu(ui->menuTesting);
     ui->toolButton_tools->setMenu(ui->menuTools);
     ui->toolButton_program->installEventFilter(this);
+
+    // Give the menu toolButtons a uniform width (the widest one's) so the top
+    // bar reads as an even row. The start/stop button keeps its own square size.
+    const QList<QToolButton*> menuButtons = {
+        ui->toolButton_program, ui->toolButton_preferences, ui->toolButton_testing,
+        ui->toolButton_routing, ui->toolButton_tools,
+    };
+    int uniformButtonWidth = 0;
+    for (auto* b : menuButtons) {
+        b->ensurePolished();
+        uniformButtonWidth = qMax(uniformButtonWidth, b->sizeHint().width());
+    }
+    for (auto* b : menuButtons) b->setMinimumWidth(uniformButtonWidth);
+
     ui->menubar->setVisible(false);
     connect(ui->actionRuntime_Stats, &QAction::triggered, this, [=]() {
         USE_DIALOG(DialogRuntimeStats)
@@ -762,13 +776,62 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
     });
 
     connect(ui->menuTesting, &QMenu::aboutToShow, this, [=,this](){
-        // Speedtest Current only makes sense against a live instance.
-        ui->actionSpeedtest_Current->setEnabled(running != nullptr);
+        // Deleting the last remaining group is not allowed.
+        ui->actionDelete_Group->setEnabled(Configs::dataManager->groupsRepo->GetAllGroupIds().size() > 1);
         if (!speedtestRunning.tryLock()) {
             ui->menuTesting->addAction(ui->menu_stop_testing);
         } else {
             speedtestRunning.unlock();
             ui->menuTesting->removeAction(ui->menu_stop_testing);
+        }
+    });
+
+    connect(ui->menuTools, &QMenu::aboutToShow, this, [=,this](){
+        // Speedtest Current only makes sense against a live instance.
+        ui->actionSpeedtest_Current->setEnabled(running != nullptr);
+    });
+
+    connect(ui->actionAdd_New_Group, &QAction::triggered, this, [=,this]{
+        auto ent = Configs::dataManager->groupsRepo->NewGroup();
+        auto dialog = new DialogEditGroup(ent, this);
+        int ret = dialog->exec();
+        dialog->deleteLater();
+
+        if (ret == QDialog::Accepted) {
+            Configs::dataManager->groupsRepo->AddGroup(ent);
+            MW_dialog_message(MwMessage::GroupsChanged, {});
+        }
+    });
+
+    connect(ui->actionEdit_Group, &QAction::triggered, this, [=,this]{
+        auto ent = Configs::dataManager->groupsRepo->CurrentGroup();
+        auto dialog = new DialogEditGroup(ent, this);
+        connect(dialog, &QDialog::finished, this, [=,this] {
+            if (dialog->result() == QDialog::Accepted) {
+                Configs::dataManager->groupsRepo->Save(ent);
+                MW_dialog_message(MwMessage::GroupsChanged, {});
+            }
+            dialog->deleteLater();
+        });
+        dialog->show();
+    });
+
+    connect(ui->actionDelete_Group, &QAction::triggered, this, [=,this]{
+        if (Configs::dataManager->groupsRepo->GetAllGroupIds().size() <= 1) return;
+        auto id = Configs::dataManager->groupsRepo->CurrentGroup()->id;
+        if (QMessageBox::question(this, tr("Confirmation"), tr("Remove %1?").arg(Configs::dataManager->groupsRepo->GetGroup(id)->name)) ==
+            QMessageBox::StandardButton::Yes) {
+            if (running != nullptr) {
+                if (running->gid == id) profile_stop(false, true, false);
+            }
+            Configs::dataManager->groupsRepo->DeleteGroup(id);
+            MW_dialog_message(MwMessage::GroupsChanged, {});
+        }
+    });
+
+    connect(ui->actionUpdate_All_Subscriptions, &QAction::triggered, this, [=,this]{
+        if (QMessageBox::question(this, tr("Confirmation"), tr("Update all subscriptions?")) == QMessageBox::StandardButton::Yes) {
+            UI_update_all_groups();
         }
     });
 
@@ -3147,20 +3210,10 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
     ui->tabWidget->setCurrentIndex(clickedIndex);
     auto* menu = new QMenu(this);
 
-    auto* addAction = new QAction(tr("Add new Group"), this);
+    // Group actions are centralized in the Groups toolButton menu; the tab
+    // context menu only keeps quick Edit / Delete for the clicked group.
     auto* deleteAction = new QAction(tr("Delete selected Group"), this);
     auto* editAction = new QAction(tr("Edit selected Group"), this);
-    connect(addAction, &QAction::triggered, this, [=,this]{
-        auto ent = Configs::GroupsRepo::NewGroup();
-        auto dialog = new DialogEditGroup(ent, this);
-        int ret = dialog->exec();
-        dialog->deleteLater();
-
-        if (ret == QDialog::Accepted) {
-            Configs::dataManager->groupsRepo->AddGroup(ent);
-            MW_dialog_message(MwMessage::GroupsChanged, {});
-        }
-    });
     connect(deleteAction, &QAction::triggered, this, [=,this] {
         auto id = Configs::dataManager->groupsRepo->GetGroupsTabOrder()[clickedIndex];
         if (QMessageBox::question(this, tr("Confirmation"), tr("Remove %1?").arg(Configs::dataManager->groupsRepo->GetGroup(id)->name)) ==
@@ -3185,23 +3238,8 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
         });
         dialog->show();
     });
-    menu->addAction(ui->actionRefresh_Column_Widths);
-    menu->addAction(addAction);
     menu->addAction(editAction);
-    auto group = Configs::dataManager->groupsRepo->GetGroup(Configs::dataManager->settingsRepo->current_group);
     if (Configs::dataManager->groupsRepo->GetAllGroupIds().size() > 1) menu->addAction(deleteAction);
-    if (!group->Profiles().empty()) {
-        menu->addAction(ui->menu_delete_repeat);
-        menu->addAction(ui->menu_remove_unavailable);
-        menu->addAction(ui->menu_remove_invalid);
-    }
-    if (!group->url.isEmpty()) menu->addAction(ui->menu_update_subscription);
-    if (!speedtestRunning.tryLock()) {
-        menu->addAction(ui->menu_stop_testing);
-    } else {
-        speedtestRunning.unlock();
-        menu->removeAction(ui->menu_stop_testing);
-    }
     menu->exec(ui->tabWidget->tabBar()->mapToGlobal(p));
     return;
 }
