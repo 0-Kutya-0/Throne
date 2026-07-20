@@ -252,9 +252,6 @@ private:
     // shortcuts
     QList<QShortcut*> hiddenMenuShortcuts;
 
-    QStringList remoteRouteProfiles;
-    QMutex mu_remoteRouteProfiles;
-
     // search
     bool searchEnabled = false;
     QString addressFilterString;

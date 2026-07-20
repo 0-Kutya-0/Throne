@@ -883,26 +883,6 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
         }
     });
 
-    auto getRemoteRouteProfiles = [=,this]
-    {
-        auto resp = NetworkRequestHelper::HttpGet("https://api.github.com/repos/throneproj/routeprofiles/git/trees/profile");
-        if (resp.error.isEmpty()) {
-            QStringList newRemoteRouteProfiles;
-            QJsonObject release = QString2QJsonObject(resp.data);
-            for (const QJsonValue asset : release["tree"].toArray()) {
-                auto profile = asset["path"].toString();
-                if (profile.section('.', -1) == QString("json") && (profile.startsWith("bypass",Qt::CaseInsensitive) || profile.startsWith("proxy",Qt::CaseInsensitive))) {
-                    profile.chop(5);
-                    newRemoteRouteProfiles.push_back(profile);
-                }
-            }
-            mu_remoteRouteProfiles.lock();
-            remoteRouteProfiles = newRemoteRouteProfiles;
-            mu_remoteRouteProfiles.unlock();
-        }
-    };
-    runOnNewThread(getRemoteRouteProfiles);
-
     connect(ui->actionRefresh_Column_Widths, &QAction::triggered, this, [=, this] {
         auto ent = Configs::dataManager->groupsRepo->CurrentGroup();
         ent->column_width.clear();
@@ -912,8 +892,6 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
 
     connect(ui->menuRouting_Menu, &QMenu::aboutToShow, this, [=,this]()
     {
-        if(remoteRouteProfiles.isEmpty())
-            runOnNewThread(getRemoteRouteProfiles);
         ui->menuRouting_Menu->clear();
         ui->menuRouting_Menu->addAction(ui->menu_routing_settings);
 
@@ -941,42 +919,24 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
         });
         ui->menuRouting_Menu->addAction(actionWarp);
 
-        mu_remoteRouteProfiles.lock();
-        if(!remoteRouteProfiles.isEmpty()) {
-            QMenu* profilesMenu = ui->menuRouting_Menu->addMenu(QObject::tr("Download Profiles"));
-            for (const auto& profile : remoteRouteProfiles)
+        QMenu* profilesMenu = ui->menuRouting_Menu->addMenu(QObject::tr("Download Profiles"));
+        for (const QString &country : QStringList{"China", "Iran", "Russia"})
+        {
+            auto* action = new QAction(profilesMenu);
+            action->setText(country);
+            connect(action, &QAction::triggered, this, [=,this]()
             {
-                auto* action = new QAction(profilesMenu);
-                action->setText(profile);
-                connect(action, &QAction::triggered, this, [=,this]()
-                {
-                    auto resp = NetworkRequestHelper::HttpGet(Configs::get_jsdelivr_link("https://raw.githubusercontent.com/throneproj/routeprofiles/profile/" + profile + ".json"));
-                    if (!resp.error.isEmpty()) {
-                        runOnUiThread([=] {
-                            MessageBoxWarning(QObject::tr("Download Profiles"), QObject::tr("Requesting profile error: %1").arg(resp.error + "\n" + resp.data));
-                        });
-                        return;
-                    }
-                    auto err = new QString;
-                    auto parsed = Configs::RouteProfile::parseJsonArray(QString2QJsonArray(resp.data), err);
-                    if (!err->isEmpty()) {
-                        runOnUiThread([=]
-                        {
-                            MessageBoxInfo(tr("Invalid JSON Array"), tr("The provided input cannot be parsed to a valid route rule array:\n") + *err);
-                        });
-                        return;
-                    }
-                    auto chain = Configs::dataManager->routesRepo->NewRouteProfile();
-                    chain->name = QString(profile).replace('_', ' ');
-                    chain->defaultOutboundID = profile.startsWith("bypass",Qt::CaseInsensitive) ? Configs::proxyID : Configs::directID;
-                    chain->Rules.clear();
-                    chain->Rules << parsed;
-                    Configs::dataManager->routesRepo->AddRouteProfile(chain);
-                });
-                profilesMenu->addAction(action);
-            }
+                auto resp = NetworkRequestHelper::HttpGet(Configs::get_jsdelivr_link("https://raw.githubusercontent.com/throneproj/routeprofiles/profile/Profile_" + country));
+                if (!resp.error.isEmpty()) {
+                    runOnUiThread([=] {
+                        MessageBoxWarning(QObject::tr("Download Profiles"), QObject::tr("Requesting profile error: %1").arg(resp.error + "\n" + resp.data));
+                    });
+                    return;
+                }
+                handle_add_remote_routes(resp.data);
+            });
+            profilesMenu->addAction(action);
         }
-        mu_remoteRouteProfiles.unlock();
 
         ui->menuRouting_Menu->addSeparator();
         for (const auto& route : Configs::dataManager->routesRepo->GetAllRouteProfiles())
@@ -1438,6 +1398,11 @@ void MainWindow::handle_deeplink_impl(const QString &url) {
         return;
     }
 
+    if (cmd.compare("remoteroute", Qt::CaseInsensitive) == 0) {
+        handle_add_remote_routes(url);
+        return;
+    }
+
     QString base64 = u.path();
     if (base64.startsWith('/')) {
         base64 = base64.mid(1); 
@@ -1458,11 +1423,6 @@ void MainWindow::handle_deeplink_impl(const QString &url) {
 
     if (cmd.compare("addsub", Qt::CaseInsensitive) == 0) {
         handle_addsub(link.toString(QUrl::RemoveFragment), link.fragment());
-        return;
-    }
-
-    if (cmd.compare("remoteroute", Qt::CaseInsensitive) == 0) {
-        handle_add_remote_routes(url);
         return;
     }
 
@@ -1504,15 +1464,17 @@ void MainWindow::handle_add_remote_routes(const QString &url) {
 
     QString prompt = tr("Add these remote routing profiles?") + "\n";
     for (int i = 0; i < profiles.size(); ++i) {
-        prompt += QString("\n%1. %2  (%3: %4)")
+        prompt += QString("\n%1. %2")
                       .arg(i + 1)
-                      .arg(profiles[i]->remoteURL, tr("auto update"), profiles[i]->autoUpdate ? tr("On") : tr("Off"));
+                      .arg(profiles[i]->remoteURL);
     }
-    if (QMessageBox::question(GetMessageBoxParent(), tr("Add remote routing profiles"), prompt) != QMessageBox::StandardButton::Yes) {
+    bool autoUpdate = true;
+    if (MessageBoxCheck(tr("Add remote routing profiles"), prompt, tr("Auto update"), autoUpdate) != QMessageBox::Ok) {
         return;
     }
 
     for (auto &profile : profiles) {
+        profile->autoUpdate = autoUpdate;
         Configs::dataManager->routesRepo->AddRouteProfile(profile);
     }
 

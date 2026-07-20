@@ -429,58 +429,37 @@ namespace Configs {
     QList<std::shared_ptr<RouteProfile>> RouteProfile::FromRemoteRoutesLink(const QString& input, bool* wasRemoteRouteLink, QString* error) {
         if (wasRemoteRouteLink) *wasRemoteRouteLink = false;
         const QString text = input.trimmed();
-        if (!text.startsWith("throne://", Qt::CaseInsensitive)) return {};
-        const QUrl u(text);
-        if (u.host().compare("remoteroute", Qt::CaseInsensitive) != 0) return {};
+        if (!text.startsWith("throne://remoteroute/", Qt::CaseInsensitive)) return {};
         if (wasRemoteRouteLink) *wasRemoteRouteLink = true;
 
-        const QString dataParam = QUrlQuery(u).queryItemValue("data", QUrl::FullyDecoded).trimmed();
-        if (dataParam.isEmpty()) {
-            if (error) *error = "The link did not contain any data.";
+        const QUrl u(text);
+        if (!u.isValid()) {
+            if (error) *error = "Deep link is invalid";
             return {};
         }
-
-        // data is a JSON array of {url, auto_update[, name]} objects, optionally base64-encoded
-        // (url-safe or standard); also tolerates {"routes": [...]}.
-        auto parseArray = [](const QString& s) -> QJsonArray {
-            const auto doc = QJsonDocument::fromJson(s.toUtf8());
-            if (doc.isArray()) return doc.array();
-            if (doc.isObject()) return doc.object().value("routes").toArray();
+        QString base64 = u.path().mid(1);
+        if (base64.isEmpty()) {
+            if (error) *error = "Deep link has no data";
             return {};
-        };
-        QJsonArray arr = parseArray(dataParam);
-        if (arr.isEmpty()) {
-            arr = parseArray(QString::fromUtf8(QByteArray::fromBase64(dataParam.toUtf8(), QByteArray::Base64UrlEncoding)));
-            if (arr.isEmpty()) arr = parseArray(QString::fromUtf8(QByteArray::fromBase64(dataParam.toUtf8())));
         }
-        if (arr.isEmpty()) {
-            if (error) *error = "The link data is not a valid list of remote routing profiles.";
+        const QString data = DecodeB64IfValid(base64);
+        if (data.isEmpty()) {
+            if (error) *error = "Base64 is invalid.";
             return {};
         }
 
         QList<std::shared_ptr<RouteProfile>> res;
-        for (const auto& v : arr) {
-            if (!v.isObject()) continue;
-            const QJsonObject o = v.toObject();
-            const QString eurl = o.value("url").toString().trimmed();
+        for (const auto& v : data.split('\n', Qt::SkipEmptyParts)) {
+            const QString eurl = v.trimmed();
             if (!eurl.startsWith("http://", Qt::CaseInsensitive) && !eurl.startsWith("https://", Qt::CaseInsensitive)) continue;
-            const QJsonValue auv = o.contains("auto_update") ? o.value("auto_update")
-                                 : o.contains("autoUpdate")  ? o.value("autoUpdate")
-                                                             : o.value("autoupdate");
-            bool autoUpdate = false;
-            if (auv.isBool()) autoUpdate = auv.toBool();
-            else if (auv.isDouble()) autoUpdate = auv.toInt() != 0;
-            else if (auv.isString()) {
-                const QString s = auv.toString().trimmed().toLower();
-                autoUpdate = s == "1" || s == "true" || s == "on" || s == "yes";
-            }
+            const QUrl link(eurl);
+            if (!link.isValid()) continue;
 
             auto profile = std::make_shared<RouteProfile>();
             profile->id = -1;
             profile->isRemote = true;
-            profile->remoteURL = eurl;
-            profile->autoUpdate = autoUpdate;
-            profile->name = o.value("name").toString().trimmed();
+            profile->remoteURL = link.toString(QUrl::RemoveFragment);
+            profile->name = link.fragment();
             if (profile->name.isEmpty()) profile->name = QUrl(eurl).host();
             res << profile;
         }
