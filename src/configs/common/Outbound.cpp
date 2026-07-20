@@ -2,6 +2,79 @@
 #include "include/configs/common/utils.h"
 
 namespace Configs {
+    QString DisplayTransportName(const QString& type)
+    {
+        // tcp (sing-box) and raw (Xray) mean no transport.
+        if (type.isEmpty() || type == "tcp" || type == "raw") return {};
+        if (type == "ws") return "WebSocket";
+        if (type == "grpc") return "gRPC";
+        if (type == "http") return "HTTP";
+        if (type == "httpupgrade") return "HTTPUpgrade";
+        if (type == "xhttp") return "XHTTP";
+        if (type == "quic") return "QUIC";
+        return type.toUpper();
+    }
+
+    SecurityInfo outbound::SecurityFromTLS(const QString& transport)
+    {
+        SecurityInfo info;
+        info.transport = transport;
+        if (HasTLS()) {
+            auto tls = GetTLS();
+            if (tls->reality->enabled) {
+                info.label = QObject::tr("Reality");
+                info.level = SecurityLevel::Secure;
+                return info;
+            }
+            if (tls->enabled || MustTLS()) {
+                // Skipping cert verification opens TLS to MITM, so not secure.
+                if (tls->insecure) {
+                    info.label = QObject::tr("Insecure TLS");
+                    info.level = SecurityLevel::Weak;
+                } else {
+                    info.label = QObject::tr("TLS");
+                    info.level = SecurityLevel::Secure;
+                }
+                return info;
+            }
+        }
+        info.label = QObject::tr("Raw");
+        info.level = SecurityLevel::None;
+        return info;
+    }
+
+    SecurityInfo outbound::GetSecurity()
+    {
+        if (IsXray()) {
+            auto stream = GetXrayStream();
+            SecurityInfo info;
+            info.transport = DisplayTransportName(stream->network);
+            if (stream->security == "reality") {
+                info.label = QObject::tr("Reality");
+                info.level = SecurityLevel::Secure;
+            } else if (stream->security == "tls") {
+                info.label = QObject::tr("TLS");
+                info.level = SecurityLevel::Secure;
+            } else {
+                info.label = QObject::tr("Raw");
+                info.level = SecurityLevel::None;
+            }
+            return info;
+        }
+
+        return SecurityFromTLS(HasTransport() ? DisplayTransportName(GetTransport()->type) : QString());
+    }
+
+    QString outbound::DisplaySecurity()
+    {
+        auto info = GetSecurity();
+        if (info.label.isEmpty()) return {};
+        auto text = info.transport.isEmpty() ? info.label
+                                             : QStringLiteral("%1+%2").arg(info.transport, info.label);
+        if (info.isDangerous()) return QStringLiteral("⚠️ ") + text;
+        return text;
+    }
+
     bool outbound::ParseFromLink(const QString& link)
     {
         auto url = QUrl(link);

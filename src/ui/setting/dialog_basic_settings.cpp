@@ -119,6 +119,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     //
     D_LOAD_BOOL(start_minimal)
     ui->skip_delete_confirm->setChecked(Configs::dataManager->settingsRepo->skip_delete_confirmation);
+    D_LOAD_BOOL(show_config_security)
     //
     ui->language->setCurrentIndex(Configs::dataManager->settingsRepo->language);
     connect(ui->language, &QComboBox::currentIndexChanged, this, [=,this](int index) {
@@ -363,6 +364,9 @@ void DialogBasicSettings::accept() {
     if (oldUseCustomIcon != Configs::dataManager->settingsRepo->use_custom_icons) CACHE.updateTrayIcon = true;
     D_SAVE_BOOL(start_minimal)
     Configs::dataManager->settingsRepo->skip_delete_confirmation = ui->skip_delete_confirm->isChecked();
+    bool profileListDisplayChanged =
+        Configs::dataManager->settingsRepo->show_config_security != ui->show_config_security->isChecked();
+    D_SAVE_BOOL(show_config_security)
     Configs::dataManager->settingsRepo->show_system_dns = ui->show_sys_dns->isChecked();
 
     if (Configs::dataManager->settingsRepo->max_log_line <= 0) {
@@ -428,6 +432,7 @@ void DialogBasicSettings::accept() {
     if (CACHE.updateMaxLogLines) changes << MwArg::MaxLogLines;
     if (CACHE.updateDisableAdmin) changes << MwArg::DisableAdmin;
     if (needChoosePort) changes << MwArg::ChoosePort;
+    if (profileListDisplayChanged) changes << MwArg::ProfileListDisplay;
     MW_dialog_message(MwMessage::UpdateSettings, changes);
     QDialog::accept();
 }

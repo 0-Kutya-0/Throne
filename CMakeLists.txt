@@ -275,13 +275,15 @@ set(PROJECT_SOURCES
         include/configs/common/multiplex.h
         include/configs/common/transport.h
         include/configs/common/Outbound.h
-        
+        include/configs/common/OutboundFactory.h
+
         # common impl
         src/configs/common/DialFields.cpp
         src/configs/common/TLS.cpp
         src/configs/common/multiplex.cpp
         src/configs/common/transport.cpp
         src/configs/common/Outbound.cpp
+        src/configs/common/OutboundFactory.cpp
         include/configs/outbounds/socks.h
         include/configs/outbounds/http.h
         include/configs/outbounds/shadowsocks.h
@@ -316,6 +318,7 @@ set(PROJECT_SOURCES
         src/configs/outbounds/vless.cpp
         src/configs/outbounds/vmess.cpp
         src/configs/outbounds/wireguard.cpp
+        src/configs/outbounds/custom.cpp
         include/configs/generate.h
         src/configs/generate.cpp
         include/configs/common/utils.h

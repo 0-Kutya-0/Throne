@@ -613,27 +613,37 @@ QTabBar::tab:hover:!selected {
          <item>
           <widget class="QGroupBox" name="connection_statistics_box">
            <layout class="QGridLayout" name="gridLayout_11">
-            <item row="0" column="0">
+            <item row="1" column="0">
              <widget class="QLabel" name="label_9">
               <property name="text">
                <string>Connection statistics</string>
               </property>
              </widget>
             </item>
-            <item row="0" column="2">
+            <item row="1" column="2">
              <widget class="QCheckBox" name="connection_statistics">
               <property name="text">
                <string>Enable</string>
               </property>
              </widget>
             </item>
-            <item row="1" column="0" colspan="3">
+            <item row="2" column="0" colspan="3">
              <widget class="QCheckBox" name="disable_traffic_aggregation">
               <property name="toolTip">
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fully disables the traffic aggregation feature (per-config and per-app usage history kept in a separate database, shown in the Traffic Stats dashboard). Does not affect the per-profile traffic counters in the main window.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="text">
                <string>Disable Traffic Aggregation</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QCheckBox" name="show_config_security">
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Show each config's security next to its type in the proxy list, e.g. &quot;Trojan (WebSocket+TLS)&quot;. Insecure configs are marked with a warning sign.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Show Config Security</string>
               </property>
              </widget>
             </item>

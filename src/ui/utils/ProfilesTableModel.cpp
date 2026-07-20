@@ -19,7 +19,7 @@ int ProfilesTableModel::rowCount(const QModelIndex &parent) const {
 
 int ProfilesTableModel::columnCount(const QModelIndex &parent) const {
     if (parent.isValid()) return 0;
-    return 5;
+    return ColumnCount;
 }
 
 Qt::ItemFlags ProfilesTableModel::flags(const QModelIndex &index) const {
@@ -81,7 +81,7 @@ void ProfilesTableModel::evictOne() const {
 
 QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_profileIds.size()
-        || index.column() < 0 || index.column() >= 5) {
+        || index.column() < 0 || index.column() >= ColumnCount) {
         return {};
     }
     const int profileId = m_profileIds[index.row()];
@@ -100,16 +100,31 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
-        case 0: return profile->outbound ? profile->outbound->DisplayType() : QString();
-        case 1: return profile->outbound ? profile->outbound->DisplayAddress() : QString();
-        case 2: return profile->outbound ? profile->outbound->name : QString();
-        case 3: return profile->DisplayTestResult();
-        case 4: return profile->DisplayTraffic();
+        case ColType: {
+            if (!profile->outbound) return QString();
+            auto type = profile->outbound->DisplayType();
+            if (Configs::dataManager->settingsRepo->show_config_security) {
+                auto sec = profile->outbound->DisplaySecurity();
+                if (!sec.isEmpty()) type += QStringLiteral(" (%1)").arg(sec);
+            }
+            return type;
+        }
+        case ColAddress: return profile->outbound ? profile->outbound->DisplayAddress() : QString();
+        case ColName: return profile->outbound ? profile->outbound->name : QString();
+        case ColTestResult: return profile->DisplayTestResult();
+        case ColTraffic: return profile->DisplayTraffic();
         default: return {};
         }
     }
+    if (role == Qt::ToolTipRole) {
+        if (index.column() == ColType && Configs::dataManager->settingsRepo->show_config_security
+            && profile->outbound && profile->outbound->GetSecurity().isDangerous()) {
+            return tr("This config's traffic is not properly protected.");
+        }
+        return {};
+    }
     if (role == Qt::ForegroundRole) {
-        if (index.column() == 3) {
+        if (index.column() == ColTestResult) {
             QColor latencyColor = profile->DisplayLatencyColor();
             if (latencyColor.isValid()) return latencyColor;
         }
@@ -123,11 +138,11 @@ QVariant ProfilesTableModel::headerData(int section, Qt::Orientation orientation
     if (role != Qt::DisplayRole) return {};
     if (orientation == Qt::Horizontal) {
         switch (section) {
-        case 0: return tr("Type");
-        case 1: return tr("Address");
-        case 2: return tr("Name");
-        case 3: return tr("Test Result");
-        case 4: return tr("Traffic");
+        case ColType: return tr("Type");
+        case ColAddress: return tr("Address");
+        case ColName: return tr("Name");
+        case ColTestResult: return tr("Test Result");
+        case ColTraffic: return tr("Traffic");
         default: return {};
         }
     }

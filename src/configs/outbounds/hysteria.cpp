@@ -318,4 +318,9 @@ namespace Configs {
     {
         return "Hysteria";
     }
+
+    SecurityInfo hysteria::GetSecurity()
+    {
+        return SecurityFromTLS("QUIC");
+    }
 }

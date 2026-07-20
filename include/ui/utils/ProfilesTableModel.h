@@ -17,6 +17,18 @@ class ProfilesTableModel : public QAbstractTableModel {
 public:
     enum { ProfileIdRole = Qt::UserRole };
 
+    // Column order of the proxy table. Everything that indexes the table by
+    // column (sorting, header menus, saved widths, the filter header) refers to
+    // these instead of raw numbers.
+    enum Column {
+        ColType = 0,
+        ColAddress,
+        ColName,
+        ColTestResult,
+        ColTraffic,
+        ColumnCount,
+    };
+
     explicit ProfilesTableModel(QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;

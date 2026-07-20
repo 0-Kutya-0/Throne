@@ -6,6 +6,8 @@
 #include <QScrollBar>
 #include <QToolButton>
 
+#include "include/ui/utils/ProfilesTableModel.h"
+
 class ProfilesTableFilterHeader : public QHeaderView {
     Q_OBJECT
 public:
@@ -22,7 +24,7 @@ public:
             emit typeFilterChanged(text);
         });
 
-        address_filter = new QLineEdit(this->viewport()); 
+        address_filter = new QLineEdit(this->viewport());
         address_filter->setPlaceholderText(tr("Filter..."));
         address_filter->setClearButtonEnabled(true);
         connect(address_filter, &QLineEdit::textChanged, [this](const QString &text) {
@@ -82,21 +84,25 @@ public slots:
         name_filter->setVisible(visible);
         test_filter->setVisible(visible);
 
-        emit geometriesChanged(); 
+        emit geometriesChanged();
     }
 
     void adjustPositions() {
-        if (!m_filtersVisible || !address_filter || !name_filter || !type_filter || !test_filter || count() < 4) {
+        if (!m_filtersVisible || !address_filter || !name_filter || !type_filter
+            || !test_filter || count() < ProfilesTableModel::ColumnCount) {
 	        return;
 	    }
 
         const int editHeight = 24;
         const int topPos = height() - editHeight - 4;
 
-        type_filter->setGeometry(sectionViewportPosition(0) + 2, topPos, sectionSize(0) - 4, editHeight);
-        address_filter->setGeometry(sectionViewportPosition(1) + 2, topPos, sectionSize(1) - 4, editHeight);
-        name_filter->setGeometry(sectionViewportPosition(2) + 2, topPos, sectionSize(2) - 4, editHeight);
-        test_filter->setGeometry(sectionViewportPosition(3) + 2, topPos, sectionSize(3) - 4, editHeight);
+        auto place = [&](QLineEdit *edit, int section) {
+            edit->setGeometry(sectionViewportPosition(section) + 2, topPos, sectionSize(section) - 4, editHeight);
+        };
+        place(type_filter, ProfilesTableModel::ColType);
+        place(address_filter, ProfilesTableModel::ColAddress);
+        place(name_filter, ProfilesTableModel::ColName);
+        place(test_filter, ProfilesTableModel::ColTestResult);
     }
 
 signals:

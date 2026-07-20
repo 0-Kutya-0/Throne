@@ -13,6 +13,27 @@ namespace Configs
 {
     inline QStringList vPacketEncoding = {"", "packetaddr", "xudp"};
 
+    // Ordered worst-to-best; the ordering is relied on when sorting by security.
+    enum class SecurityLevel {
+        Unknown = 0,
+        None,
+        Weak,
+        Secure,
+    };
+
+    struct SecurityInfo {
+        QString label;
+        QString transport;
+        SecurityLevel level = SecurityLevel::Unknown;
+
+        bool isDangerous() const {
+            return level == SecurityLevel::None || level == SecurityLevel::Weak;
+        }
+    };
+
+    // Empty for the transports not worth showing (plain tcp / xray raw).
+    QString DisplayTransportName(const QString& type);
+
     class outbound : public baseConfig
     {
     public:
@@ -73,6 +94,18 @@ namespace Configs
         {
             return QString("[%1] %2").arg(DisplayType(), DisplayName());
         }
+
+        // Overridden by protocols with their own crypto (WireGuard, SSH, ...);
+        // the default reads TLS/transport (or the Xray stream settings).
+        virtual SecurityInfo GetSecurity();
+
+        // GetSecurity() rendered for the type column, warning-prefixed when weak.
+        QString DisplaySecurity();
+
+    protected:
+        SecurityInfo SecurityFromTLS(const QString& transport);
+
+    public:
 
         virtual bool IsXray() { return false; }
 

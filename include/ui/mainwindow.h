@@ -166,6 +166,8 @@ private slots:
 
     void on_menu_remove_invalid_triggered();
 
+    void on_menu_remove_insecure_triggered();
+
     void on_menu_resolve_selected_triggered();
 
     void on_menu_resolve_domain_triggered();

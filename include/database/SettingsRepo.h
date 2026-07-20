@@ -115,6 +115,8 @@ namespace Configs {
         bool show_system_dns = false;
         bool use_custom_icons = false;
         bool skip_delete_confirmation = false;
+        // Fold each config's security into the proxy table's Type column.
+        bool show_config_security = false;
 
         // throne:// URL scheme: mirror of what we last wrote to the OS (registry/desktop/bundle).
         // Re-registered on startup only when the current state differs (e.g. install moved).

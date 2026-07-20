@@ -160,4 +160,9 @@ namespace Configs {
     {
         return "Mieru";
     }
+
+    SecurityInfo mieru::GetSecurity()
+    {
+        return {QObject::tr("Encrypted"), {}, SecurityLevel::Secure};
+    }
 }

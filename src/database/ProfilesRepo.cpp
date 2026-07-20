@@ -5,6 +5,7 @@
 #include <map>
 
 #include "include/database/GroupsRepo.h"
+#include "include/configs/common/OutboundFactory.h"
 #include "include/ui/mainwindow.h"
 
 
@@ -85,58 +86,8 @@ namespace Configs {
         if (type == "hysteria2") {
             type = "hysteria";
         }
-        
-        Configs::outbound* outbound = nullptr;
-        
-        // Create outbound based on type (bean is legacy, not needed)
-        if (type == "socks") {
-            outbound = new Configs::socks();
-        } else if (type == "http") {
-            outbound = new Configs::http();
-        } else if (type == "shadowsocks") {
-            outbound = new Configs::shadowsocks();
-        } else if (type == "chain") {
-            outbound = new Configs::chain();
-        } else if (type == "vmess") {
-            outbound = new Configs::vmess();
-        } else if (type == "trojan") {
-            outbound = new Configs::Trojan();
-        } else if (type == "vless") {
-            outbound = new Configs::vless();
-        } else if (type == "xrayvless") {
-            outbound = new Configs::xrayVless();
-        } else if (type == "hysteria" || type == "hysteria2") {
-            outbound = new Configs::hysteria();
-        } else if (type == "tuic") {
-            outbound = new Configs::tuic();
-        } else if (type == "juicity") {
-            outbound = new Configs::juicity();
-        } else if (type == "trusttunnel") {
-            outbound = new Configs::trusttunnel();
-        } else if (type == "anytls") {
-            outbound = new Configs::anyTLS();
-        } else if (type == "mieru") {
-            outbound = new Configs::mieru();
-        } else if (type == "shadowtls") {
-            outbound = new Configs::shadowtls();
-        } else if (type == "wireguard") {
-            outbound = new Configs::wireguard();
-        } else if (type == "tailscale") {
-            outbound = new Configs::tailscale();
-        } else if (type == "ssh") {
-            outbound = new Configs::ssh();
-        } else if (type == "custom") {
-            outbound = new Configs::Custom();
-        } else if (type == "extracore") {
-            outbound = new Configs::extracore();
-        } else if (type == "naive") {
-            outbound = new Configs::naive();
-        } else if (type == "direct") {
-            outbound = new Configs::direct();
-        } else {
-            outbound = new Configs::outbound();
-            outbound->invalid = true;
-        }
+
+        Configs::outbound* outbound = Configs::NewOutboundByType(type);
 
         profile->outbound = std::shared_ptr<Configs::outbound>(outbound);
         
@@ -273,57 +224,7 @@ namespace Configs {
     }
 
     std::shared_ptr<Profile> ProfilesRepo::NewProfile(const QString &type) {
-        Configs::outbound *outbound = nullptr;
-        
-        // Create outbound based on type (bean is legacy, not needed)
-        if (type == "socks") {
-            outbound = new Configs::socks();
-        } else if (type == "http") {
-            outbound = new Configs::http();
-        } else if (type == "shadowsocks") {
-            outbound = new Configs::shadowsocks();
-        } else if (type == "chain") {
-            outbound = new Configs::chain();
-        } else if (type == "vmess") {
-            outbound = new Configs::vmess();
-        } else if (type == "trojan") {
-            outbound = new Configs::Trojan();
-        } else if (type == "vless") {
-            outbound = new Configs::vless();
-        } else if (type == "xrayvless") {
-            outbound = new Configs::xrayVless();
-        } else if (type == "hysteria" || type == "hysteria2") {
-            outbound = new Configs::hysteria();
-        } else if (type == "tuic") {
-            outbound = new Configs::tuic();
-        } else if (type == "juicity") {
-            outbound = new Configs::juicity();
-        } else if (type == "trusttunnel") {
-            outbound = new Configs::trusttunnel();
-        } else if (type == "anytls") {
-            outbound = new Configs::anyTLS();
-        } else if (type == "mieru") {
-            outbound = new Configs::mieru();
-        } else if (type == "shadowtls") {
-            outbound = new Configs::shadowtls();
-        } else if (type == "wireguard") {
-            outbound = new Configs::wireguard();
-        } else if (type == "tailscale") {
-            outbound = new Configs::tailscale();
-        } else if (type == "ssh") {
-            outbound = new Configs::ssh();
-        } else if (type == "custom") {
-            outbound = new Configs::Custom();
-        } else if (type == "extracore") {
-            outbound = new Configs::extracore();
-        } else if (type == "naive") {
-            outbound = new Configs::naive();
-        } else if (type == "direct") {
-            outbound = new Configs::direct();
-        } else {
-            outbound = new Configs::outbound();
-            outbound->invalid = true;
-        }
+        Configs::outbound* outbound = Configs::NewOutboundByType(type);
 
         // Bean is legacy, pass nullptr
         return std::make_shared<Profile>(outbound, type);

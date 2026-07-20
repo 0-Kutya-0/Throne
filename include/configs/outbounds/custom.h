@@ -1,4 +1,5 @@
 #pragma once
+#include <QJsonArray>
 #include "include/configs/common/Outbound.h"
 
 namespace Configs
@@ -85,6 +86,9 @@ namespace Configs
             }
             return type;
         };
+
+        // Analyzes the embedded config's egress outbound; blank when unknown.
+        SecurityInfo GetSecurity() override;
 
         bool IsEndpoint() override
         {

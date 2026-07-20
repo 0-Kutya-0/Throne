@@ -36,6 +36,7 @@
 #include "include/global/Common.h"
 
 #include "include/ui/utils/ProfilesTableFilterHeader.h"
+#include "include/ui/utils/ProfilesTableModel.h"
 
 #include "include/ui/group/dialog_edit_group.h"
 
@@ -453,15 +454,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         } else {
             proxy_last_order = logicalIndex;
         }
-        if (logicalIndex == 0) {
-            action.method = GroupSortMethod::ByType;
-        } else if (logicalIndex == 1) {
+        if (logicalIndex == ProfilesTableModel::ColType) {
+            auto group = Configs::dataManager->groupsRepo->CurrentGroup();
+            action.method = (Configs::dataManager->settingsRepo->show_config_security && group
+                             && group->type_sort_by == Configs::typeBy::bySecurity)
+                                ? GroupSortMethod::BySecurity
+                                : GroupSortMethod::ByType;
+        } else if (logicalIndex == ProfilesTableModel::ColAddress) {
             action.method = GroupSortMethod::ByAddress;
-        } else if (logicalIndex == 2) {
+        } else if (logicalIndex == ProfilesTableModel::ColName) {
             action.method = GroupSortMethod::ByName;
-        } else if (logicalIndex == 3) {
+        } else if (logicalIndex == ProfilesTableModel::ColTestResult) {
             action.method = GroupSortMethod::ByTestResult;
-        } else if (logicalIndex == 4) {
+        } else if (logicalIndex == ProfilesTableModel::ColTraffic) {
             action.method = GroupSortMethod::ByTraffic;
         } else {
             return;
@@ -496,7 +501,50 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         int columnIndex = header->logicalIndexAt(pos);
         auto group = Configs::dataManager->groupsRepo->CurrentGroup();
         if (group == nullptr) return;
-        if (columnIndex == 3) {
+        if (columnIndex == ProfilesTableModel::ColType) {
+            if (!Configs::dataManager->settingsRepo->show_config_security) return;
+            QMenu menu(this);
+            auto* sortByLabel = menu.addAction(tr("Sort By:"));
+            sortByLabel->setEnabled(false);
+
+            struct TypeSortOption { Configs::typeBy value; QString label; };
+            const QList<TypeSortOption> options = {
+                { Configs::typeBy::byType, tr("Type") },
+                { Configs::typeBy::bySecurity, tr("Security") },
+            };
+            for (const auto& opt : options) {
+                auto* act = menu.addAction(opt.label);
+                act->setData(static_cast<int>(opt.value));
+                act->setCheckable(true);
+                act->setChecked(group->type_sort_by == opt.value);
+            }
+
+            auto* chosen = menu.exec(header->mapToGlobal(pos));
+            if (chosen == nullptr || !chosen->data().isValid()) return;
+
+            group->type_sort_by = static_cast<Configs::typeBy>(chosen->data().toInt());
+            Configs::dataManager->groupsRepo->Save(group);
+            GroupSortAction action;
+            action.method = group->type_sort_by == Configs::typeBy::bySecurity
+                                ? GroupSortMethod::BySecurity
+                                : GroupSortMethod::ByType;
+            runOnNewThread([=, this] {
+                auto currGroup = Configs::dataManager->groupsRepo->CurrentGroup();
+                if (currGroup == nullptr) return;
+                if (!currGroup->SortProfiles(action)) {
+                    runOnUiThread([=] {
+                        MessageBoxWarning("Action already in progress", "A sort action is already in progress");
+                    });
+                    return;
+                }
+                Configs::dataManager->groupsRepo->Save(currGroup);
+                runOnUiThread([=, this] {
+                    refresh_proxy_list({}, true);
+                });
+            });
+            return;
+        }
+        if (columnIndex == ProfilesTableModel::ColTestResult) {
             QMenu menu(this);
             auto* includeLabel = menu.addAction(tr("Include:"));
             includeLabel->setEnabled(false);
@@ -519,8 +567,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
                     else if (speed) group->test_items_to_show = Configs::testShowItems::speedOnly;
                     else group->test_items_to_show = Configs::testShowItems::none;
                     Configs::dataManager->groupsRepo->Save(group);
-                    if (group->calculated_column_width.size() > 3) {
-                        group->calculated_column_width[3] = 0;
+                    if (group->calculated_column_width.size() > ProfilesTableModel::ColTestResult) {
+                        group->calculated_column_width[ProfilesTableModel::ColTestResult] = 0;
                     }
                     refresh_proxy_list();
                 };
@@ -571,7 +619,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
                 });
             return;
         }
-        if (columnIndex == 4) {
+        if (columnIndex == ProfilesTableModel::ColTraffic) {
             QMenu menu(this);
             auto* sortByLabel = menu.addAction(tr("Sort By:"));
             sortByLabel->setEnabled(false);
@@ -958,7 +1006,8 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
         }
         Configs::dataManager->profilesRepo->SaveBatch(ents);
         if (auto group = Configs::dataManager->groupsRepo->GetGroup(ents.first()->gid); group &&
-            group->calculated_column_width.size() > 3) group->calculated_column_width[3] = 0;
+            group->calculated_column_width.size() > ProfilesTableModel::ColTestResult)
+            group->calculated_column_width[ProfilesTableModel::ColTestResult] = 0;
         refresh_proxy_list();
     });
     connect(ui->actionUrl_Test_Selected, &QAction::triggered, this, [=,this]() {
@@ -1546,6 +1595,14 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
         }
         if (changed(MwArg::DisableAdmin)) {
             AutoRun_FixPrivilegeIfNeeded();
+        }
+        if (changed(MwArg::ProfileListDisplay)) {
+            // The security suffix changes the Type column's width; drop its
+            // cached auto-width so ResizeToContents re-measures.
+            if (auto group = Configs::dataManager->groupsRepo->CurrentGroup();
+                group && group->calculated_column_width.size() > ProfilesTableModel::ColType)
+                group->calculated_column_width[ProfilesTableModel::ColType] = 0;
+            refresh_proxy_list({}, true);
         }
         auto suggestRestartProxy = settings->Save();
         // Pick up any changed auto-update interval immediately instead of waiting for the
@@ -2378,27 +2435,32 @@ void MainWindow::refresh_proxy_list_column_size() {
         QScrollBar *vBar = ui->profilesTableView->verticalScrollBar();
         const bool vBarBlocked = vBar->blockSignals(true);
         hHeader->blockSignals(true);
+        constexpr int columnCount = ProfilesTableModel::ColumnCount;
+        // Widths saved before the column set last changed no longer line up with
+        // the header, so fall back to auto-sizing instead of indexing past the end.
+        if (!group->column_width.isEmpty() && group->column_width.size() != columnCount) {
+            group->column_width.clear();
+        }
         if (group->column_width.isEmpty()) {
-            hHeader->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-            hHeader->setSectionResizeMode(1, QHeaderView::Stretch);
-            hHeader->setSectionResizeMode(2, QHeaderView::Stretch);
-            hHeader->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-            hHeader->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-            if (!group->calculated_column_width.empty() && group->calculated_column_width[0] > hHeader->sectionSize(0)) {
-                hHeader->setSectionResizeMode(0, QHeaderView::Fixed);
-                hHeader->resizeSection(0, group->calculated_column_width[0]);
-            }
-            if (group->calculated_column_width.size() > 3 && group->calculated_column_width[3] > hHeader->sectionSize(3)) {
-                hHeader->setSectionResizeMode(3, QHeaderView::Fixed);
-                hHeader->resizeSection(3, group->calculated_column_width[3]);
-            }
-            if (group->calculated_column_width.size() > 4 && group->calculated_column_width[4] > hHeader->sectionSize(4)) {
-                hHeader->setSectionResizeMode(4, QHeaderView::Fixed);
-                hHeader->resizeSection(4, group->calculated_column_width[4]);
+            hHeader->setSectionResizeMode(ProfilesTableModel::ColType, QHeaderView::ResizeToContents);
+            hHeader->setSectionResizeMode(ProfilesTableModel::ColAddress, QHeaderView::Stretch);
+            hHeader->setSectionResizeMode(ProfilesTableModel::ColName, QHeaderView::Stretch);
+            hHeader->setSectionResizeMode(ProfilesTableModel::ColTestResult, QHeaderView::ResizeToContents);
+            hHeader->setSectionResizeMode(ProfilesTableModel::ColTraffic, QHeaderView::ResizeToContents);
+            // ResizeToContents only measures the rows currently on screen, so these
+            // columns would jitter while scrolling. Pin them to the widest width
+            // seen so far for this group.
+            for (int col : {ProfilesTableModel::ColType,
+                            ProfilesTableModel::ColTestResult, ProfilesTableModel::ColTraffic}) {
+                if (group->calculated_column_width.size() > col &&
+                    group->calculated_column_width[col] > hHeader->sectionSize(col)) {
+                    hHeader->setSectionResizeMode(col, QHeaderView::Fixed);
+                    hHeader->resizeSection(col, group->calculated_column_width[col]);
+                }
             }
             ui->profilesTableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
             group->clearCalculatedColumnWidth();
-            for (int i=0;i<=4;i++) {
+            for (int i = 0; i < columnCount; i++) {
                 auto size = hHeader->sectionSize(i);
                 hHeader->setSectionResizeMode(i, QHeaderView::Interactive);
                 hHeader->resizeSection(i, size);
@@ -2406,7 +2468,7 @@ void MainWindow::refresh_proxy_list_column_size() {
             }
         } else {
             group->clearCalculatedColumnWidth();
-            for (int i=0;i<=4;i++) {
+            for (int i = 0; i < columnCount; i++) {
                 hHeader->setSectionResizeMode(i, QHeaderView::Interactive);
                 hHeader->resizeSection(i, group->column_width.at(i));
             }
@@ -2539,7 +2601,8 @@ void MainWindow::on_menu_reset_traffic_triggered() {
         Configs::dataManager->profilesRepo->SaveTraffic(ent);
     }
     if (auto group = Configs::dataManager->groupsRepo->GetGroup(ents.first()->gid); group &&
-        group->calculated_column_width.size() > 4) group->calculated_column_width[4] = 0;
+        group->calculated_column_width.size() > ProfilesTableModel::ColTraffic)
+        group->calculated_column_width[ProfilesTableModel::ColTraffic] = 0;
     refresh_proxy_list(entIDs);
 }
 
@@ -2812,7 +2875,8 @@ void MainWindow::on_menu_clear_test_result_triggered() {
     }
     Configs::dataManager->profilesRepo->SaveBatch(ents);
     if (auto group = Configs::dataManager->groupsRepo->GetGroup(ents.first()->gid); group &&
-        group->calculated_column_width.size() > 3) group->calculated_column_width[3] = 0;
+        group->calculated_column_width.size() > ProfilesTableModel::ColTestResult)
+        group->calculated_column_width[ProfilesTableModel::ColTestResult] = 0;
     refresh_proxy_list();
 }
 
@@ -2892,6 +2956,37 @@ void MainWindow::on_menu_remove_invalid_triggered() {
      }
      });
     });
+}
+
+void MainWindow::on_menu_remove_insecure_triggered() {
+    auto currentGroup = Configs::dataManager->groupsRepo->CurrentGroup();
+    if (currentGroup == nullptr) return;
+    auto profiles = Configs::dataManager->profilesRepo->GetProfileBatch(currentGroup->Profiles());
+
+    QList<int> del_ids;
+    QString remove_display;
+    int remove_display_count = 0;
+    for (const auto& profile : profiles) {
+        if (!profile || !profile->outbound) continue;
+        // Configs of unknown security (e.g. unparseable custom ones) are spared.
+        if (!profile->outbound->GetSecurity().isDangerous()) continue;
+        del_ids += profile->id;
+        if (remove_display_count < 20) {
+            remove_display += profile->outbound->DisplayTypeAndName() + "\n";
+            if (++remove_display_count == 20) remove_display += "...";
+        }
+    }
+
+    if (del_ids.isEmpty()) {
+        QMessageBox::information(this, tr("Remove Insecure Configs"), tr("No insecure configs found."));
+        return;
+    }
+    if (Configs::dataManager->settingsRepo->skip_delete_confirmation ||
+        QMessageBox::question(this, tr("Confirmation"),
+            tr("Remove %1 insecure config(s)?").arg(del_ids.length()) + "\n" + remove_display) == QMessageBox::StandardButton::Yes) {
+        Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids, true);
+        refresh_proxy_list({}, true);
+    }
 }
 
 void MainWindow::on_menu_resolve_selected_triggered() {
@@ -3407,6 +3502,8 @@ void MainWindow::setActionsData()
     ui->actionResolve_Selected_Out_IP->setData(QString("m27"));
     ui->actionCopy_Test_Result->setData(QString("m28"));
     ui->actionClear_Test_Result->setData(QString("m29"));
+    ui->menu_remove_insecure->setData(QString("m30"));
+    ui->actionUpdate_All_Subscriptions->setData(QString("m31"));
 }
 
 QList<QAction*> MainWindow::getActionsForShortcut()

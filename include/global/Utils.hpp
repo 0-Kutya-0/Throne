@@ -95,6 +95,9 @@ namespace MwArg {
     inline const QString TrayIcon     = QStringLiteral("trayIcon");
     inline const QString MaxLogLines  = QStringLiteral("maxLogLines");
     inline const QString DisableAdmin = QStringLiteral("disableAdmin");
+    // A proxy-table display option changed (e.g. show-config-security), so the
+    // list must be re-rendered and its auto-sized columns recomputed.
+    inline const QString ProfileListDisplay = QStringLiteral("profileListDisplay");
     // ProfileChanged: the saved profile is the running one, so offer a proxy restart.
     inline const QString RestartProxy = QStringLiteral("restartProxy");
     // SubscriptionFinished: a detailed diff was already logged, so skip the import-count line.
