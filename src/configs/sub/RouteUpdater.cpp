@@ -6,6 +6,7 @@
 #include "include/global/Configs.hpp"
 #include "include/global/HTTPRequestHelper.hpp"
 #include "include/database/RoutesRepo.h"
+#include "include/configs/generate.h"
 
 namespace RouteUpdate {
     QString UpdateProfile(const std::shared_ptr<Configs::RouteProfile>& profile, QString* warnings) {
