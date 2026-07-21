@@ -1,6 +1,5 @@
 #include "include/ui/profile/dialog_edit_profile.h"
 
-#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/ui/profile/edit_http.h"
 #include "include/ui/profile/edit_shadowsocks.h"
 #include "include/ui/profile/edit_chain.h"
@@ -306,8 +305,6 @@ DialogEditProfile::DialogEditProfile(const QString &_type, int profileOrGroupId,
     }
 
     typeSelected(this->type);
-
-    makeDialogResponsive(this);
 }
 
 DialogEditProfile::~DialogEditProfile() {

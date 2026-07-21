@@ -1,6 +1,5 @@
 #include "include/ui/setting/RawRouteItem.h"
 
-#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/global/Configs.hpp"
 #include "include/database/ProfilesRepo.h"
 #include "include/database/GroupsRepo.h"
@@ -285,8 +284,6 @@ RawRouteItem::RawRouteItem(QWidget* parent, const std::shared_ptr<Configs::Route
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     resize(640, 520);
-
-    makeDialogResponsive(this);
 }
 
 void RawRouteItem::accept() {

@@ -1,6 +1,5 @@
 #include "include/ui/stats/dialog_traffic_stats.h"
 
-#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/ui/stats/TrafficChartWidget.h"
 
 #include "include/database/DatabaseManager.h"
@@ -69,8 +68,6 @@ DialogTrafficStats::DialogTrafficStats(QWidget* parent) : QDialog(parent), ui(ne
     connect(ui->tabs, &QTabWidget::currentChanged, this, [this](int) { refresh(); });
 
     refresh();
-
-    makeDialogResponsive(this);
 }
 
 DialogTrafficStats::~DialogTrafficStats() {

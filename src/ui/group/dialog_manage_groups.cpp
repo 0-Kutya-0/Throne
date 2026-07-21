@@ -1,6 +1,5 @@
 #include "include/ui/group/dialog_manage_groups.h"
 
-#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/configs/sub/GroupUpdater.hpp"
 #include "include/global/GuiUtils.hpp"
 #include "include/ui/group/GroupItem.h"
@@ -34,8 +33,6 @@ DialogManageGroups::DialogManageGroups(QWidget *parent) : QDialog(parent), ui(ne
         auto w = dynamic_cast<GroupItem *>(ui->listWidget->itemWidget(wI));
         emit w->edit_clicked();
     });
-
-    makeDialogResponsive(this);
 }
 
 DialogManageGroups::~DialogManageGroups() {

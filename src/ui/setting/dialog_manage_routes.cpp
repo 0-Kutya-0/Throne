@@ -1,6 +1,5 @@
 #include "include/ui/setting/dialog_manage_routes.h"
 
-#include "include/ui/utils/ResponsiveDialog.h"
 #include <QClipboard>
 
 #include "3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.hpp"
@@ -233,8 +232,6 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     });
 
     ADD_ASTERISK(this)
-
-    makeDialogResponsive(this);
 }
 
 void DialogManageRoutes::updateCurrentRouteProfile(int idx) {

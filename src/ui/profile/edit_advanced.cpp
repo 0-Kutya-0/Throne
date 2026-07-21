@@ -1,6 +1,5 @@
 #include "include/ui/profile/edit_advanced.h"
 
-#include "include/ui/utils/ResponsiveDialog.h"
 #include <QInputDialog>
 #include <QNetworkInterface>
 #include <QAbstractSocket>
@@ -73,8 +72,6 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         ui->tls_box->hide();
         adjustSize();
     }
-
-    makeDialogResponsive(this);
 }
 
 EditAdvanced::~EditAdvanced()

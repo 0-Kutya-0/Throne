@@ -1,6 +1,5 @@
 #include "include/ui/stats/dialog_runtime_stats.h"
 
-#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/ui/mainwindow.h"
 #include "include/api/RPC.h"
 #include "include/stats/traffic/TrafficLooper.hpp"
@@ -72,8 +71,6 @@ DialogRuntimeStats::DialogRuntimeStats(QWidget* parent) : QDialog(parent), ui(ne
     timer_->start();
 
     refreshLive();
-
-    makeDialogResponsive(this);
 }
 
 DialogRuntimeStats::~DialogRuntimeStats() {

@@ -1,5 +1,4 @@
 #include "include/ui/setting/RouteItem.h"
-#include "include/ui/utils/ResponsiveDialog.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/database/GroupsRepo.h"
 #include "include/global/Configs.hpp"
@@ -230,8 +229,6 @@ RouteItem::RouteItem(QWidget *parent, const std::shared_ptr<Configs::RouteProfil
 
     updateRuleSection();
     adjustSize();
-
-    makeDialogResponsive(this);
 }
 
 RouteItem::~RouteItem() {
