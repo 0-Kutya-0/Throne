@@ -743,7 +743,7 @@ namespace Subscription {
     }
 
     // 在新的 thread 运行
-    void GroupUpdater::AsyncUpdate(const QString &str, int _sub_gid, const std::function<void()> &finish) {
+    void GroupUpdater::AsyncUpdate(const QString &str, int _sub_gid, const std::function<void()> &finish, bool showDiff) {
         auto content = str.trimmed();
         bool asURL = false;
         bool createNewGroup = false;
@@ -776,13 +776,13 @@ namespace Subscription {
                 gid = group->id;
                 MW_dialog_message(MwMessage::SubscriptionNewGroup, {});
             }
-            Update(str, gid, asURL);
+            Update(str, gid, asURL, showDiff);
             emit asyncUpdateCallback(gid);
             if (finish != nullptr) finish();
         });
     }
 
-    void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_url) {
+    void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_url, bool showDiff) {
         // 创建 rawUpdater
         Configs::dataManager->settingsRepo->imported_count = 0;
         auto rawUpdater = std::make_unique<RawUpdater>();
@@ -922,6 +922,13 @@ namespace Subscription {
             }
 
             MW_show_log("<<<<<<<< " + QObject::tr("Change of %1:").arg(group->name) + "\n" + change_text);
+            if (showDiff) {
+                // Manual refresh: surface the same diff in a popup, not just the log.
+                const auto diffTitle = QObject::tr("Change of %1").arg(group->name);
+                auto diffBody = change_text.trimmed();
+                if (diffBody.isEmpty()) diffBody = QObject::tr("Nothing");
+                runOnUiThread([diffTitle, diffBody] { MessageBoxInfo(diffTitle, diffBody); });
+            }
             MW_dialog_message(MwMessage::SubscriptionFinished, {MwArg::Quiet});
         } else {
             Configs::dataManager->settingsRepo->imported_count = rawUpdater->updated_order.count();

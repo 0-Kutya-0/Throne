@@ -2857,7 +2857,7 @@ void MainWindow::on_menu_update_subscription_triggered() {
     if (group->url.isEmpty()) return;
     if (mw_sub_updating) return;
     mw_sub_updating = true;
-    Subscription::groupUpdater->AsyncUpdate(group->url, group->id, [&] { mw_sub_updating = false; });
+    Subscription::groupUpdater->AsyncUpdate(group->url, group->id, [&] { mw_sub_updating = false; }, true);
 }
 
 void MainWindow::on_menu_remove_unavailable_triggered() {
@@ -3279,18 +3279,20 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
     ui->tabWidget->setCurrentIndex(clickedIndex);
     auto* menu = new QMenu(this);
 
-    // Group actions are centralized in the Groups toolButton menu; the tab
-    // context menu only keeps quick Edit / Delete for the clicked group.
-    auto* deleteAction = new QAction(tr("Delete selected Group"), this);
+    // The tab context menu mirrors the most common Groups toolButton actions
+    // for the clicked group: add / edit / delete / update subscription.
+    auto* addAction = new QAction(tr("Add new Group"), this);
     auto* editAction = new QAction(tr("Edit selected Group"), this);
-    connect(deleteAction, &QAction::triggered, this, [=,this] {
-        auto id = Configs::dataManager->groupsRepo->GetGroupsTabOrder()[clickedIndex];
-        if (QMessageBox::question(this, tr("Confirmation"), tr("Remove %1?").arg(Configs::dataManager->groupsRepo->GetGroup(id)->name)) ==
-            QMessageBox::StandardButton::Yes) {
-            if (running != nullptr) {
-                if (running->gid == id) profile_stop(false, true, false);
-            }
-            Configs::dataManager->groupsRepo->DeleteGroup(id);
+    auto* deleteAction = new QAction(tr("Delete selected Group"), this);
+    auto* updateSubAction = new QAction(tr("Update subscription"), this);
+    connect(addAction, &QAction::triggered, this, [=,this]{
+        auto ent = Configs::dataManager->groupsRepo->NewGroup();
+        auto dialog = new DialogEditGroup(ent, this);
+        int ret = dialog->exec();
+        dialog->deleteLater();
+
+        if (ret == QDialog::Accepted) {
+            Configs::dataManager->groupsRepo->AddGroup(ent);
             MW_dialog_message(MwMessage::GroupsChanged, {});
         }
     });
@@ -3307,8 +3309,29 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
         });
         dialog->show();
     });
+    connect(deleteAction, &QAction::triggered, this, [=,this] {
+        auto id = Configs::dataManager->groupsRepo->GetGroupsTabOrder()[clickedIndex];
+        if (QMessageBox::question(this, tr("Confirmation"), tr("Remove %1?").arg(Configs::dataManager->groupsRepo->GetGroup(id)->name)) ==
+            QMessageBox::StandardButton::Yes) {
+            if (running != nullptr) {
+                if (running->gid == id) profile_stop(false, true, false);
+            }
+            Configs::dataManager->groupsRepo->DeleteGroup(id);
+            MW_dialog_message(MwMessage::GroupsChanged, {});
+        }
+    });
+    connect(updateSubAction, &QAction::triggered, this, [=,this]{
+        auto id = Configs::dataManager->groupsRepo->GetGroupsTabOrder()[clickedIndex];
+        auto group = Configs::dataManager->groupsRepo->GetGroup(id);
+        if (group->url.isEmpty()) return;
+        if (mw_sub_updating) return;
+        mw_sub_updating = true;
+        Subscription::groupUpdater->AsyncUpdate(group->url, group->id, [&] { mw_sub_updating = false; }, true);
+    });
+    menu->addAction(addAction);
     menu->addAction(editAction);
     if (Configs::dataManager->groupsRepo->GetAllGroupIds().size() > 1) menu->addAction(deleteAction);
+    menu->addAction(updateSubAction);
     menu->exec(ui->tabWidget->tabBar()->mapToGlobal(p));
     return;
 }
