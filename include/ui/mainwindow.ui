@@ -741,7 +741,6 @@ QTabBar::tab:selected {
     <property name="title">
      <string>Preferences</string>
     </property>
-    <addaction name="menu_manage_groups"/>
     <addaction name="menu_basic_settings"/>
     <addaction name="menu_routing_settings"/>
     <addaction name="menu_vpn_settings"/>
@@ -818,6 +817,7 @@ QTabBar::tab:selected {
     <property name="title">
      <string>Groups</string>
     </property>
+    <addaction name="menu_manage_groups"/>
     <addaction name="actionAdd_New_Group"/>
     <addaction name="actionEdit_Group"/>
     <addaction name="actionDelete_Group"/>
@@ -870,7 +870,7 @@ QTabBar::tab:selected {
   </action>
   <action name="menu_manage_groups">
    <property name="text">
-    <string>Groups</string>
+    <string>Manage Groups</string>
    </property>
   </action>
   <action name="menu_start">
