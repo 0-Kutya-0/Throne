@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QJsonDocument>
 #include <QFile>
+#include <QRegularExpression>
 
 #include "include/configs/generate.h"
 #include "include/configs/common/xrayStreamSetting.h"
@@ -774,19 +775,56 @@ int MainWindow::get_profile_to_start() {
 }
 
 bool MainWindow::handleXrayGeoAssetError(const QString& error, const QString& contextName) {
-    // The Xray config's routing referenced geoip:/geosite: rules but the .dat
-    // asset(s) aren't in our asset dir (XRAY_LOCATION_ASSET points at
-    // GetBasePath()). This surfaces both when starting a profile (in-band Start
-    // error) and when testing one (RPC error payload); handle both the same way.
-    if (!error.contains("geoip.dat") && !error.contains("geosite.dat")) return false;
+    // The Xray config's routing referenced geoip:/geosite: rules. Two distinct
+    // failures surface here (both when starting a profile via an in-band Start
+    // error and when testing one via an RPC error payload). XRAY_LOCATION_ASSET
+    // points at GetBasePath():
+    //   1. The .dat asset isn't installed  -> "failed to open geoip.dat: ..."
+    //   2. The .dat is installed but lacks the referenced category
+    //                                       -> "failed to load code cn from geoip.dat: EOF"
+    const bool refGeoip = error.contains("geoip.dat");
+    const bool refGeosite = error.contains("geosite.dat");
+    if (!refGeoip && !refGeosite) return false;
 
     runOnUiThread([=, this] {
-        // A batch test can raise this for many profiles at once — only prompt once.
+        // A batch test can raise this for many profiles at once — only act once.
         if (m_xrayGeoAssetBusy) return;
         m_xrayGeoAssetBusy = true;
         // Small delay so any in-flight UI teardown (e.g. Connecting -> idle)
         // settles before the modal prompt appears.
         setTimeout([=, this] {
+            const QString base = Configs::GetBasePath();
+            const bool haveGeoip = QFile::exists(base + "/geoip.dat");
+            const bool haveGeosite = QFile::exists(base + "/geosite.dat");
+
+            const bool geoipLacksCategory = refGeoip && haveGeoip;
+            const bool geositeLacksCategory = refGeosite && haveGeosite;
+            if (geoipLacksCategory || geositeLacksCategory) {
+                const QString whichFile = geositeLacksCategory ? "geosite.dat" : "geoip.dat";
+                const QString ruleType = geositeLacksCategory ? "geosite" : "geoip";
+
+                QString category;
+                QRegularExpression re(QStringLiteral("code\\s+(\\S+)\\s+from"));
+                const auto m = re.match(error);
+                if (m.hasMatch()) category = m.captured(1);
+                const QString needed = category.isEmpty()
+                    ? tr("a required category")
+                    : QStringLiteral("%1:%2").arg(ruleType, category);
+
+                MessageBoxWarning(
+                    tr("Geo asset missing category"),
+                    tr("The Xray config \"%1\" needs \"%2\", but the installed %3 does "
+                       "not contain it.\n\n"
+                       "Re-downloading from the same source will not fix this — the data "
+                       "file does not include that category. Set the GeoIP/GeoSite asset "
+                       "URL in Settings to a source that provides \"%2\", then delete %3 "
+                       "from the app folder and download it again.")
+                        .arg(contextName, needed, whichFile));
+                m_xrayGeoAssetBusy = false;
+                return;
+            }
+
+            // Case 1: the referenced asset file is missing -> offer to download it.
             if (QMessageBox::question(this, tr("Geo asset files required"),
                     tr("The Xray config \"%1\" uses geoip/geosite routing rules, but the "
                        "required data files (geoip.dat / geosite.dat) are not installed.\n\n"
@@ -794,17 +832,14 @@ bool MainWindow::handleXrayGeoAssetError(const QString& error, const QString& co
                 m_xrayGeoAssetBusy = false;
                 return;
             }
-            // Download in the background so the UI stays responsive; DownloadAsset
-            // reports progress in the data view. Fetch both missing files up front
-            // (Xray only reports the first one it hit).
+
             runOnNewThread([=, this] {
-                const QString base = Configs::GetBasePath();
                 QString dlErr;
-                if (!QFile::exists(base + "/geoip.dat")) {
+                if (!haveGeoip) {
                     auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geoip_url, "geoip.dat");
                     if (!e.isEmpty()) dlErr += "geoip.dat: " + e + "\n";
                 }
-                if (!QFile::exists(base + "/geosite.dat")) {
+                if (!haveGeosite) {
                     auto e = NetworkRequestHelper::DownloadAsset(Configs::dataManager->settingsRepo->xray_geosite_url, "geosite.dat");
                     if (!e.isEmpty()) dlErr += "geosite.dat: " + e + "\n";
                 }
