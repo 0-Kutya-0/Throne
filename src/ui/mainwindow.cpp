@@ -3328,10 +3328,13 @@ void MainWindow::on_tabWidget_customContextMenuRequested(const QPoint &p) {
         mw_sub_updating = true;
         Subscription::groupUpdater->AsyncUpdate(group->url, group->id, [&] { mw_sub_updating = false; }, true);
     });
+    auto clickedGroup = Configs::dataManager->groupsRepo->GetGroup(Configs::dataManager->groupsRepo->GetGroupsTabOrder()[clickedIndex]);
+
     menu->addAction(addAction);
     menu->addAction(editAction);
     if (Configs::dataManager->groupsRepo->GetAllGroupIds().size() > 1) menu->addAction(deleteAction);
-    menu->addAction(updateSubAction);
+    // Update subscription only applies to subscription-based groups (those with a URL).
+    if (clickedGroup != nullptr && !clickedGroup->url.isEmpty()) menu->addAction(updateSubAction);
     menu->exec(ui->tabWidget->tabBar()->mapToGlobal(p));
     return;
 }
