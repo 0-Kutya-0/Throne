@@ -55,7 +55,8 @@ namespace Configs
         trafficBy traffic_sort_by = trafficBy::total;
         typeBy type_sort_by = typeBy::byType;
         testShowItems test_items_to_show = testShowItems::all;
-        QList<std::pair<int, int>> selectedProfilesIdIdxPairs; // memory only, no need to save to db, pairs of (profileID, index)
+        // Memory only, not persisted. Pairs of (profileID, row as displayed).
+        QList<std::pair<int, int>> selectedProfilesIdIdxPairs;
 
         Group() = default;
 

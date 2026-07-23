@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHeaderView>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QVector>
 #include <QScrollBar>
@@ -45,9 +46,27 @@ public:
             emit testFilterChanged(text);
         });
 
+        for (QLineEdit *edit : filterEdits()) edit->installEventFilter(this);
+
         connect(this, &QHeaderView::sectionResized, this, &ProfilesTableFilterHeader::adjustPositions);
 
         setFiltersVisible(false);
+    }
+
+    // Which filter field gets focus when the row opens; out of range means Name.
+    void setLastFilterColumn(int column) {
+        m_lastFilterColumn = editForColumn(column) ? column : ProfilesTableModel::ColName;
+    }
+
+    bool filtersVisible() const { return m_filtersVisible; }
+
+    void focusLastFilterField() {
+        if (!m_filtersVisible) return;
+        QLineEdit *edit = editForColumn(m_lastFilterColumn);
+        // Tab/Backtab/Shortcut are the reasons QLineEdit selects all on focus-in;
+        // come back as if the caret had never left.
+        edit->setFocus(Qt::OtherFocusReason);
+        edit->end(false);
     }
 
     QSize sizeHint() const override {
@@ -64,27 +83,59 @@ protected:
         adjustPositions();
     }
 
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (!qobject_cast<QLineEdit*>(obj)) return QHeaderView::eventFilter(obj, event);
+
+        // Window shortcuts are resolved before the key reaches the field, so bare
+        // keys like Return (menu_start) and Del (menu_delete) would fire their
+        // actions while the user is only typing. Claim what a text field is owed.
+        if (event->type() == QEvent::ShortcutOverride) {
+            if (!isTextEditingKey(static_cast<QKeyEvent*>(event))) {
+                return QHeaderView::eventFilter(obj, event);
+            }
+            event->accept();
+            return true;
+        }
+
+        if (event->type() == QEvent::KeyPress) {
+            switch (static_cast<QKeyEvent*>(event)->key()) {
+            case Qt::Key_Escape:
+                emit closeRequested();
+                return true;
+            case Qt::Key_Down:
+                emit focusTableRequested(true);
+                return true;
+            default:
+                break;
+            }
+        }
+        return QHeaderView::eventFilter(obj, event);
+    }
+
 public slots:
     void setFiltersVisible(bool visible) {
         m_filtersVisible = visible;
 
+        QLineEdit *focused = focusedEdit();
         if (!visible) {
-            type_filter->clear();
-            address_filter->clear();
-            name_filter->clear();
-            test_filter->clear();
+            if (focused) {
+                m_lastFilterColumn = columnOf(focused);
+                emit lastFilterColumnChanged(m_lastFilterColumn);
+            }
+            // Hiding must clear, or the list stays filtered with nothing explaining why.
+            for (QLineEdit *edit : filterEdits()) edit->clear();
         }
 
         if (auto btn = qobject_cast<QToolButton*>(sender())) {
             btn->setToolTip(QString("%1\n%2").arg(visible ? tr("Disable Filter") : tr("Enable Filter"), QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText)));
         }
-        
-        type_filter->setVisible(visible);
-        address_filter->setVisible(visible);
-        name_filter->setVisible(visible);
-        test_filter->setVisible(visible);
+
+        for (QLineEdit *edit : filterEdits()) edit->setVisible(visible);
 
         emit geometriesChanged();
+
+        if (visible) focusLastFilterField();
+        else if (focused) emit focusTableRequested(false);
     }
 
     void adjustPositions() {
@@ -110,11 +161,63 @@ signals:
     void addressFilterChanged(const QString &text);
     void nameFilterChanged(const QString &text);
     void testFilterChanged(const QString &text);
+    // selectFirst: navigating into the results (Down) rather than backing out.
+    void focusTableRequested(bool selectFirst);
+    void lastFilterColumnChanged(int column);
+    // Escape from a filter field. The checkable toolbutton owns the visible state,
+    // so it has to be the one to untoggle us.
+    void closeRequested();
 
 private:
+    QVector<QLineEdit*> filterEdits() const {
+        return {type_filter, address_filter, name_filter, test_filter};
+    }
+
+    // Plain keys (bar the function row) are text input or caret movement; with a
+    // modifier, only the standard editing chords.
+    static bool isTextEditingKey(QKeyEvent *key) {
+        if (!(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+            return key->key() < Qt::Key_F1 || key->key() > Qt::Key_F35;
+        }
+        for (auto standard : {QKeySequence::SelectAll, QKeySequence::Copy, QKeySequence::Cut,
+                              QKeySequence::Paste, QKeySequence::Undo, QKeySequence::Redo,
+                              QKeySequence::MoveToStartOfLine, QKeySequence::MoveToEndOfLine,
+                              QKeySequence::SelectStartOfLine, QKeySequence::SelectEndOfLine,
+                              QKeySequence::DeleteStartOfWord, QKeySequence::DeleteEndOfWord}) {
+            if (key->matches(standard) == QKeySequence::ExactMatch) return true;
+        }
+        return false;
+    }
+
+    QLineEdit *focusedEdit() const {
+        for (QLineEdit *edit : filterEdits()) {
+            if (edit->hasFocus()) return edit;
+        }
+        return nullptr;
+    }
+
+    QLineEdit *editForColumn(int column) const {
+        switch (column) {
+        case ProfilesTableModel::ColType:       return type_filter;
+        case ProfilesTableModel::ColAddress:    return address_filter;
+        case ProfilesTableModel::ColName:       return name_filter;
+        case ProfilesTableModel::ColTestResult: return test_filter;
+        default:                                return nullptr;
+        }
+    }
+
+    int columnOf(QLineEdit *edit) const {
+        if (edit == type_filter)    return ProfilesTableModel::ColType;
+        if (edit == address_filter) return ProfilesTableModel::ColAddress;
+        if (edit == name_filter)    return ProfilesTableModel::ColName;
+        if (edit == test_filter)    return ProfilesTableModel::ColTestResult;
+        return -1;
+    }
+
     QLineEdit* type_filter;
     QLineEdit* address_filter;
     QLineEdit* name_filter;
     QLineEdit* test_filter;
     bool m_filtersVisible = false;
+    int m_lastFilterColumn = ProfilesTableModel::ColName;
 };

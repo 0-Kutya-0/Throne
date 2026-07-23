@@ -2,6 +2,7 @@
 
 #include <QAbstractItemView>
 #include <QMenu>
+#include <algorithm>
 #include <ranges>
 
 #include "include/configs/sub/GroupUpdater.hpp"
@@ -303,6 +304,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     parallelCoreCallPool->setMaxThreadCount(10); // constant value
     //
+    // The .ui carries Return; numpad Enter is the same gesture.
+    ui->menu_start->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     connect(ui->menu_start, &QAction::triggered, this, [=,this]() { profile_start(); });
     connect(ui->menu_stop, &QAction::triggered, this, [=,this]() { profile_stop(false, false, true); });
     connect(ui->toolButton_startstop, &QAbstractButton::clicked, this, [=,this]() {
@@ -331,6 +334,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     btnFilter->setShortcut(QKeySequence::Find);
     btnFilter->setCheckable(true);
     connect(btnFilter, &QToolButton::toggled, static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::setFiltersVisible);
+    connect(static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::closeRequested,
+            btnFilter, [btnFilter] { btnFilter->setChecked(false); });
     ui->tabWidget->setCornerWidget(btnFilter, Qt::TopRightCorner);
     //
     RegisterHotkey(false);
@@ -423,13 +428,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     // table UI: model-backed view with on-demand row data
     profilesTableModel = new ProfilesTableModel(this);
-    ui->profilesTableView->setModel(profilesTableModel);
+    profilesFilterModel = new ProfilesFilterProxyModel(this);
+    profilesFilterModel->setSourceModel(profilesTableModel);
+    ui->profilesTableView->setModel(profilesFilterModel);
     // Keep the start/stop button's enabled/disabled state in sync with selection.
     connect(ui->profilesTableView->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             [this] { refresh_startstop_button(); });
-    ui->profilesTableView->rowsSwapped = [=,this](int row1, int row2)
+    ui->profilesTableView->rowsSwapped = [this](int row1, int row2)
     {
-        if (!addressFilterString.isEmpty() || !nameFilterString.isEmpty() || !typeFilterString.isEmpty() || !countryFilterString.isEmpty()) return;
+        // A drop position in a filtered list says nothing about the group's real order.
+        if (profilesFilterModel->hasActiveFilter()) return;
         if (row1 == row2) return;
         auto group = Configs::dataManager->groupsRepo->CurrentGroup();
         group->EmplaceProfile(row1, row2);
@@ -666,26 +674,41 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     });
 
     // search box
-    connect(static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::typeFilterChanged, this, [=,this](const QString& currentText)
+    auto *filterHeader = static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader());
+    filterHeader->setLastFilterColumn(Configs::dataManager->settingsRepo->last_filter_column);
+    connect(filterHeader, &ProfilesTableFilterHeader::lastFilterColumnChanged, this, [](int column)
+    {
+        Configs::dataManager->settingsRepo->last_filter_column = column;
+        Configs::dataManager->settingsRepo->Save();
+    });
+
+    m_filterRefreshDebounce = new QTimer(this);
+    m_filterRefreshDebounce->setSingleShot(true);
+    m_filterRefreshDebounce->setInterval(50);
+    connect(m_filterRefreshDebounce, &QTimer::timeout, this, [this] { applyProfileFilters(); });
+
+    connect(filterHeader, &ProfilesTableFilterHeader::typeFilterChanged, this, [this](const QString& currentText)
     {
        typeFilterString = currentText;
-       refresh_proxy_list({}, true);
+       m_filterRefreshDebounce->start();
     });
-    connect(static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::addressFilterChanged, this, [=,this](const QString& currentText)
+    connect(filterHeader, &ProfilesTableFilterHeader::addressFilterChanged, this, [this](const QString& currentText)
     {
        addressFilterString = currentText;
-       refresh_proxy_list({}, true);
+       m_filterRefreshDebounce->start();
     });
-    connect(static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::nameFilterChanged, this, [=,this](const QString& currentText)
+    connect(filterHeader, &ProfilesTableFilterHeader::nameFilterChanged, this, [this](const QString& currentText)
     {
        nameFilterString = currentText;
-       refresh_proxy_list({}, true);
+       m_filterRefreshDebounce->start();
     });
-    connect(static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::testFilterChanged, this, [=,this](const QString& currentText)
+    connect(filterHeader, &ProfilesTableFilterHeader::testFilterChanged, this, [this](const QString& currentText)
     {
        countryFilterString = currentText;
-       refresh_proxy_list({}, true);
+       m_filterRefreshDebounce->start();
     });
+    connect(filterHeader, &ProfilesTableFilterHeader::focusTableRequested, this,
+            [this](bool selectFirst) { focusProfilesTable(selectFirst); });
 
     // refresh
     this->refresh_groups();
@@ -1397,12 +1420,13 @@ void MainWindow::show_group(int gid) {
     // show proxies
     refresh_proxy_list({}, true);
 
-    int rowCount = profilesTableModel->rowCount();
+    // scroll_last_profile came from firstVisibleRow(), so it is a proxy row.
+    int rowCount = profilesFilterModel->rowCount();
     int targetRow = group->scroll_last_profile;
     if (targetRow >= rowCount && rowCount > 0) targetRow = rowCount - 1;
     QTimer::singleShot(0, ui->profilesTableView, [=, this]() {
         if (targetRow >= 0) {
-            if (QModelIndex idx = profilesTableModel->index(targetRow, 0); idx.isValid()) {
+            if (QModelIndex idx = profilesFilterModel->index(targetRow, 0); idx.isValid()) {
                 ui->profilesTableView->scrollTo(idx, QAbstractItemView::PositionAtTop);
             }
         }
@@ -2185,33 +2209,11 @@ void MainWindow::updateLogFilterFields() {
     excludeCombined.optimize();
 }
 
-QList<int> MainWindow::filterProfilesList(const QList<int>& profileIDs)
+void MainWindow::applyProfileFilters()
 {
-    if (addressFilterString.isEmpty() && nameFilterString.isEmpty() && typeFilterString.isEmpty() && countryFilterString.isEmpty()) return profileIDs;
-    QList<int> res;
-    auto profiles = Configs::dataManager->profilesRepo->GetProfileBatch(profileIDs);
-    for (const auto& profile : profiles)
-    {
-        if (!profile)
-        {
-            MW_show_log("Null profile, maybe data is corrupted");
-            continue;
-        }
-        auto portMatches = [&]() {
-            QString val = addressFilterString.mid(5);
-            if (!val.contains(':')) return val.isEmpty() ? false : profile->outbound->server_port == val.toInt();
-            QStringList p = val.split(':');
-            bool minOk = p[0].isEmpty() || profile->outbound->server_port >= p[0].toInt();
-            bool maxOk = (p.size() < 2 || p[1].isEmpty()) || profile->outbound->server_port <= p[1].toInt();
-            return minOk && maxOk;
-        };
-        if ((addressFilterString.isEmpty() || (addressFilterString.startsWith("port=") ? portMatches() : profile->outbound->server.contains(addressFilterString, Qt::CaseInsensitive)))
-            && (nameFilterString.isEmpty() || profile->outbound->name.contains(nameFilterString, Qt::CaseInsensitive))
-            && (typeFilterString.isEmpty() || profile->type.contains(typeFilterString, Qt::CaseInsensitive))
-            && (countryFilterString.isEmpty() || profile->test_country.contains(countryFilterString, Qt::CaseInsensitive)))
-            res.append(profile->id);
-    }
-    return res;
+    if (!profilesFilterModel) return;
+    profilesFilterModel->setFilters(typeFilterString, addressFilterString, nameFilterString, countryFilterString);
+    refresh_proxy_list_column_size();
 }
 
 void MainWindow::refresh_status(const QString &traffic_update) {
@@ -2469,10 +2471,10 @@ void MainWindow::refresh_proxy_list_column_size() {
     });
 }
 
-void MainWindow::refresh_proxy_list(const QList<int>& ids, bool mayNeedReset) {
+void MainWindow::refresh_proxy_list(const QList<int>& ids, bool mayNeedReset, RefreshAnchor anchor) {
     if (!Configs::dataManager->settingsRepo->refreshing_group) saveProfileFocusState();
     refresh_proxy_list_impl(ids, mayNeedReset);
-    if (mayNeedReset) restoreProfileFocusState();
+    if (mayNeedReset) restoreProfileFocusState(anchor);
 }
 
 void MainWindow::refresh_proxy_list_impl(const QList<int>& ids, bool mayNeedReset) {
@@ -2491,13 +2493,11 @@ void MainWindow::refresh_proxy_list_impl(const QList<int>& ids, bool mayNeedRese
 void MainWindow::refresh_proxy_list_impl_refresh_data(const QList<int>& ids, bool mayNeedReset) {
     auto currentGroup = Configs::dataManager->groupsRepo->CurrentGroup();
     if (currentGroup == nullptr) return;
+    // The model holds the group in full; the proxy decides what is on screen.
     if (!ids.isEmpty()) {
-        if (filterProfilesList(ids).isEmpty())
-            return;
         for (auto id:ids) profilesTableModel->refreshProfileId(id);
     } else {
-        auto profileIDs = filterProfilesList(currentGroup->profiles);
-        profilesTableModel->refreshTable(profileIDs, mayNeedReset);
+        profilesTableModel->refreshTable(currentGroup->profiles, mayNeedReset);
     }
 }
 
@@ -2505,7 +2505,7 @@ void MainWindow::refresh_proxy_list_impl_refresh_data(const QList<int>& ids, boo
 
 void MainWindow::on_profilesTableView_doubleClicked(const QModelIndex &index) {
     if (!index.isValid() || !profilesTableModel) return;
-    int id = profilesTableModel->data(index, ProfilesTableModel::ProfileIdRole).toInt();
+    int id = index.data(ProfilesTableModel::ProfileIdRole).toInt();
     if (select_mode) {
         emit profile_selected(id);
         select_mode = false;
@@ -2566,7 +2566,7 @@ void  MainWindow::on_menu_delete_repeat_triggered () {
             del_ids += ent->id;
         }
         Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids, true);
-        refresh_proxy_list({}, true);
+        refresh_proxy_list({}, true, RefreshAnchor::Removal);
     }
 }
 
@@ -2575,7 +2575,7 @@ void MainWindow::on_menu_delete_triggered() {
     if (entIDs.count() == 0) return;
     if (Configs::dataManager->settingsRepo->skip_delete_confirmation || QMessageBox::question(this, tr("Confirmation"), QString(tr("Remove %1 item(s) ?")).arg(entIDs.count()))==QMessageBox::StandardButton::Yes) {
         Configs::dataManager->profilesRepo->BatchDeleteProfiles(entIDs, true);
-        refresh_proxy_list({}, true);
+        refresh_proxy_list({}, true, RefreshAnchor::Removal);
     }
 }
 
@@ -2940,7 +2940,7 @@ void MainWindow::on_menu_remove_invalid_triggered() {
              del_ids += ent->id;
          }
          Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids, true);
-         refresh_proxy_list({}, true);
+         refresh_proxy_list({}, true, RefreshAnchor::Removal);
      }
      });
     });
@@ -2973,7 +2973,7 @@ void MainWindow::on_menu_remove_insecure_triggered() {
         QMessageBox::question(this, tr("Confirmation"),
             tr("Remove %1 insecure config(s)?").arg(del_ids.length()) + "\n" + remove_display) == QMessageBox::StandardButton::Yes) {
         Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids, true);
-        refresh_proxy_list({}, true);
+        refresh_proxy_list({}, true, RefreshAnchor::Removal);
     }
 }
 
@@ -3034,8 +3034,7 @@ QList<int> MainWindow::get_now_selected_list() {
     if (!profilesTableModel) return list;
     QModelIndexList indices = ui->profilesTableView->selectionModel()->selectedRows(0);
     for (const QModelIndex &idx : indices) {
-        int id = profilesTableModel->data(idx, ProfilesTableModel::ProfileIdRole).toInt();
-        list << id;
+        list << idx.data(ProfilesTableModel::ProfileIdRole).toInt();
     }
     return list;
 }
@@ -3057,53 +3056,76 @@ void MainWindow::saveProfileFocusState() {
     if (group == nullptr) return;
 
     if (!profilesTableModel) return;
+
+    // hasFocus() is false when the header's filter fields hold the caret, which is
+    // what keeps restore from stealing it back mid-keystroke.
+    m_profilesTableHadFocus = ui->profilesTableView->hasFocus();
+    m_profilesScrollValue = ui->profilesTableView->verticalScrollBar()->value();
+
     QModelIndexList indices = ui->profilesTableView->selectionModel()->selectedRows(0);
     group->selectedProfilesIdIdxPairs.clear();
 
     for (const QModelIndex &idx : indices) {
-        group->selectedProfilesIdIdxPairs << std::make_pair(profilesTableModel->profileIdAt(idx.row()), idx.row());
+        group->selectedProfilesIdIdxPairs << std::make_pair(idx.data(ProfilesTableModel::ProfileIdRole).toInt(), idx.row());
     }
 }
 
-void MainWindow::restoreProfileFocusState() {
+void MainWindow::restoreProfileFocusState(RefreshAnchor anchor) {
     auto group = Configs::dataManager->groupsRepo->CurrentGroup();
-    if (group == nullptr || group->selectedProfilesIdIdxPairs.isEmpty()) return;
+    if (group == nullptr || !profilesTableModel) return;
+
+    auto *view = ui->profilesTableView;
+    // show_group() skips the save and restores scroll itself from scroll_last_profile.
+    const bool restoreViewport = !Configs::dataManager->settingsRepo->refreshing_group;
+
+    if (restoreViewport && m_profilesTableHadFocus) view->setFocus();
 
     QList<int> newIndexes;
     for (auto &id: group->selectedProfilesIdIdxPairs | std::views::keys) {
-        if (auto newIdx = profilesTableModel->indexOfProfile(id); newIdx != -1) {
-            newIndexes << newIdx;
+        if (auto sourceRow = profilesTableModel->indexOfProfile(id); sourceRow != -1) {
+            if (auto newIdx = profilesFilterModel->toProxyRow(sourceRow); newIdx != -1) newIndexes << newIdx;
         }
     }
-
-    ui->profilesTableView->setFocus();
 
     if (!newIndexes.isEmpty()) {
-        // some profiles were selected, some of them remain, select the remaining ones
-        QItemSelection selection;
-
-        for (int row : newIndexes) {
-            QModelIndex left  = profilesTableModel->index(row, 0);
-            QModelIndex right = profilesTableModel->index(row, profilesTableModel->columnCount() - 1);
-            selection.select(left, right);
-        }
-        ui->profilesTableView->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-        ui->profilesTableView->selectionModel()->setCurrentIndex(profilesTableModel->index(newIndexes.first(), 0), QItemSelectionModel::NoUpdate);
-        return;
+        selectProfileRows(newIndexes);
+    } else if (anchor == RefreshAnchor::Removal && !group->selectedProfilesIdIdxPairs.isEmpty()) {
+        // Rows arrive in selection order, so the topmost one is the smallest, not the first.
+        int desiredIndex = std::ranges::min(group->selectedProfilesIdIdxPairs | std::views::values);
+        desiredIndex = std::min(desiredIndex, profilesFilterModel->rowCount() - 1);
+        if (desiredIndex >= 0) selectProfileRows({desiredIndex});
     }
 
-    auto desiredIndex = group->selectedProfilesIdIdxPairs.first().second;
-    desiredIndex = std::min(desiredIndex, static_cast<int>(profilesTableModel->profileIds().size() - 1));
-    if (desiredIndex < 0) return;
+    if (restoreViewport) view->verticalScrollBar()->setValue(m_profilesScrollValue);
+}
 
-    if (group->selectedProfilesIdIdxPairs.size() == 1) {
-        QItemSelection selection;
-        QModelIndex left  = profilesTableModel->index(desiredIndex, 0);
-        QModelIndex right = profilesTableModel->index(desiredIndex, profilesTableModel->columnCount() - 1);
+void MainWindow::selectProfileRows(const QList<int> &rows) {
+    if (rows.isEmpty() || !profilesFilterModel) return;
+
+    auto *view = ui->profilesTableView;
+    // setCurrentIndex() scrolls the current row into sight unless autoScroll is off.
+    const bool autoScroll = view->hasAutoScroll();
+    view->setAutoScroll(false);
+
+    QItemSelection selection;
+    for (int row : rows) {
+        QModelIndex left  = profilesFilterModel->index(row, 0);
+        QModelIndex right = profilesFilterModel->index(row, profilesFilterModel->columnCount() - 1);
         selection.select(left, right);
-        ui->profilesTableView->selectionModel()->select(selection, QItemSelectionModel::Select);
     }
-    ui->profilesTableView->selectionModel()->setCurrentIndex(profilesTableModel->index(desiredIndex, 0), QItemSelectionModel::NoUpdate);
+    view->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    view->selectionModel()->setCurrentIndex(profilesFilterModel->index(rows.first(), 0), QItemSelectionModel::NoUpdate);
+
+    view->setAutoScroll(autoScroll);
+}
+
+void MainWindow::focusProfilesTable(bool selectFirst) {
+    auto *view = ui->profilesTableView;
+    view->setFocus();
+    if (!selectFirst || !profilesFilterModel || profilesFilterModel->rowCount() == 0) return;
+    selectProfileRows({0});
+    // selectProfileRows() suppresses auto-scroll; here the move is deliberate.
+    view->scrollToTop();
 }
 
 void MainWindow::clearUnavailableProfiles(bool confirm, QList<int> profileIDs) {
@@ -3128,7 +3150,7 @@ void MainWindow::clearUnavailableProfiles(bool confirm, QList<int> profileIDs) {
 
     auto clearFunc = [&, this] {
         Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids);
-        refresh_proxy_list({}, true);
+        refresh_proxy_list({}, true, RefreshAnchor::Removal);
     };
 
     if (!del_ids.isEmpty()) {
@@ -3139,19 +3161,6 @@ void MainWindow::clearUnavailableProfiles(bool confirm, QList<int> profileIDs) {
         } else {
             clearFunc();
         }
-    }
-}
-
-void MainWindow::keyPressEvent(QKeyEvent *event) {
-    switch (event->key()) {
-        case Qt::Key_Escape:
-            // take over by shortcut_esc
-            break;
-        case Qt::Key_Enter:
-            profile_start();
-            break;
-        default:
-            QMainWindow::keyPressEvent(event);
     }
 }
 
@@ -3447,8 +3456,8 @@ void MainWindow::collectMenuShortcuts(QMenu *menu, QSet<QKeySequence> &out) {
     for (const auto &action: menu->actions()) {
         if (auto *sub = action->menu()) {
             collectMenuShortcuts(sub, out);
-        } else if (!action->shortcut().isEmpty()) {
-            out.insert(action->shortcut());
+        } else {
+            for (const auto &seq : action->shortcuts()) out.insert(seq);
         }
     }
 }
@@ -3457,12 +3466,14 @@ void MainWindow::registerMenuShortcuts(QMenu *menu, QSet<QKeySequence> &claimed)
     for (const auto &action: menu->actions()) {
         if (auto *sub = action->menu()) {
             registerMenuShortcuts(sub, claimed);
-        } else if (!action->shortcut().isEmpty()) {
-            if (claimed.contains(action->shortcut())) continue;
-            claimed.insert(action->shortcut());
-            hiddenMenuShortcuts.append(new QShortcut(action->shortcut(), this, [=](){
-                action->trigger();
-            }));
+        } else {
+            for (const auto &seq : action->shortcuts()) {
+                if (claimed.contains(seq)) continue;
+                claimed.insert(seq);
+                hiddenMenuShortcuts.append(new QShortcut(seq, this, [=](){
+                    action->trigger();
+                }));
+            }
         }
     }
 }

@@ -130,6 +130,8 @@ set(PROJECT_SOURCES
         src/ui/utils/DataViewHtmlGenerator.cpp
         include/ui/utils/ProfilesTableModel.h
         src/ui/utils/ProfilesTableModel.cpp
+        include/ui/utils/ProfilesFilterProxyModel.h
+        src/ui/utils/ProfilesFilterProxyModel.cpp
         include/ui/utils/ProfilesTableView.h
         src/ui/utils/ProfilesTableView.cpp
         include/ui/utils/ProfilesTableVerticalHeader.h

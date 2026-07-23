@@ -117,6 +117,8 @@ namespace Configs {
         bool skip_delete_confirmation = false;
         // Fold each config's security into the proxy table's Type column.
         bool show_config_security = false;
+        // Proxy table column whose filter field was last used; -1 until one is.
+        int last_filter_column = -1;
 
         // throne:// URL scheme: mirror of what we last wrote to the OS (registry/desktop/bundle).
         // Re-registered on startup only when the current state differs (e.g. install moved).

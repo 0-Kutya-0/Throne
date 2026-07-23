@@ -37,6 +37,7 @@
 #include "group/GroupSort.hpp"
 #include "include/global/GuiUtils.hpp"
 #include "include/ui/utils/DataViewHtmlGenerator.h"
+#include "include/ui/utils/ProfilesFilterProxyModel.h"
 #include "include/ui/utils/ProfilesTableModel.h"
 #include "ui_mainwindow.h"
 
@@ -56,6 +57,13 @@ namespace Ui {
 }
 QT_END_NAMESPACE
 
+enum class RefreshAnchor {
+    // Re-select the same profiles by id; select nothing if they are gone.
+    KeepPlace,
+    // As above, but if all of them were deleted select whatever took their row.
+    Removal,
+};
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -72,7 +80,8 @@ public:
 
     void prepare_exit();
 
-    void refresh_proxy_list(const QList<int> &ids = {}, bool mayNeedReset = false);
+    void refresh_proxy_list(const QList<int> &ids = {}, bool mayNeedReset = false,
+                            RefreshAnchor anchor = RefreshAnchor::KeepPlace);
 
     void show_group(int gid);
 
@@ -185,6 +194,9 @@ private slots:
 private:
     Ui::MainWindow *ui;
     ProfilesTableModel *profilesTableModel = nullptr;
+    // What the view is attached to: rows from the view or its selection model are
+    // proxy rows, not profilesTableModel rows.
+    ProfilesFilterProxyModel *profilesFilterModel = nullptr;
     QSystemTrayIcon *tray;
     QMenu *trayMenu = nullptr;    // tray context menu
     // Tray "Select Server"/"Select Routing" open this small Qt-drawn popup instead of a
@@ -259,6 +271,12 @@ private:
     QString typeFilterString;
     QString countryFilterString;
 
+    QTimer *m_filterRefreshDebounce = nullptr;
+
+    // Only meaningful between a saveProfileFocusState() and its restore.
+    bool m_profilesTableHadFocus = false;
+    int m_profilesScrollValue = 0;
+
     // log
     QStringList includeKeywords;
     QStringList excludeKeywords;
@@ -294,7 +312,7 @@ private:
     // highlighters don't stack up (and keep re-highlighting) on theme changes.
     void setLogHighlighter(bool darkMode);
 
-    QList<int> filterProfilesList(const QList<int>& profileIDs);
+    void applyProfileFilters();
 
     QList<int> get_now_selected_list();
     void refresh_startstop_button();
@@ -305,7 +323,11 @@ private:
 
     void saveProfileFocusState();
 
-    void restoreProfileFocusState();
+    void restoreProfileFocusState(RefreshAnchor anchor);
+
+    void selectProfileRows(const QList<int> &rows);
+
+    void focusProfilesTable(bool selectFirst);
 
     void clearUnavailableProfiles(bool confirm = true, QList<int> profileIDs = {});
 
@@ -332,8 +354,6 @@ private:
     void refresh_proxy_list_impl_refresh_data(const QList<int>& ids = {}, bool mayNeedReset = false);
 
     void parseQrImage(const QPixmap *image);
-
-    void keyPressEvent(QKeyEvent *event) override;
 
     void closeEvent(QCloseEvent *event) override;
 
