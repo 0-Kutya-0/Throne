@@ -124,6 +124,25 @@ namespace Configs {
         mergeJsonObjects(object, dialFieldsObj);
         return object;
     }
+    QJsonObject outbound::ExportIdentity()
+    {
+        if (server.isEmpty()) return ExportToJson();
+
+        QJsonObject object;
+        object["server"] = server;
+        object["server_port"] = server_port;
+        if (IsXray()) {
+            if (auto s = GetXrayStream()->ExportIdentity(); !s.isEmpty()) object["stream"] = s;
+        } else {
+            if (HasTLS()) {
+                if (auto t = GetTLS()->ExportIdentity(); !t.isEmpty()) object["tls"] = t;
+            }
+            if (HasTransport()) {
+                if (auto t = GetTransport()->ExportIdentity(); !t.isEmpty()) object["transport"] = t;
+            }
+        }
+        return object;
+    }
     BuildResult outbound::Build()
     {
         QJsonObject object;

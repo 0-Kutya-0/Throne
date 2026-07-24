@@ -48,6 +48,12 @@ namespace Configs {
         if (!fingerPrint.isEmpty()) object["fingerprint"] = fingerPrint;
         return object;
     }
+    QJsonObject uTLS::ExportIdentity()
+    {
+        QJsonObject object;
+        if (enabled && !fingerPrint.isEmpty()) object["fingerprint"] = fingerPrint;
+        return object;
+    }
     BuildResult uTLS::Build()
     {
         if (!supported) return {};
@@ -104,6 +110,12 @@ namespace Configs {
         if (!serverName.isEmpty()) object["query_server_name"] = serverName;
         return object;
     }
+    QJsonObject ECH::ExportIdentity()
+    {
+        QJsonObject object;
+        if (enabled) object["enabled"] = true;
+        return object;
+    }
     BuildResult ECH::Build()
     {
         return {ExportToJson(), ""};
@@ -155,6 +167,12 @@ namespace Configs {
         object["enabled"] = enabled;
         if (!public_key.isEmpty()) object["public_key"] = public_key;
         if (!short_id.isEmpty()) object["short_id"] = short_id;
+        return object;
+    }
+    QJsonObject Reality::ExportIdentity()
+    {
+        QJsonObject object;
+        if (enabled) object["enabled"] = true;
         return object;
     }
     BuildResult Reality::Build()
@@ -347,6 +365,18 @@ namespace Configs {
         if (ech->enabled) object["ech"] = ech->ExportToJson();
         if (utls->enabled) object["utls"] = utls->ExportToJson();
         if (reality->enabled) object["reality"] = reality->ExportToJson();
+        return object;
+    }
+    QJsonObject TLS::ExportIdentity()
+    {
+        QJsonObject object;
+        if (!enabled) return object;
+        object["enabled"] = true;
+        if (disable_sni) object["disable_sni"] = true;
+        if (!server_name.isEmpty()) object["server_name"] = server_name;
+        if (auto o = utls->ExportIdentity(); !o.isEmpty()) object["utls"] = o;
+        if (auto o = ech->ExportIdentity(); !o.isEmpty()) object["ech"] = o;
+        if (auto o = reality->ExportIdentity(); !o.isEmpty()) object["reality"] = o;
         return object;
     }
     BuildResult TLS::Build()

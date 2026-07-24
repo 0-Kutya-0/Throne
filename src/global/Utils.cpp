@@ -18,6 +18,10 @@
 #include <QLocale>
 #include <QCheckBox>
 #include <QLayout>
+#include <QVBoxLayout>
+#include <QPlainTextEdit>
+#include <QDialogButtonBox>
+#include <QDialog>
 
 #ifdef Q_OS_WIN
 #include "include/sys/windows/guihelper.h"
@@ -290,6 +294,21 @@ int MessageBoxWarning(const QString &title, const QString &text) {
 
 int MessageBoxInfo(const QString &title, const QString &text) {
     return QMessageBox::information(GetMessageBoxParent(), title, text);
+}
+
+void MessageBoxScrollable(const QString &title, const QString &text) {
+    QDialog dialog(GetMessageBoxParent());
+    dialog.setWindowTitle(title);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *view = new QPlainTextEdit(&dialog);
+    view->setPlainText(text);
+    view->setReadOnly(true);
+    layout->addWidget(view);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
+    dialog.resize(480, 420);
+    dialog.exec();
 }
 
 int MessageBoxCheck(const QString &title, const QString &text, const QString &checkBoxText, bool &isChecked) {

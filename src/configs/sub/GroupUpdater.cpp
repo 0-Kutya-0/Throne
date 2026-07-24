@@ -7,6 +7,7 @@
 #include <QInputDialog>
 #include <QUrlQuery>
 #include <QJsonDocument>
+#include <QHash>
 
 #include "include/configs/common/utils.h"
 #include "include/database/GroupsRepo.h"
@@ -864,8 +865,14 @@ namespace Subscription {
                 Configs::ProfileFilter::OnlyInSrc(in, out, only_in, false);
                 Configs::ProfileFilter::OnlyInSrc(out, in, only_out, false);
                 Configs::ProfileFilter::Common(in, out, update_keep, update_del, false);
+
+                QList<std::shared_ptr<Configs::Profile>> changed_old;
+                QList<std::shared_ptr<Configs::Profile>> changed_new;
+                Configs::ProfileFilter::ChangedByIdentity(only_in, only_out, changed_old, changed_new);
+
                 QString notice_added;
                 QString notice_deleted;
+                QString notice_updated;
                 if (only_out.size() < 1000)
                 {
                     for (const auto &ent: only_out) {
@@ -874,6 +881,15 @@ namespace Subscription {
                 } else
                 {
                     notice_added += QString("[+] ") + "added " + Int2String(only_out.size()) + "\n";
+                }
+                if (changed_new.size() < 1000)
+                {
+                    for (const auto &ent: changed_new) {
+                        notice_updated += "[~] " + ent->outbound->DisplayTypeAndName() + "\n";
+                    }
+                } else
+                {
+                    notice_updated += QString("[~] ") + "updated " + Int2String(changed_new.size()) + "\n";
                 }
                 if (only_in.size() < 1000)
                 {
@@ -886,14 +902,24 @@ namespace Subscription {
                 }
 
 
+                QHash<Configs::Profile *, int> supersededBy;
+                for (int i = 0; i < update_del.size() && i < update_keep.size(); ++i) {
+                    supersededBy[update_del[i].get()] = update_keep[i]->id;
+                }
+                for (int i = 0; i < changed_new.size(); ++i) {
+                    const auto &oldEnt = changed_old[i];
+                    oldEnt->outbound = changed_new[i]->outbound;
+                    oldEnt->name = oldEnt->outbound->name;
+                    Configs::dataManager->profilesRepo->Save(oldEnt);
+                    supersededBy[changed_new[i].get()] = oldEnt->id;
+                }
+
                 // sort according to order in remote
                 group->profiles.clear();
                 for (const auto &ent: rawUpdater->updated_order) {
-                    auto deleted_index = update_del.indexOf(ent);
-                    if (deleted_index >= 0) {
-                        if (deleted_index >= update_keep.count()) continue; // should not happen
-                        const auto& ent2 = update_keep[deleted_index];
-                        group->profiles.append(ent2->id);
+                    auto it = supersededBy.find(ent.get());
+                    if (it != supersededBy.end()) {
+                        group->profiles.append(it.value());
                     } else {
                         group->profiles.append(ent->id);
                     }
@@ -913,21 +939,23 @@ namespace Subscription {
                     });
                 }
 
-                change_text = "\n" + QObject::tr("Added %1 profiles:\n%2\nDeleted %3 Profiles:\n%4")
+                change_text = "\n" + QObject::tr("Added %1 profiles:\n%2\nUpdated %3 profiles:\n%4\nDeleted %5 Profiles:\n%6")
                                          .arg(only_out.length())
                                          .arg(notice_added)
+                                         .arg(changed_old.length())
+                                         .arg(notice_updated)
                                          .arg(only_in.length())
                                          .arg(notice_deleted);
-                if (only_out.length() + only_in.length() == 0) change_text = QObject::tr("Nothing");
+                if (only_out.length() + only_in.length() + changed_old.length() == 0) change_text = QObject::tr("Nothing");
             }
 
             MW_show_log("<<<<<<<< " + QObject::tr("Change of %1:").arg(group->name) + "\n" + change_text);
-            if (showDiff) {
+            if (showDiff && Configs::dataManager->settingsRepo->sub_show_change_popup) {
                 // Manual refresh: surface the same diff in a popup, not just the log.
                 const auto diffTitle = QObject::tr("Change of %1").arg(group->name);
                 auto diffBody = change_text.trimmed();
                 if (diffBody.isEmpty()) diffBody = QObject::tr("Nothing");
-                runOnUiThread([diffTitle, diffBody] { MessageBoxInfo(diffTitle, diffBody); });
+                runOnUiThread([diffTitle, diffBody] { MessageBoxScrollable(diffTitle, diffBody); });
             }
             MW_dialog_message(MwMessage::SubscriptionFinished, {MwArg::Quiet});
         } else {

@@ -31,6 +31,7 @@ namespace Configs {
             {"vpn_strict_route",              &vpn_strict_route},
             {"vpn_auto_redirect",             &vpn_auto_redirect},
             {"sub_clear",                     &sub_clear},
+            {"sub_show_change_popup",         &sub_show_change_popup},
             {"net_insecure",                  &net_insecure},
             {"sub_send_hwid",                 &sub_send_hwid},
             {"start_minimal",                 &start_minimal},

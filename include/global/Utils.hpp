@@ -263,6 +263,8 @@ int MessageBoxWarning(const QString &title, const QString &text);
 
 int MessageBoxInfo(const QString &title, const QString &text);
 
+void MessageBoxScrollable(const QString &title, const QString &text);
+
 int MessageBoxCheck(const QString &title, const QString &text, const QString &checkBoxText, bool &isChecked);
 
 void ActivateWindow(QWidget *w);

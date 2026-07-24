@@ -826,6 +826,20 @@ namespace Configs {
         return object;
     }
 
+    QJsonObject xrayStreamSetting::ExportIdentity() {
+        QJsonObject object;
+        object["network"] = network;
+        object["security"] = security;
+        if (security == "reality") {
+            if (!reality->serverName.isEmpty()) object["sni"] = reality->serverName;
+            if (!reality->fingerprint.isEmpty()) object["fingerprint"] = reality->fingerprint;
+        } else if (security == "tls") {
+            if (!TLS->serverName.isEmpty()) object["sni"] = TLS->serverName;
+            if (!TLS->fingerprint.isEmpty()) object["fingerprint"] = TLS->fingerprint;
+        }
+        return object;
+    }
+
 
     QString getXrayOutboundDomainStrategy() {
         auto strategy = Configs::dataManager->settingsRepo->direct_dns_strategy;

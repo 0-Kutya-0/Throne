@@ -137,6 +137,7 @@ namespace Configs {
         int sub_auto_update = -30;
         qint64 sub_auto_update_last = 0;
         bool sub_clear = false;
+        bool sub_show_change_popup = true;
         bool sub_send_hwid = false;
         QString sub_custom_hwid_params = "";
         bool allow_stopping_active_profile = false;
