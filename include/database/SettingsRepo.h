@@ -206,6 +206,9 @@ namespace Configs {
         QString vpn_implementation = "system";
         bool vpn_strict_route = false;
 #endif
+        // Linux only: emit `auto_redirect` on the Tun inbound. Newer kernels need it for the
+        // system/mixed stacks to pass traffic, at the cost of this host acting as a gateway.
+        bool vpn_auto_redirect = true;
         int vpn_mtu = 1500;
         bool disable_private_range_bypass = false;
         bool vpn_ipv6 = false;

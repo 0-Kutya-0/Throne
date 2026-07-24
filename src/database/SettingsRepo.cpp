@@ -29,6 +29,7 @@ namespace Configs {
             {"disable_traffic_aggregation",   &disable_traffic_aggregation},
             {"vpn_ipv6",                      &vpn_ipv6},
             {"vpn_strict_route",              &vpn_strict_route},
+            {"vpn_auto_redirect",             &vpn_auto_redirect},
             {"sub_clear",                     &sub_clear},
             {"net_insecure",                  &net_insecure},
             {"sub_send_hwid",                 &sub_send_hwid},
