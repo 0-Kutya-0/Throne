@@ -625,29 +625,39 @@ namespace Configs {
         // HijackRules
         if (Configs::dataManager->settingsRepo->enable_dns_server && !ctx->forTest)
         {
-            rules += QJsonObject{
-                        {"rule_set", hijackDeps->hijackGeoAssets},
-                        {"domain", hijackDeps->hijackDomains},
-                        {"domain_suffix", hijackDeps->hijackDomainSuffix},
-                        {"domain_regex", hijackDeps->hijackDomainRegex},
-                        {"query_type", "A"},
-                        {"action", "predefined"},
-                        {"rcode", "NOERROR"},
-                        {"answer", QString("* IN A %1").arg(Configs::dataManager->settingsRepo->dns_v4_resp)},
-                    };
+            // Same AND-vs-OR pitfall as the direct/proxy rules below, so the
+            // rule_set gets its own rule. The non-empty guards also keep an empty
+            // rule list from degenerating into a query_type-only rule, which would
+            // hijack every lookup instead of none.
+            auto addHijackRules = [&](const QJsonObject &conditions) {
+                auto v4 = conditions;
+                v4["query_type"] = "A";
+                v4["action"] = "predefined";
+                v4["rcode"] = "NOERROR";
+                v4["answer"] = QString("* IN A %1").arg(Configs::dataManager->settingsRepo->dns_v4_resp);
+                rules += v4;
 
-            if (!Configs::dataManager->settingsRepo->dns_v6_resp.isEmpty())
+                if (Configs::dataManager->settingsRepo->dns_v6_resp.isEmpty()) return;
+                auto v6 = conditions;
+                v6["query_type"] = "AAAA";
+                v6["action"] = "predefined";
+                v6["rcode"] = "NOERROR";
+                v6["answer"] = QString("* IN AAAA %1").arg(Configs::dataManager->settingsRepo->dns_v6_resp);
+                rules += v6;
+            };
+
+            if (!hijackDeps->hijackGeoAssets.isEmpty())
             {
-                rules += QJsonObject{
-                            {"rule_set", hijackDeps->hijackGeoAssets},
+                addHijackRules(QJsonObject{{"rule_set", hijackDeps->hijackGeoAssets}});
+            }
+            if (!hijackDeps->hijackDomains.isEmpty() || !hijackDeps->hijackDomainSuffix.isEmpty() ||
+                !hijackDeps->hijackDomainRegex.isEmpty())
+            {
+                addHijackRules(QJsonObject{
                             {"domain", hijackDeps->hijackDomains},
                             {"domain_suffix", hijackDeps->hijackDomainSuffix},
                             {"domain_regex", hijackDeps->hijackDomainRegex},
-                            {"query_type", "AAAA"},
-                            {"action", "predefined"},
-                            {"rcode", "NOERROR"},
-                            {"answer", QString("* IN AAAA %1").arg(Configs::dataManager->settingsRepo->dns_v6_resp)},
-                        };
+                        });
             }
         }
 
