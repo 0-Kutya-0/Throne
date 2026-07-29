@@ -67,7 +67,7 @@ void EditWireguard::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->public_key->setText(outbound->peer->public_key);
     ui->preshared_key->setText(outbound->peer->pre_shared_key);
     ui->reserved->setText(QListInt2QListString(outbound->peer->reserved).join(","));
-    ui->persistent_keepalive->setText(Int2String(outbound->peer->persistent_keepalive));
+    ui->persistent_keepalive->setText(outbound->peer->persistent_keepalive);
     ui->mtu->setText(Int2String(outbound->mtu));
     ui->sys_ifc->setChecked(outbound->system);
     ui->local_addr->setText(outbound->address.join(","));
@@ -90,6 +90,13 @@ void EditWireguard::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->i3->setText(outbound->i3);
     ui->i4->setText(outbound->i4);
     ui->i5->setText(outbound->i5);
+    ui->header_protection_key->setText(outbound->header_protection_key);
+    ui->content_padding_addition->setText(outbound->content_padding_addition);
+    ui->rekey_after_time->setText(outbound->rekey_after_time);
+    ui->rekey_timeout->setText(outbound->rekey_timeout);
+    ui->reject_after_time->setText(outbound->reject_after_time);
+    ui->keepalive_timeout->setText(outbound->keepalive_timeout);
+    ui->max_handshake_attempts->setText(outbound->max_handshake_attempts);
 }
 
 bool EditWireguard::onEnd() {
@@ -104,7 +111,7 @@ bool EditWireguard::onEnd() {
         if (item.trimmed().isEmpty()) continue;
         outbound->peer->reserved += item.trimmed().toInt();
     }
-    outbound->peer->persistent_keepalive = ui->persistent_keepalive->text().trimmed().toInt();
+    outbound->peer->persistent_keepalive = ui->persistent_keepalive->text().trimmed();
     outbound->mtu = ui->mtu->text().toInt();
     outbound->system = ui->sys_ifc->isChecked();
     outbound->address = ui->local_addr->text().replace(" ", "").split(",");
@@ -127,6 +134,13 @@ bool EditWireguard::onEnd() {
     outbound->i3 = ui->i3->text();
     outbound->i4 = ui->i4->text();
     outbound->i5 = ui->i5->text();
+    outbound->header_protection_key = ui->header_protection_key->text().trimmed();
+    outbound->content_padding_addition = ui->content_padding_addition->text().trimmed();
+    outbound->rekey_after_time = ui->rekey_after_time->text().trimmed();
+    outbound->rekey_timeout = ui->rekey_timeout->text().trimmed();
+    outbound->reject_after_time = ui->reject_after_time->text().trimmed();
+    outbound->keepalive_timeout = ui->keepalive_timeout->text().trimmed();
+    outbound->max_handshake_attempts = ui->max_handshake_attempts->text().trimmed();
 
     return true;
 }

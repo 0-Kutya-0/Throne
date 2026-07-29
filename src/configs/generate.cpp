@@ -126,7 +126,7 @@ namespace Configs {
         peer->address = outbound->server;
         peer->port = outbound->server_port;
         peer->reserved = QStringList2QListInt(dataManager->settingsRepo->warp_reserved);
-        peer->persistent_keepalive = 10;
+        peer->persistent_keepalive = "10";
         outbound->peer = peer;
         outbound->mtu = 1280;
 
