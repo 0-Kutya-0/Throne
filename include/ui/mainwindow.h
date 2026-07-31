@@ -265,7 +265,6 @@ private:
     QList<QShortcut*> hiddenMenuShortcuts;
 
     // search
-    bool searchEnabled = false;
     QString addressFilterString;
     QString nameFilterString;
     QString typeFilterString;
@@ -354,6 +353,8 @@ private:
     void refresh_proxy_list_impl_refresh_data(const QList<int>& ids = {}, bool mayNeedReset = false);
 
     void parseQrImage(const QPixmap *image);
+
+    void keyPressEvent(QKeyEvent *event) override;
 
     void closeEvent(QCloseEvent *event) override;
 

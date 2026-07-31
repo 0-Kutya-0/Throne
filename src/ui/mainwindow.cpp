@@ -1,6 +1,7 @@
 #include "include/ui/mainwindow.h"
 
 #include <QAbstractItemView>
+#include <QLineEdit>
 #include <QMenu>
 #include <algorithm>
 #include <ranges>
@@ -3162,6 +3163,16 @@ void MainWindow::clearUnavailableProfiles(bool confirm, QList<int> profileIDs) {
             clearFunc();
         }
     }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        if (!qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
+            profile_start();
+            return;
+        }
+    }
+    QMainWindow::keyPressEvent(event);
 }
 
 // Log
