@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QJsonDocument>
 #include <QElapsedTimer>
+#include <QSet>
 
 #include "include/database/ProfilesRepo.h"
 #include "include/database/GroupsRepo.h"
@@ -44,11 +45,17 @@ namespace Stats {
             if (interval <= 0) continue;
             const auto up = resp.ups.at(tagKey);
             const auto down = resp.downs.at(tagKey);
-            for (auto& profile : group.profiles) {
-                profile->traffic_uplink += up;
-                profile->traffic_downlink += down;
-                // Mirror the per-profile crediting into the time-series module.
-                trafficStatsManager->AddConfigDelta(profile->id, up, down);
+            // An auto-selector contributes one group per pool member, all but
+            // one of them idle at any moment. Skipping the zero deltas keeps a
+            // 300-member pool from doing 300 no-op stat writes every second.
+            if (up != 0 || down != 0) {
+                for (auto& profile : group.profiles) {
+                    profile->traffic_uplink += up;
+                    profile->traffic_downlink += down;
+                    // Mirror the per-profile crediting into the time-series module.
+                    trafficStatsManager->AddConfigDelta(profile->id, up, down);
+                }
+                group.dirty = true;
             }
             group.uplink_rate = static_cast<double>(up) * 1000.0 / static_cast<double>(interval);
             group.downlink_rate = static_cast<double>(down) * 1000.0 / static_cast<double>(interval);
@@ -126,11 +133,19 @@ namespace Stats {
                     m->refresh_status(QObject::tr("Proxy: %1\nDirect: %2").arg(DisplaySpeed(proxy), DisplaySpeed(direct)));
                     m->update_traffic_graph(proxy->downlink_rate, proxy->uplink_rate, direct->downlink_rate, direct->uplink_rate);
                 }
+                // One batched refresh: a 300-member auto-selector pool would
+                // otherwise fire hundreds of list refreshes every second.
+                QList<int> ids;
+                QSet<int> seen;
                 for (const auto& group : groups) {
                     for (const auto& profile : group.profiles) {
-                        m->refresh_proxy_list({profile->id});
+                        if (!profile || profile->id < 0) continue;
+                        if (seen.contains(profile->id)) continue;
+                        seen.insert(profile->id);
+                        ids << profile->id;
                     }
                 }
+                if (!ids.isEmpty()) m->refresh_proxy_list(ids);
             });
         }
     }
@@ -139,9 +154,17 @@ namespace Stats {
         QList<std::shared_ptr<Configs::Profile>> all;
         {
             QMutexLocker lk(&loop_mutex);
-            for (const auto& group : groups) {
+            // A profile can appear in several groups (an auto selector is
+            // credited by every one of its members), so dedup before writing.
+            QSet<int> seen;
+            for (auto& group : groups) {
+                if (!group.dirty) continue;
+                group.dirty = false;
                 for (const auto& profile : group.profiles) {
-                    if (profile && profile->id >= 0) all.append(profile);
+                    if (!profile || profile->id < 0) continue;
+                    if (seen.contains(profile->id)) continue;
+                    seen.insert(profile->id);
+                    all.append(profile);
                 }
             }
         }
@@ -176,9 +199,12 @@ namespace Stats {
         // Snapshot reference metadata for the statistics module so per-config
         // history stays meaningful even after a profile is renamed or removed.
         trafficStatsManager->EnsureDirectMeta();
+        QSet<int> snapshotted;
         for (const auto& g : groups) {
             for (const auto& p : g.profiles) {
                 if (!p || p->id < 0) continue;
+                if (snapshotted.contains(p->id)) continue;
+                snapshotted.insert(p->id);
                 QString groupName;
                 if (const auto grp = Configs::dataManager->groupsRepo->GetGroup(p->gid)) groupName = grp->name;
                 trafficStatsManager->SnapshotConfigMeta(

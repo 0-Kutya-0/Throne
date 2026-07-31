@@ -57,6 +57,19 @@ namespace API {
 
         libcore::GenWgKeyPairResponse GenWgKeyPair(bool *rpcOK);
 
+        // Empty name = the OS has no default route. A local, censorship-proof
+        // way to tell "my network died" from "the servers died".
+        [[nodiscard]] libcore::GetDefaultInterfaceResponse GetDefaultInterface(bool *rpcOK) const;
+
+        // Idempotent snapshot of every running auto-selector group: it clears no
+        // core-side counters, so polling it alongside QueryStats is safe.
+        [[nodiscard]] libcore::QueryAutoSelectorsResponse QueryAutoSelectors(bool *rpcOK) const;
+
+        // action: "recheck" forces a full sweep now, "select" pins the group to
+        // member. An empty tag targets every auto-selector group.
+        QString AutoSelectorAction(bool *rpcOK, const QString &tag, const QString &action,
+                                   const QString &member = {}) const;
+
     private:
         class LocalSocketChannel;
         std::unique_ptr<LocalSocketChannel> channel;

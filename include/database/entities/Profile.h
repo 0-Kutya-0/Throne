@@ -8,6 +8,7 @@
 #include "include/configs/outbounds/mieru.h"
 #include "include/configs/outbounds/direct.h"
 #include "include/configs/outbounds/chain.h"
+#include "include/configs/outbounds/autoselector.h"
 #include "include/configs/outbounds/custom.h"
 #include "include/configs/outbounds/extracore.h"
 #include "include/configs/outbounds/socks.h"
@@ -36,6 +37,9 @@ namespace Configs {
         int id = -1;
         int gid = 0;
         int latency = 0;
+        // Unix seconds when `latency` was measured; 0 = unknown/never. Lets a
+        // consumer decide whether a stored result is still worth trusting.
+        qint64 latency_at = 0;
         QString dl_speed;
         QString ul_speed;
         QString test_country;
@@ -52,6 +56,10 @@ namespace Configs {
         Profile(Configs::outbound *outbound, const QString &type_);
 
         void ClearTestResults();
+
+        // Always set latency through here: it stamps latency_at, which is what
+        // lets consumers judge whether a stored result is still fresh.
+        void SetLatency(int ms);
 
         [[nodiscard]] QString DisplayTestResult() const;
 
@@ -138,6 +146,10 @@ namespace Configs {
 
         [[nodiscard]] Configs::chain *Chain() const {
             return dynamic_cast<Configs::chain *>(outbound.get());
+        };
+
+        [[nodiscard]] Configs::autoSelector *AutoSelector() const {
+            return dynamic_cast<Configs::autoSelector *>(outbound.get());
         };
 
         [[nodiscard]] Configs::direct *Direct() const {

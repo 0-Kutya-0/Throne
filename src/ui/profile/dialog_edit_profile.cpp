@@ -3,6 +3,7 @@
 #include "include/ui/profile/edit_http.h"
 #include "include/ui/profile/edit_shadowsocks.h"
 #include "include/ui/profile/edit_chain.h"
+#include "include/ui/profile/edit_autoselector.h"
 #include "include/ui/profile/edit_vmess.h"
 #include "include/ui/profile/edit_vless.h"
 #include "include/ui/profile/edit_anytls.h"
@@ -266,6 +267,7 @@ DialogEditProfile::DialogEditProfile(const QString &_type, int profileOrGroupId,
         this->type = _type;
 
         // load type to combo box
+        LOAD_TYPE("autoselector")
         LOAD_TYPE("socks")
         LOAD_TYPE("http")
         LOAD_TYPE("shadowsocks")
@@ -330,6 +332,10 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         innerEditor = _innerWidget;
     } else if (type == "chain") {
         auto _innerWidget = new EditChain(this);
+        innerWidget = _innerWidget;
+        innerEditor = _innerWidget;
+    } else if (type == "autoselector") {
+        auto _innerWidget = new EditAutoSelector(this);
         innerWidget = _innerWidget;
         innerEditor = _innerWidget;
     } else if (type == "vmess") {
@@ -441,6 +447,7 @@ void DialogEditProfile::typeSelected(const QString &newType) {
 
     // hide some widget
     auto showAddressPort = type != "chain"
+                           && type != "autoselector"
                            && type != "direct"
                            && customType != Configs::Custom::CustomOutbound
                            && customType != Configs::Custom::CustomFullConfig
@@ -453,6 +460,7 @@ void DialogEditProfile::typeSelected(const QString &newType) {
     ui->port_l->setVisible(showAddressPort);
 
     auto showAdvancedDialOption = type != "chain"
+    && type != "autoselector"
     && type != "extracore" && type != "tailscale"
     && customType != Configs::Custom::CustomOutbound
     && customType != Configs::Custom::CustomFullConfig

@@ -9,6 +9,8 @@
 #include "include/configs/sub/GroupUpdater.hpp"
 #include "include/configs/sub/RouteUpdater.hpp"
 #include "include/global/PeriodicRunner.hpp"
+#include "include/stats/autoselector/AutoSelectorMonitor.hpp"
+#include "include/ui/stats/dialog_auto_selector.h"
 #include "include/sys/Process.hpp"
 #include "include/sys/AutoRun.hpp"
 #include "include/sys/UrlScheme.hpp"
@@ -388,6 +390,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->actionTraffic_Stats->setVisible(!Configs::dataManager->settingsRepo->disable_traffic_aggregation);
     connect(ui->actionTraffic_Stats, &QAction::triggered, this, [=]() {
         USE_DIALOG(DialogTrafficStats)
+    });
+    // Only meaningful while a selector profile is running; refresh_auto_selector_view
+    // shows and hides it as the monitor starts and stops.
+    ui->actionAuto_Selector->setVisible(false);
+    connect(ui->actionAuto_Selector, &QAction::triggered, this, [=,this]() {
+        if (m_autoSelectorDialog == nullptr) {
+            m_autoSelectorDialog = new DialogAutoSelector(this);
+            connect(m_autoSelectorDialog, &QDialog::finished, this, [this] {
+                m_autoSelectorDialog->deleteLater();
+                m_autoSelectorDialog = nullptr;
+            });
+        }
+        m_autoSelectorDialog->refresh();
+        m_autoSelectorDialog->show();
+        m_autoSelectorDialog->raise();
+        m_autoSelectorDialog->activateWindow();
     });
     connect(ui->actionCheck_For_Update, &QAction::triggered, this, [=,this] { runOnNewThread([=,this] { CheckUpdate(); }); });
     if (!QFile::exists(QApplication::applicationDirPath() + "/updater") && !QFile::exists(QApplication::applicationDirPath() + "/updater.exe"))
@@ -1125,6 +1143,13 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
     m_proxyListRefreshDebounce = new QTimer(this);
     m_proxyListRefreshDebounce->setSingleShot(true);
     connect(m_proxyListRefreshDebounce, &QTimer::timeout, this, [this] { refresh_proxy_list({}, false); });
+
+    // The auto-selector monitor polls the core from its own thread; both
+    // handlers are queued onto the UI thread.
+    connect(Stats::autoSelectorMonitor, &Stats::AutoSelectorMonitor::poolExhausted, this,
+            [this](int profileID) { on_auto_selector_exhausted(profileID); }, Qt::QueuedConnection);
+    connect(Stats::autoSelectorMonitor, &Stats::AutoSelectorMonitor::updated, this,
+            [this] { refresh_auto_selector_view(); }, Qt::QueuedConnection);
 
     // Periodic auto-update jobs. The runner persists each job's last-run time and re-runs
     // it once its own interval has elapsed, so closing the app past the interval (or the
@@ -1991,6 +2016,17 @@ void MainWindow::setDownloadReport(const DownloadProgressReport& report, bool sh
     dataViewHtmlGenerator_.setDownloadReport(report, show);
 }
 
+void MainWindow::refresh_auto_selector_view()
+{
+    const auto view = Stats::autoSelectorMonitor->Snapshot();
+    dataViewHtmlGenerator_.setAutoSelectorStatus(view.valid ? view.summary() : QString(),
+                                                 view.valid ? view.detail() : QString());
+    // The Tools entry only makes sense while a selector is actually running.
+    ui->actionAuto_Selector->setVisible(view.valid);
+    UpdateDataView();
+    if (m_autoSelectorDialog != nullptr) m_autoSelectorDialog->refresh();
+}
+
 
 void MainWindow::setupConnectionList()
 {
@@ -2518,7 +2554,7 @@ void MainWindow::on_profilesTableView_doubleClicked(const QModelIndex &index) {
 }
 
 void MainWindow::on_menu_add_from_input_triggered() {
-    auto dialog = new DialogEditProfile("socks", Configs::dataManager->settingsRepo->current_group, this);
+    auto dialog = new DialogEditProfile("autoselector", Configs::dataManager->settingsRepo->current_group, this);
     connect(dialog, &QDialog::finished, dialog, &QDialog::deleteLater);
 }
 

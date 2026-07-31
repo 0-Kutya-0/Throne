@@ -41,6 +41,9 @@ namespace Configs {
         // Create tables if they don't exist
         void createTables() const;
 
+        // True if the profiles table already has the given column (for migrations).
+        bool profilesColumnExists(const char* columnName) const;
+
         // Get next available profile ID (single)
         int NewProfileID() const;
         // Allocate a contiguous block of n IDs; returns first ID (use firstId, firstId+1, ..., firstId+n-1). DB atomic, no lock required.

@@ -2,6 +2,8 @@
 
 #include "include/stats/traffic/TrafficLooper.hpp"
 #include "include/stats/traffic/TrafficStatsManager.hpp"
+#include "include/stats/autoselector/AutoSelectorMonitor.hpp"
+#include "include/configs/AutoSelectorPlan.h"
 #include "include/api/RPC.h"
 #include "include/ui/utils//MessageBoxTimer.h"
 #include "3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp"
@@ -40,7 +42,55 @@ void MainWindow::setup_rpc(QLocalSocket *socket) {
         rpc_started = true;
         runOnNewThread([=] { Stats::trafficLooper->Loop(); });
         runOnNewThread([=] { Stats::connection_lister->Loop(); });
+        runOnNewThread([=] { Stats::autoSelectorMonitor->Loop(); });
     }
+}
+
+// Ranking is only worth the wait when the selector has more eligible members
+// than it can run: below that everything is built anyway. Runs synchronously on
+// the caller's worker thread; the caller is already off the UI thread.
+// Measures only what has no result yet (plus anything explicitly stale) and
+// re-ranks. Reusing the group's existing URL-test results is the point: a user
+// who just tested the group must not trigger a second sweep behind their back.
+void MainWindow::rank_auto_selector(const std::shared_ptr<Configs::Profile>& ent, const QList<int>& stale) {
+    if (ent == nullptr || ent->type != "autoselector") return;
+
+    const auto needed = Configs::AutoSelectorUnmeasuredCandidates(ent, stale);
+    if (needed.isEmpty()) {
+        const auto ranked = Configs::RerankAutoSelectorPool(ent);
+        MW_show_log(tr("[Auto selector] Reusing existing test results; ranked %1 profiles.").arg(ranked.size()));
+        return;
+    }
+
+    MW_show_log(tr("[Auto selector] Measuring %1 not-yet-tested profiles...").arg(needed.size()));
+    urltest_current_group(needed);
+    // urltest_current_group holds speedtestRunning for the whole sweep, so by
+    // the time the lock is free again every latency is in the database.
+    speedtestRunning.lock();
+    speedtestRunning.unlock();
+
+    const auto ranked = Configs::RerankAutoSelectorPool(ent);
+    MW_show_log(tr("[Auto selector] Ranked %1 profiles.").arg(ranked.size()));
+}
+
+void MainWindow::on_auto_selector_exhausted(int profileID) {
+    auto ent = Configs::dataManager->profilesRepo->GetProfile(profileID);
+    if (ent == nullptr || running == nullptr || running->id != profileID) return;
+
+    MW_show_log(tr("[Auto selector] Every running profile stopped working — rebuilding from the "
+                   "next best candidates."));
+    runOnNewThread([=, this] {
+        // The members that just died carry stale results, so they are re-tested
+        // even though they have one; everything else is only measured if it has
+        // never been. The failures then sink and fresh candidates rise.
+        QList<int> stale;
+        if (auto selector = ent->AutoSelector(); selector != nullptr) stale = selector->lastBuilt;
+        rank_auto_selector(ent, stale);
+        runOnUiThread([=, this] {
+            if (running == nullptr || running->id != profileID) return;
+            profile_start(profileID);
+        });
+    });
 }
 
 void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID) {
@@ -96,12 +146,12 @@ void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, co
                     continue;
                 }
                 if (res.error.value().empty()) {
-                ent->latency = res.latency_ms.value();
+                    ent->SetLatency(res.latency_ms.value());
                 } else {
                     if (QString::fromStdString(res.error.value()).contains("test aborted") ||
-                        QString::fromStdString(res.error.value()).contains("context canceled")) ent->latency=0;
+                        QString::fromStdString(res.error.value()).contains("context canceled")) ent->SetLatency(0);
                     else {
-                        ent->latency = -1;
+                        ent->SetLatency(-1);
                         MW_show_log(tr("[%1] test error: %2").arg(ent->outbound->DisplayTypeAndName(), QString::fromStdString(res.error.value())));
                     }
                 }
@@ -154,12 +204,12 @@ void MainWindow::runURLTest(const QString& config, const QString& xrayConfig, co
         }
 
         if (res.error.value().empty()) {
-            ent->latency = res.latency_ms.value();
+            ent->SetLatency(res.latency_ms.value());
         } else {
             if (QString::fromStdString(res.error.value()).contains("test aborted") ||
-                QString::fromStdString(res.error.value()).contains("context canceled")) ent->latency=0;
+                QString::fromStdString(res.error.value()).contains("context canceled")) ent->SetLatency(0);
             else {
-                ent->latency = -1;
+                ent->SetLatency(-1);
                 MW_show_log(tr("[%1] test error: %2").arg(ent->outbound->DisplayTypeAndName(), QString::fromStdString(res.error.value())));
             }
         }
@@ -578,7 +628,7 @@ void MainWindow::querySpeedtest(const QMap<QString, int>& tag2entID, bool testCu
         {
             if (!res.result.value().dl_speed.value().empty()) profile->dl_speed = QString::fromStdString(res.result.value().dl_speed.value());
             if (!res.result.value().ul_speed.value().empty()) profile->ul_speed = QString::fromStdString(res.result.value().ul_speed.value());
-            if (profile->latency <= 0 && res.result.value().latency.value() > 0) profile->latency = res.result.value().latency.value();
+            if (profile->latency <= 0 && res.result.value().latency.value() > 0) profile->SetLatency(res.result.value().latency.value());
             if (!res.result->server_country.value().empty()) profile->test_country = CountryNameToCode(QString::fromStdString(res.result.value().server_country.value()));
             refresh_proxy_list({profile->id});
         }
@@ -606,7 +656,7 @@ void MainWindow::queryCountryTest(const QMap<QString, int>& tag2entID, bool test
         {
             if (result.error.value().empty() && !result.cancelled.value())
             {
-                if (profile->latency <= 0 && result.latency.value() > 0) profile->latency = result.latency.value();
+                if (profile->latency <= 0 && result.latency.value() > 0) profile->SetLatency(result.latency.value());
                 if (!result.server_country.value().empty()) profile->test_country = CountryNameToCode(QString::fromStdString(result.server_country.value()));
                 refresh_proxy_list({profile->id});
             }
@@ -711,12 +761,12 @@ void MainWindow::runSpeedTest(const QString& config, const QString& xrayConfig, 
         if (res.error.value().empty()) {
             ent->dl_speed = QString::fromStdString(res.dl_speed.value());
             ent->ul_speed = QString::fromStdString(res.ul_speed.value());
-            if (ent->latency <= 0 && res.latency.value() > 0) ent->latency = res.latency.value();
+            if (ent->latency <= 0 && res.latency.value() > 0) ent->SetLatency(res.latency.value());
             if (!res.server_country.value().empty()) ent->test_country = CountryNameToCode(QString::fromStdString(res.server_country.value()));
         } else {
             ent->dl_speed = "N/A";
             ent->ul_speed = "N/A";
-            ent->latency = -1;
+            ent->SetLatency(-1);
             ent->test_country = "";
             MW_show_log(tr("[%1] speed test error: %2").arg(ent->outbound->DisplayTypeAndName(), QString::fromStdString(res.error.value())));
         }
@@ -894,6 +944,27 @@ void MainWindow::profile_start(int _id) {
     auto group = Configs::dataManager->groupsRepo->GetGroup(ent->gid);
     if (group == nullptr || group->archive) return;
 
+    // An auto selector with more candidates than it can run has to know which
+    // ones are best before the config is built, otherwise the choice is
+    // arbitrary. Measuring hundreds of profiles blocks, so hop off the UI
+    // thread and come back to start once the ranking is in.
+    if (ent->type == "autoselector" && !auto_selector_ranked) {
+        const auto plan = Configs::PlanAutoSelector(ent);
+        if (plan.error.isEmpty() && plan.needsRanking) {
+            auto_selector_ranked = true;
+            const int startId = ent->id;
+            runOnNewThread([=, this] {
+                rank_auto_selector(ent);
+                runOnUiThread([=, this] {
+                    auto_selector_ranked = false;
+                    profile_start(startId);
+                });
+            });
+            return;
+        }
+    }
+    auto_selector_ranked = false;
+
     auto result = Configs::BuildSingBoxConfig(ent);
     if (!result->error.isEmpty()) {
         MessageBoxWarning(tr("BuildConfig return error"), result->error);
@@ -915,6 +986,15 @@ void MainWindow::profile_start(int _id) {
             // instances build their own req and leave these empty.
             req.xray_outbound_dns_address = ("127.0.0.1:" + QString::number(Configs::dataManager->settingsRepo->core_dns_in_port)).toStdString();
             req.xray_outbound_dns_strategy = Configs::getXrayOutboundDomainStrategy().toStdString();
+            // A pool's Xray members may be nothing but bench-tier candidates the
+            // selector probes once a cycle, so let the core keep the sidecar
+            // cold between dials. The idle window has to outlast the probe
+            // interval, otherwise a member the selector is actively watching
+            // would start and stop the instance on every round.
+            if (auto selector = ent->AutoSelector(); selector != nullptr) {
+                req.xray_lazy_start = true;
+                req.xray_idle_seconds = std::max(120, selector->intervalSec * 2);
+            }
         }
         if (!result->extraCoreData->path.isEmpty())
         {
@@ -981,6 +1061,27 @@ void MainWindow::profile_start(int _id) {
         Stats::trafficLooper->SetChainGroups(result->chainGroups);
         Stats::trafficLooper->loop_enabled = true;
         Stats::connection_lister->suspend = false;
+        Stats::autoSelectorMonitor->SetBuild(result->autoSelectors);
+        if (!result->autoSelectors.isEmpty()) {
+            const auto& info = result->autoSelectors.first();
+            if (auto selector = ent->AutoSelector(); selector != nullptr) {
+                QList<int> builtIDs;
+                QHash<int, QString> names;
+                for (const auto& [tag, member] : info.members) {
+                    if (member == nullptr) continue;
+                    builtIDs << member->id;
+                    names.insert(member->id, member->outbound ? member->outbound->DisplayName() : member->name);
+                }
+                const auto now = QDateTime::currentSecsSinceEpoch();
+                selector->lastBuilt = builtIDs;
+                selector->lastBuiltAt = now;
+                selector->RecordHistory(builtIDs, names, now);
+                Configs::dataManager->profilesRepo->Save(ent);
+                MW_show_log(tr("[Auto selector] Running the best %1 of %2 ranked profiles.")
+                                .arg(builtIDs.size())
+                                .arg(selector->pool.size()));
+            }
+        }
 
         Configs::dataManager->settingsRepo->UpdateStartedId(ent->id);
         running = ent;
@@ -989,6 +1090,9 @@ void MainWindow::profile_start(int _id) {
         runOnUiThread([=, this] {
             refresh_status();
             refresh_proxy_list({ent->id});
+            // Reveals the Tools entry and seeds the data-view panel before the
+            // first poll lands, so a selector never starts up invisibly.
+            refresh_auto_selector_view();
 
             auto resp = NetworkRequestHelper::HttpGet("http://ip-api.com/json/", false, true);
             if (resp.error.isEmpty()) {
@@ -1105,6 +1209,9 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
         m_profileDisconnecting = true;
         refresh_startstop_button();
     });
+
+    Stats::autoSelectorMonitor->Clear();
+    runOnUiThread([this] { refresh_auto_selector_view(); });
 
     runOnNewThread([=, this] {
         Stats::trafficLooper->loop_enabled = false;

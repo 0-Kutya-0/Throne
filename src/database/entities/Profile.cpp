@@ -22,8 +22,16 @@ namespace Configs
         test_country.clear();
         ip_out.clear();
         latency = 0;
+        latency_at = 0;
         dl_speed.clear();
         ul_speed.clear();
+    }
+
+    void Profile::SetLatency(int ms) {
+        latency = ms;
+        // 0 means "never measured", so an explicit reset must clear the stamp
+        // rather than record the moment we forgot the result.
+        latency_at = ms == 0 ? 0 : QDateTime::currentSecsSinceEpoch();
     }
 
     QString Profile::DisplayTestResult() const {

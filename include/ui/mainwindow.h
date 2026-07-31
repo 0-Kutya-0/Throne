@@ -117,6 +117,13 @@ public:
 
     void UpdateDataView(bool force = false);
 
+    // Pushes the auto-selector snapshot into the data view, toggles the Tools
+    // entry, and refreshes the dialog if it is open.
+    void refresh_auto_selector_view();
+
+    // Non-owning: cleared by the dialog's finished() handler.
+    class DialogAutoSelector *m_autoSelectorDialog = nullptr;
+
     void setDownloadReport(const DownloadProgressReport& report, bool show);
 
 signals:
@@ -422,6 +429,18 @@ private:
     bool verify_core_pid(QLocalSocket *socket);
 
     void urltest_current_group(const QList<int>& profileIDs);
+
+    // Measures the members of an auto selector that have no test result yet
+    // (plus `stale`, whose stored result is known to be out of date) and
+    // rewrites its ranked pool. Blocks — call from a worker thread.
+    void rank_auto_selector(const std::shared_ptr<Configs::Profile>& ent, const QList<int>& stale = {});
+
+    // Every running member of the auto selector died: re-rank and restart on
+    // the next batch of good ones.
+    void on_auto_selector_exhausted(int profileID);
+
+    // Guards the re-entrant profile_start used to rank before building.
+    bool auto_selector_ranked = false;
 
     void iptest_current_group(const QList<int>& profileIDs);
 

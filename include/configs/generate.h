@@ -89,6 +89,19 @@ namespace Configs
         QList<std::shared_ptr<Profile>> profiles;
     };
 
+    // An auto-selector group present in the built config. sing-box's clash
+    // tracker resolves a group down to the member that actually carried the
+    // connection (see NewTCPTracker), so bytes are never attributed to the
+    // group tag — traffic must be watched per member. That is why members get
+    // their own TrafficChainGroup entries, and it is also what gives real
+    // per-server attribution inside the group.
+    struct AutoSelectorBuildInfo {
+        QString groupTag;
+        std::shared_ptr<Profile> profile;
+        // Member outbound tag -> the profile behind it, in ranked order.
+        QList<QPair<QString, std::shared_ptr<Profile>>> members;
+    };
+
     class BuildConfigResult {
     public:
         QString error;
@@ -99,6 +112,7 @@ namespace Configs
         std::shared_ptr<ExtraCoreData> extraCoreData = std::make_shared<ExtraCoreData>();
 
         QList<TrafficChainGroup> chainGroups;
+        QList<AutoSelectorBuildInfo> autoSelectors;
     };
 
     struct coreBridgeConfig {

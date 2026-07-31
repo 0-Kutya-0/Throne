@@ -4,6 +4,7 @@
 #include "include/configs/outbounds/http.h"
 #include "include/configs/outbounds/shadowsocks.h"
 #include "include/configs/outbounds/chain.h"
+#include "include/configs/outbounds/autoselector.h"
 #include "include/configs/outbounds/vmess.h"
 #include "include/configs/outbounds/trojan.h"
 #include "include/configs/outbounds/vless.h"
@@ -31,6 +32,7 @@ namespace Configs
         if (type == "http") return new http();
         if (type == "shadowsocks") return new shadowsocks();
         if (type == "chain") return new chain();
+        if (type == "autoselector") return new autoSelector();
         if (type == "vmess") return new vmess();
         if (type == "trojan") return new Trojan();
         if (type == "vless") return new vless();

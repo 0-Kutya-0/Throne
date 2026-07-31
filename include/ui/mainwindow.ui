@@ -842,6 +842,7 @@ QTabBar::tab:selected {
     <property name="title">
      <string>Tools</string>
     </property>
+    <addaction name="actionAuto_Selector"/>
     <addaction name="actionSpeedtest_Current"/>
     <addaction name="separator"/>
     <addaction name="actionRuntime_Stats"/>
@@ -1362,6 +1363,14 @@ QTabBar::tab:selected {
   <action name="actionRuntime_Stats">
    <property name="text">
     <string>Runtime Stats</string>
+   </property>
+  </action>
+  <action name="actionAuto_Selector">
+   <property name="text">
+    <string>Auto Selector Stats</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
    </property>
   </action>
   <action name="actionTraffic_Stats">

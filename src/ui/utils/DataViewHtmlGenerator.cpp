@@ -31,6 +31,12 @@ void DataViewHtmlGenerator::seedLatencyTest(LatencyTestPanelState::Kind kind, in
     latencyTest_.totalProfiles = totalProfiles;
 }
 
+void DataViewHtmlGenerator::setAutoSelectorStatus(const QString &summary, const QString &detail) {
+    autoSelector_.summary = summary;
+    autoSelector_.detail = detail;
+    autoSelector_.visible = !summary.isEmpty();
+}
+
 void DataViewHtmlGenerator::clearTestSections() {
     latencyTest_ = {};
     speedtest_ = {};
@@ -52,7 +58,21 @@ QString DataViewHtmlGenerator::buildHtml() {
     if (latencyTest_.visible) {
         html += latencyTestSectionHtml();
     }
+    // Deliberately last and conditional: the selector panel is ambient status,
+    // so it yields the view entirely whenever a job wants to report progress.
+    if (html.isEmpty() && autoSelector_.visible) {
+        html += autoSelectorSectionHtml();
+    }
     return html;
+}
+
+QString DataViewHtmlGenerator::autoSelectorSectionHtml() {
+    QString res = QString("<p style='text-align:center;margin:0;'>%1</p>").arg(autoSelector_.summary.toHtmlEscaped());
+    if (!autoSelector_.detail.isEmpty()) {
+        res += QString("<p style='text-align:center;margin:0;opacity:0.75;'>%1</p>")
+                   .arg(autoSelector_.detail.toHtmlEscaped());
+    }
+    return res;
 }
 
 QString DataViewHtmlGenerator::getProgressBar(long long current, long long total) {

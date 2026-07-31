@@ -1,5 +1,6 @@
 #include "include/configs/generate.h"
 #include "include/api/RPC.h"
+#include "include/configs/AutoSelectorPlan.h"
 #include "include/global/Configs.hpp"
 
 #include <QApplication>
@@ -94,6 +95,21 @@ namespace Configs {
         return domains;
     }
 
+    // Only the members that will actually be built need direct DNS rules; the
+    // rest of the ranked pool never appears in the config.
+    QStringList getAutoSelectorDomains(const std::shared_ptr<Profile>& ent)
+    {
+        QStringList domains;
+        const auto plan = PlanAutoSelector(ent);
+        if (!plan.error.isEmpty()) return domains;
+        for (int id : plan.build)
+        {
+            if (auto member = Configs::dataManager->profilesRepo->GetProfile(id); member != nullptr)
+                domains << outboundServerDomains(member);
+        }
+        return domains;
+    }
+
     QStringList getEntDomains(const QList<int>& entIDs, QString &error)
     {
         QStringList domains;
@@ -103,6 +119,7 @@ namespace Configs {
             {
                 if (ent->outbound != nullptr && ent->outbound->IsExtraCore()) continue;
                 if (ent->type == "chain") domains << getChainDomains(ent, error);
+                else if (ent->type == "autoselector") domains << getAutoSelectorDomains(ent);
                 else domains << outboundServerDomains(ent);
             }
         }
@@ -182,6 +199,15 @@ namespace Configs {
                     auto pe = Configs::dataManager->profilesRepo->GetProfile(pid);
                     if (pe != nullptr && usesXrayCore(pe)) { ctx->proxyUsesXray = true; break; }
                 }
+            }
+        } else if (ctx->ent->type == "autoselector") {
+            // A single Xray member anywhere in the pool is enough: the sidecar
+            // is shared, and the DNS carve-outs it needs have to be in place
+            // before the selector ever picks that member.
+            const auto plan = PlanAutoSelector(ctx->ent);
+            for (int pid : plan.build) {
+                auto pe = Configs::dataManager->profilesRepo->GetProfile(pid);
+                if (pe != nullptr && usesXrayCore(pe)) { ctx->proxyUsesXray = true; break; }
             }
         } else if (usesXrayCore(ctx->ent)) {
             ctx->proxyUsesXray = true;
@@ -1100,10 +1126,18 @@ namespace Configs {
                 else tailingSingEnts.append(ent);
             }
         }
-        auto ports = MkManyPorts(2);
+        // Bind-and-release probing for a free port is not free, and an auto
+        // selector runs this for every member it builds. Only pay for it when a
+        // chain actually bridges cores and the caller did not hand us a port.
+        QList<int> ports;
+        auto bridgePort = [&ports](int given) {
+            if (given >= 0) return given;
+            if (ports.isEmpty()) ports = MkManyPorts(2);
+            return ports.takeFirst();
+        };
         if (ctx->singToXrayTransitioned) {
             coreBridgeConfig singToXrayBridgeConf = {
-                true, singToXrayPort == -1 ? ports[0] : singToXrayPort, GetRandomString(32), GenRandomLoopback()
+                true, bridgePort(singToXrayPort), GetRandomString(32), GenRandomLoopback()
             };
             ctx->singToXrayBridges << singToXrayBridgeConf;
             auto bridgeEnt = ProfilesRepo::NewProfile("socks");
@@ -1116,7 +1150,7 @@ namespace Configs {
         }
         coreBridgeConfig xrayToSingBridgeConf;
         if (ctx->xrayToSingTransitioned) {
-            xrayToSingBridgeConf = {true, xrayToSingPort == -1 ? ports[1] : xrayToSingPort, GetRandomString(32), GenRandomLoopback()};
+            xrayToSingBridgeConf = {true, bridgePort(xrayToSingPort), GetRandomString(32), GenRandomLoopback()};
             ctx->xrayToSingBridges << xrayToSingBridgeConf;
         }
         if (!initialSingEnts.isEmpty()) {
@@ -1143,6 +1177,162 @@ namespace Configs {
         }
     }
 
+    // The core bridges one member chain needs, counted the same way
+    // entIDListtoEntList counts them so the ports we hand buildOutboundChain
+    // line up with the bridges it goes on to create.
+    struct memberBridges
+    {
+        bool singToXray = false;
+        bool xrayToSing = false;
+
+        [[nodiscard]] int count() const { return (singToXray ? 1 : 0) + (xrayToSing ? 1 : 0); }
+    };
+
+    memberBridges bridgesFor(const QList<int> &hopIDs)
+    {
+        memberBridges needed;
+        bool inXray = false;
+        for (int id : hopIDs)
+        {
+            auto hop = Configs::dataManager->profilesRepo->GetProfile(id);
+            if (hop == nullptr || hop->outbound == nullptr) continue;
+            const bool xray = hop->outbound->IsXray();
+            if (xray && !inXray) needed.singToXray = true;
+            if (!xray && inXray) needed.xrayToSing = true;
+            inXray = xray;
+        }
+        return needed;
+    }
+
+    // Emits an auto-selector profile as one sing-box "auto-selector" outbound
+    // over its built members. Each member is a full chain of its own (landing /
+    // front proxies still apply), tagged pool-N-0. Xray-backed members reach
+    // the shared sidecar through a socks bridge, exactly as they do outside a
+    // pool, so pool-N-0 stays a plain sing-box outbound and keeps carrying the
+    // member's traffic counters.
+    //
+    // Returns the tag the group itself was given.
+    QString buildAutoSelectorGroup(std::shared_ptr<BuildSingBoxConfigContext> &ctx,
+                                   const std::shared_ptr<Group>& group, bool warpWrap)
+    {
+        auto selector = ctx->ent->AutoSelector();
+        if (selector == nullptr)
+        {
+            ctx->error = "Ent is nullptr after cast to auto selector, data is corrupted";
+            return {};
+        }
+        selector->Normalize();
+        const auto plan = PlanAutoSelector(ctx->ent);
+        if (!plan.error.isEmpty())
+        {
+            ctx->error = plan.error;
+            return {};
+        }
+
+        // With warp in front, every member sits behind the single warp outbound
+        // that carries the "proxy" tag, so the group takes warp-bypass instead.
+        const QString groupTag = warpWrap ? "warp-bypass" : "proxy";
+        const int chainGroupsBefore = ctx->buildConfigResult->chainGroups.size();
+
+        AutoSelectorBuildInfo info;
+        info.groupTag = groupTag;
+        info.profile = ctx->ent;
+
+        // Resolve every member's chain first so all core bridges come out of one
+        // MkManyPorts call: it probes free ports by binding and releasing them,
+        // so asking once per member can deal the same port to two of them and
+        // the sidecar then fails to bind.
+        struct plannedMember
+        {
+            std::shared_ptr<Profile> ent;
+            QList<int> hopIDs;
+            memberBridges bridges;
+        };
+        QList<plannedMember> planned;
+        int bridgeCount = 0;
+        for (int id : plan.build)
+        {
+            auto member = Configs::dataManager->profilesRepo->GetProfile(id);
+            if (member == nullptr) continue;
+            QList<int> hopIDs;
+            if (group->landing_proxy_id >= 0) hopIDs.append(group->landing_proxy_id);
+            hopIDs.append(id);
+            if (group->front_proxy_id >= 0) hopIDs.append(group->front_proxy_id);
+            const auto bridges = bridgesFor(hopIDs);
+            bridgeCount += bridges.count();
+            planned.append({member, hopIDs, bridges});
+        }
+        auto bridgePorts = MkManyPorts(bridgeCount);
+        int portIdx = 0;
+
+        QJsonArray memberTags;
+        int idx = 0;
+        for (const auto &[member, hopIDs, bridges] : planned)
+        {
+            const int singToXrayPort = bridges.singToXray ? bridgePorts[portIdx++] : -1;
+            const int xrayToSingPort = bridges.xrayToSing ? bridgePorts[portIdx++] : -1;
+
+            const auto prefix = "pool-" + Int2String(idx);
+            buildOutboundChain(ctx, hopIDs, prefix, false, true, singToXrayPort, xrayToSingPort);
+            if (!ctx->error.isEmpty()) return {};
+            const auto tag = prefix + "-0";
+            memberTags.append(tag);
+            info.members.append({tag, member});
+            // buildOutboundChain credits this member's hops; the selector itself
+            // must be credited too so its own total reflects the group.
+            if (!ctx->buildConfigResult->chainGroups.isEmpty())
+                ctx->buildConfigResult->chainGroups.last().profiles.append(ctx->ent);
+            idx++;
+        }
+        if (memberTags.isEmpty())
+        {
+            ctx->error = "Auto selector produced no usable members";
+            return {};
+        }
+
+        if (warpWrap)
+        {
+            // Bytes now land on the warp outbound, so the per-member watch tags
+            // added above would all read zero. Collapse them into one group on
+            // "proxy" that credits the selector and every built member.
+            QList<std::shared_ptr<Profile>> credited;
+            while (ctx->buildConfigResult->chainGroups.size() > chainGroupsBefore)
+                credited << ctx->buildConfigResult->chainGroups.takeLast().profiles;
+            TrafficChainGroup warpGroup;
+            warpGroup.watchTag = "proxy";
+            warpGroup.profiles = credited;
+            ctx->buildConfigResult->chainGroups.append(warpGroup);
+        }
+
+        QJsonObject groupObject{
+            {"type", "auto-selector"},
+            {"tag", groupTag},
+            {"outbounds", memberTags},
+            {"url", selector->testURL.isEmpty()
+                        ? Configs::dataManager->settingsRepo->test_latency_url
+                        : selector->testURL},
+            {"interval", Int2String(selector->intervalSec) + "s"},
+            {"bench_interval", Int2String(selector->benchIntervalSec) + "s"},
+            {"active_size", selector->activeSize},
+            {"sampling", selector->sampling},
+            {"tolerance", selector->toleranceMs},
+            {"expected", selector->expected},
+            {"dial_retries", selector->dialRetries},
+            {"interrupt_exist_connections", selector->interruptOnSwitch},
+        };
+        if (selector->maxRTTms > 0) groupObject["max_rtt"] = Int2String(selector->maxRTTms) + "ms";
+        if (!selector->connectivityURL.isEmpty()) groupObject["connectivity_url"] = selector->connectivityURL;
+        if (selector->balance)
+        {
+            groupObject["balance"] = true;
+            groupObject["balance_mode"] = selector->balanceMode;
+            groupObject["balance_interval"] = Int2String(selector->balanceIntervalSec) + "s";
+        }
+        ctx->outbounds.append(groupObject);
+        ctx->buildConfigResult->autoSelectors.append(info);
+        return groupTag;
+    }
+
     void buildOutboundsSection(std::shared_ptr<BuildSingBoxConfigContext> &ctx) {
         // First, our own ent
         QList<int> entIDs;
@@ -1152,29 +1342,53 @@ namespace Configs {
             ctx->error = "No group found for ent, data is corrupted";
             return;
         }
-        if (group->landing_proxy_id >= 0) entIDs.prepend(group->landing_proxy_id);
-        if (ctx->ent->type == "chain")
-        {
-            auto chain = ctx->ent->Chain();
-            if (chain == nullptr)
-            {
-                ctx->error = "Ent is nullptr after cast to chain, data is corrupted";
-                return;
-            }
-            for (int idx = chain->list.size()-1; idx >=0; idx--) entIDs.append(chain->list[idx]);
-        } else
-        {
-            entIDs.append(ctx->ent->id);
-        }
-        if (group->front_proxy_id >= 0) entIDs.append(group->front_proxy_id);
         const bool warpWrap = dataManager->settingsRepo->enable_warp;
-        if (warpWrap) {
-            entIDs.prepend(warpProfileID);
+        if (ctx->ent->type == "autoselector")
+        {
+            buildAutoSelectorGroup(ctx, group, warpWrap);
+            if (!ctx->error.isEmpty()) return;
+            if (warpWrap)
+            {
+                // The group took the warp-bypass tag, so warp itself has to be
+                // emitted here as "proxy" and pointed at it.
+                auto warpEnt = getWarpProfile();
+                auto [warpObject, warpError] = warpEnt->outbound->Build();
+                if (!warpError.isEmpty())
+                {
+                    ctx->error += warpError;
+                    return;
+                }
+                warpObject["tag"] = "proxy";
+                warpObject["detour"] = "warp-bypass";
+                if (warpEnt->outbound->IsEndpoint()) ctx->endpoints.append(warpObject);
+                else ctx->outbounds.append(warpObject);
+            }
         }
-        buildOutboundChain(ctx, entIDs, "config", true, true, -1, -1, 0, warpWrap);
+        else
+        {
+            if (group->landing_proxy_id >= 0) entIDs.prepend(group->landing_proxy_id);
+            if (ctx->ent->type == "chain")
+            {
+                auto chain = ctx->ent->Chain();
+                if (chain == nullptr)
+                {
+                    ctx->error = "Ent is nullptr after cast to chain, data is corrupted";
+                    return;
+                }
+                for (int idx = chain->list.size()-1; idx >=0; idx--) entIDs.append(chain->list[idx]);
+            } else
+            {
+                entIDs.append(ctx->ent->id);
+            }
+            if (group->front_proxy_id >= 0) entIDs.append(group->front_proxy_id);
+            if (warpWrap) {
+                entIDs.prepend(warpProfileID);
+            }
+            buildOutboundChain(ctx, entIDs, "config", true, true, -1, -1, 0, warpWrap);
 
-        if (ctx->ent->type == "chain" && !ctx->buildConfigResult->chainGroups.isEmpty()) {
-            ctx->buildConfigResult->chainGroups.last().profiles.append(ctx->ent);
+            if (ctx->ent->type == "chain" && !ctx->buildConfigResult->chainGroups.isEmpty()) {
+                ctx->buildConfigResult->chainGroups.last().profiles.append(ctx->ent);
+            }
         }
 
         // Now, build the outbounds needed by the route profile
@@ -1556,6 +1770,16 @@ namespace Configs {
 
     bool IsValid(const std::shared_ptr<Profile>& ent)
     {
+        if (ent->type == "autoselector")
+        {
+            const auto plan = PlanAutoSelector(ent);
+            if (!plan.error.isEmpty())
+            {
+                MW_show_log("Invalid auto selector: " + plan.error);
+                return false;
+            }
+            return !plan.build.isEmpty();
+        }
         if (ent->type == "chain")
         {
             auto chain = ent->Chain();
@@ -1697,7 +1921,7 @@ namespace Configs {
             {
                 if (!IsValid(item)) {
                     MW_show_log("Skipping invalid custom Xray full config: " + item->outbound->name);
-                    item->latency = -1;
+                    item->SetLatency(-1);
                     continue;
                 }
                 auto prefix = "xrayfull-" + Int2String(item->id);
@@ -1716,7 +1940,7 @@ namespace Configs {
                 }
                 if (!ctx->buildConfigResult->isXrayNeeded || ctx->buildConfigResult->xrayConfig.isEmpty()) {
                     MW_show_log("Custom Xray full config produced no Xray config: " + item->outbound->name);
-                    item->latency = -1;
+                    item->SetLatency(-1);
                     continue;
                 }
                 res->xrayFullConfigs << QJsonObject2QString(ctx->buildConfigResult->xrayConfig, false);
@@ -1746,9 +1970,16 @@ namespace Configs {
                 MW_show_log("Skipping Tailscale conf");
                 continue;
             }
+            if (item->type == "autoselector")
+            {
+                // Testing a selector means testing its members; the caller
+                // ranks those directly.
+                MW_show_log("Skipping auto selector conf (test its members instead)");
+                continue;
+            }
             if (!IsValid(item)) {
                 MW_show_log("Skipping invalid config: " + item->outbound->name);
-                item->latency = -1;
+                item->SetLatency(-1);
                 continue;
             }
             if (item->type == "custom")

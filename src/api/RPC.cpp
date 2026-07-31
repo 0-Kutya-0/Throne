@@ -416,6 +416,55 @@ namespace API {
         }
     }
 
+    libcore::GetDefaultInterfaceResponse Client::GetDefaultInterface(bool *rpcOK) const {
+        libcore::EmptyReq request;
+        libcore::GetDefaultInterfaceResponse reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("GetDefaultInterface", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return reply;
+        } else {
+            NOT_OK
+            return {};
+        }
+    }
+
+    libcore::QueryAutoSelectorsResponse Client::QueryAutoSelectors(bool *rpcOK) const {
+        libcore::EmptyReq request;
+        libcore::QueryAutoSelectorsResponse reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("QueryAutoSelectors", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return reply;
+        } else {
+            NOT_OK
+            return {};
+        }
+    }
+
+    QString Client::AutoSelectorAction(bool *rpcOK, const QString &tag, const QString &action,
+                                       const QString &member) const {
+        libcore::AutoSelectorActionRequest request;
+        request.tag = tag.toStdString();
+        request.action = action.toStdString();
+        request.member = member.toStdString();
+        libcore::ErrorResp reply;
+        std::vector<uint8_t> resp;
+        auto status = channel->Call("AutoSelectorAction", spb::pb::serialize<std::string>(request), resp);
+
+        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+            *rpcOK = true;
+            return QString::fromStdString(reply.error.value());
+        } else {
+            NOT_OK
+            return "IPC error";
+        }
+    }
+
     QString Client::SetSystemDNS(bool *rpcOK, const bool clear) const {
         libcore::SetSystemDNSRequest request{clear};
         std::vector<uint8_t> resp;

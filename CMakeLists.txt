@@ -149,6 +149,9 @@ set(PROJECT_SOURCES
         include/ui/profile/edit_chain.h
         src/ui/profile/edit_chain.cpp
         include/ui/profile/edit_chain.ui
+        include/ui/profile/edit_autoselector.h
+        src/ui/profile/edit_autoselector.cpp
+        include/ui/profile/edit_autoselector.ui
         include/ui/profile/edit_shadowsocks.h
         src/ui/profile/edit_shadowsocks.cpp
         include/ui/profile/edit_shadowsocks.ui
@@ -326,6 +329,13 @@ set(PROJECT_SOURCES
         src/configs/common/utils.cpp
         include/configs/outbounds/custom.h
         include/configs/outbounds/chain.h
+        include/configs/outbounds/autoselector.h
+        include/configs/AutoSelectorPlan.h
+        src/configs/AutoSelectorPlan.cpp
+        include/stats/autoselector/AutoSelectorMonitor.hpp
+        src/stats/autoselector/AutoSelectorMonitor.cpp
+        include/ui/stats/dialog_auto_selector.h
+        src/ui/stats/dialog_auto_selector.cpp
         include/configs/outbounds/extracore.h
         include/ui/profile/edit_socks.h
         src/ui/profile/edit_socks.cpp

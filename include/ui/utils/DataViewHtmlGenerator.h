@@ -33,6 +33,14 @@ public:
         int totalProfiles = 0;
     };
 
+    // Lowest priority of all panels: it reports steady state rather than a
+    // running job, so anything transient takes the space instead.
+    struct AutoSelectorPanelState {
+        bool visible = false;
+        QString summary;
+        QString detail;
+    };
+
     void setDownloadReport(const DownloadProgressReport &report, bool show);
 
     void seedSpeedTest(int totalProfiles);
@@ -40,6 +48,9 @@ public:
     void setSpeedtestProgress(const QString &profileName, const libcore::SpeedTestResult &result);
 
     void seedLatencyTest(LatencyTestPanelState::Kind kind, int totalProfiles);
+
+    // Empty summary hides the panel.
+    void setAutoSelectorStatus(const QString &summary, const QString &detail);
 
     void clearTestSections();
 
@@ -56,9 +67,12 @@ private:
 
     QString latencyTestSectionHtml();
 
+    QString autoSelectorSectionHtml();
+
     DownloadPanelState download_ = {};
     SpeedtestPanelState speedtest_ = {};
     LatencyTestPanelState latencyTest_ = {};
+    AutoSelectorPanelState autoSelector_ = {};
 
     std::atomic<int> testProgress;
 };
