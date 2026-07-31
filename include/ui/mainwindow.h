@@ -439,6 +439,12 @@ private:
     // the next batch of good ones.
     void on_auto_selector_exhausted(int profileID);
 
+    // A subscription refresh rewrote the servers of `gid`. Drops ids that no
+    // longer exist from every selector tracking that group, and rebuilds the
+    // running one only if the refresh touched a member it actually built.
+    // `disturbed` holds the profiles the refresh deleted or replaced in place.
+    void on_subscription_group_changed(int gid, const QList<int>& disturbed);
+
     // Guards the re-entrant profile_start used to rank before building.
     bool auto_selector_ranked = false;
 

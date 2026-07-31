@@ -814,22 +814,46 @@ namespace Subscription {
         }
 
         QList<std::shared_ptr<Configs::Profile>> in;
+        // Profiles the subscription does not own and must never touch. An auto
+        // selector is local state that tracks the group rather than a server the
+        // remote sent us, so leaving it in the diff would report it as removed
+        // on every single refresh and then delete it. Positions are kept so a
+        // refresh does not shuffle the group either.
+        QList<QPair<int, int>> sticky; // (position in the group, profile id)
+        QSet<int> stickyIDs;
+        // Profiles this refresh invalidated: deleted outright, or kept under the
+        // same id with different settings. A running auto selector that built
+        // any of them can no longer trust its config.
+        QList<int> disturbed;
 
         if (group != nullptr) {
             group->sub_last_update = QDateTime::currentMSecsSinceEpoch() / 1000;
             group->info = sub_user_info;
             Configs::dataManager->groupsRepo->Save(group);
             //
+            for (int i = 0; i < group->profiles.size(); i++) {
+                auto ent = Configs::dataManager->profilesRepo->GetProfile(group->profiles[i]);
+                if (ent == nullptr || ent->type != "autoselector") continue;
+                sticky << qMakePair(i, group->profiles[i]);
+                stickyIDs.insert(group->profiles[i]);
+            }
             if (Configs::dataManager->settingsRepo->sub_clear) {
                 MW_show_log(QObject::tr("Clearing servers..."));
-                if (!Configs::dataManager->profilesRepo->BatchDeleteProfiles(group->profiles, Configs::dataManager->settingsRepo->allow_stopping_active_profile)) {
+                QList<int> clear_ids;
+                for (int id : group->profiles) {
+                    if (!stickyIDs.contains(id)) clear_ids << id;
+                }
+                disturbed = clear_ids;
+                if (!Configs::dataManager->profilesRepo->BatchDeleteProfiles(clear_ids, Configs::dataManager->settingsRepo->allow_stopping_active_profile)) {
                     runOnUiThread([=] {
                         MessageBoxWarning("Internal Error", "DB Error when deleting profiles, Please try again.");
                     });
                     return;
                 }
             } else {
-                in = Configs::dataManager->profilesRepo->GetProfileBatch(group->Profiles());
+                for (const auto &ent : Configs::dataManager->profilesRepo->GetProfileBatch(group->Profiles())) {
+                    if (ent != nullptr && !stickyIDs.contains(ent->id)) in << ent;
+                }
             }
         }
 
@@ -841,7 +865,9 @@ namespace Subscription {
 
         if (group != nullptr) {
             QList<std::shared_ptr<Configs::Profile>> out_all;
-            out_all = Configs::dataManager->profilesRepo->GetProfileBatch(group->Profiles());;
+            for (const auto &ent : Configs::dataManager->profilesRepo->GetProfileBatch(group->Profiles())) {
+                if (ent != nullptr && !stickyIDs.contains(ent->id)) out_all << ent;
+            }
 
             QString change_text;
 
@@ -912,6 +938,9 @@ namespace Subscription {
                     oldEnt->name = oldEnt->outbound->name;
                     Configs::dataManager->profilesRepo->Save(oldEnt);
                     supersededBy[changed_new[i].get()] = oldEnt->id;
+                    // Same id, different server: anything already running on it
+                    // is now working from a stale config.
+                    disturbed << oldEnt->id;
                 }
 
                 // sort according to order in remote
@@ -924,6 +953,9 @@ namespace Subscription {
                         group->profiles.append(ent->id);
                     }
                 }
+                for (const auto &[position, id] : sticky) {
+                    group->profiles.insert(std::min<qsizetype>(position, group->profiles.size()), id);
+                }
                 Configs::dataManager->groupsRepo->Save(group);
 
                 // cleanup
@@ -933,6 +965,7 @@ namespace Subscription {
                         del_ids.append(ent->id);
                     }
                 }
+                disturbed << del_ids;
                 if (!Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids, Configs::dataManager->settingsRepo->allow_stopping_active_profile)) {
                     runOnUiThread([=] {
                        MessageBoxWarning("Internal error", "DB Error when deleting profiles, data may be corrupted");
@@ -957,6 +990,13 @@ namespace Subscription {
                 if (diffBody.isEmpty()) diffBody = QObject::tr("Nothing");
                 runOnUiThread([diffTitle, diffBody] { MessageBoxScrollable(diffTitle, diffBody); });
             }
+            // Auto selectors resolve their members from the group at build time,
+            // so a refresh can invalidate one without ever touching the profile
+            // itself. Hand over what changed and let the main window decide
+            // whether a running selector has to be rebuilt.
+            QStringList selectorArgs{Int2String(group->id)};
+            for (int id : disturbed) selectorArgs << Int2String(id);
+            MW_dialog_message(MwMessage::SubscriptionGroupChanged, selectorArgs);
             MW_dialog_message(MwMessage::SubscriptionFinished, {MwArg::Quiet});
         } else {
             Configs::dataManager->settingsRepo->imported_count = rawUpdater->updated_order.count();

@@ -330,6 +330,7 @@ set(PROJECT_SOURCES
         include/configs/outbounds/custom.h
         include/configs/outbounds/chain.h
         include/configs/outbounds/autoselector.h
+        src/configs/outbounds/autoselector.cpp
         include/configs/AutoSelectorPlan.h
         src/configs/AutoSelectorPlan.cpp
         include/stats/autoselector/AutoSelectorMonitor.hpp

@@ -484,6 +484,17 @@ namespace Configs {
         return ids;
     }
 
+    QList<int> ProfilesRepo::GetProfileIdsByType(const QString& type) const {
+        QList<int> ids;
+        auto query = db.query("SELECT id FROM profiles WHERE type = ? ORDER BY id", type.toStdString());
+        if (query) {
+            while (query->executeStep()) {
+                ids.append(query->getColumn(0).getInt());
+            }
+        }
+        return ids;
+    }
+
     int ProfilesRepo::NewProfileID() const {
         // Atomically increment and get the new ID using RETURNING clause (DB atomic, no lock required)
         auto query = db.query("UPDATE entity_ids SET profile_last_id = profile_last_id + 1 RETURNING profile_last_id");

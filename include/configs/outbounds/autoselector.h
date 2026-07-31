@@ -66,12 +66,10 @@ namespace Configs
 
         QString DisplayType() override { return QObject::tr("Auto Selector"); }
 
-        QString DisplayAddress() override
-        {
-            if (pool.isEmpty()) return QObject::tr("no members yet");
-            const auto live = std::min<qsizetype>(pool.size(), buildLimit);
-            return QObject::tr("%1 ranked / %2 live").arg(pool.size()).arg(live);
-        }
+        // The tracked group's name — a selector has no server of its own, and
+        // the group it draws from is the one thing that identifies it. Defined
+        // in autoselector.cpp because it has to reach the group repository.
+        QString DisplayAddress() override;
 
         // No security of its own; it inherits whatever its members use.
         SecurityInfo GetSecurity() override { return {}; }

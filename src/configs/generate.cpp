@@ -917,6 +917,14 @@ namespace Configs {
                 error = "Chain in Chain is not allowed";
                 return;
             }
+            // The editor refuses this, so reaching it means hand-edited or
+            // older data. A selector resolves to a different member over time;
+            // a chain hop has to stay put.
+            if (ent->type == "autoselector")
+            {
+                error = "An auto selector cannot be used as a hop; it is not a fixed server";
+                return;
+            }
             if (ent->outbound != nullptr && ent->outbound->IsExtraCore()) {
                 extracoreCount++;
                 extracoreIdx = ents.size();

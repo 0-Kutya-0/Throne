@@ -1697,6 +1697,12 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
     case MwMessage::SubscriptionNewGroup:
         refresh_groups();
         break;
+    case MwMessage::SubscriptionGroupChanged: {
+        QList<int> disturbed;
+        for (int i = 1; i < args.size(); i++) disturbed << args[i].toInt();
+        on_subscription_group_changed(args.value(0).toInt(), disturbed);
+        break;
+    }
     case MwMessage::CoreCrashed:
         profile_stop();
         break;

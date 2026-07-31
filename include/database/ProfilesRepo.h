@@ -79,6 +79,10 @@ namespace Configs {
         
         // Get all profile IDs in order
         QList<int> GetAllProfileIds() const;
+
+        // Ids of every profile of one type. Profiles are loaded lazily, so this
+        // asks the database rather than walking (and materialising) the lot.
+        QList<int> GetProfileIdsByType(const QString& type) const;
         
         // Save profile to database (manual save, like old Save() method)
         // Only saves if profile has a valid ID (id >= 0)

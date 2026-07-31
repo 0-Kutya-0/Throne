@@ -78,6 +78,10 @@ enum class MwMessage {
     GroupsChanged,        // groups were added/removed/edited; refresh the group tabs
     SubscriptionFinished, // a subscription import finished; arg MwArg::Quiet to skip the count line
     SubscriptionNewGroup, // the updater created a new group
+    // A subscription refresh changed a group's servers. Args: { group id, then
+    // the id of every profile it deleted or replaced in place }. Auto selectors
+    // resolve their members from the group, so this is the only notice they get.
+    SubscriptionGroupChanged,
     CoreCrashed,          // the external core process died
     CoreStarted,          // the core came up; args: { startedProfileId }
 };

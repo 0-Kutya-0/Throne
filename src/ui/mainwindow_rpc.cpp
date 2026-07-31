@@ -31,6 +31,24 @@
 
 using namespace API;
 
+namespace {
+    // An auto selector has no server of its own to measure: whichever member
+    // answers is the core's business and changes minute to minute, so a stored
+    // result would be noise on a row that can never act on it. Group-wide tests
+    // drop it instead of showing a number that means nothing.
+    QList<int> withoutAutoSelectors(const QList<int>& profileIDs) {
+        const auto selectors = Configs::dataManager->profilesRepo->GetProfileIdsByType("autoselector");
+        if (selectors.isEmpty()) return profileIDs;
+        const QSet<int> skip(selectors.begin(), selectors.end());
+        QList<int> filtered;
+        filtered.reserve(profileIDs.size());
+        for (int id : profileIDs) {
+            if (!skip.contains(id)) filtered << id;
+        }
+        return filtered;
+    }
+}
+
 void MainWindow::setup_rpc(QLocalSocket *socket) {
     // The Client is constructed once at startup and never recreated; on core
     // restart we only swap the underlying connection, so worker threads holding
@@ -71,6 +89,47 @@ void MainWindow::rank_auto_selector(const std::shared_ptr<Configs::Profile>& ent
 
     const auto ranked = Configs::RerankAutoSelectorPool(ent);
     MW_show_log(tr("[Auto selector] Ranked %1 profiles.").arg(ranked.size()));
+}
+
+void MainWindow::on_subscription_group_changed(int gid, const QList<int>& disturbed) {
+    if (gid < 0) return;
+    const QSet<int> disturbedSet(disturbed.begin(), disturbed.end());
+    int restartID = -1;
+
+    for (int id : Configs::dataManager->profilesRepo->GetProfileIdsByType("autoselector")) {
+        auto ent = Configs::dataManager->profilesRepo->GetProfile(id);
+        if (ent == nullptr) continue;
+        auto selector = ent->AutoSelector();
+        if (selector == nullptr || selector->gid != gid) continue;
+
+        // The ranked pool is only a prior — PlanAutoSelector already ignores
+        // members that no longer resolve. Pruning it keeps the stored list from
+        // growing a tail of dead ids across refreshes, and keeps lastBuilt
+        // honest for the exhausted path, which re-tests it as known-stale.
+        const auto gone = [](int memberID) {
+            return Configs::dataManager->profilesRepo->GetProfile(memberID) == nullptr;
+        };
+        const auto prunedPool = selector->pool.removeIf(gone);
+        const auto prunedBuilt = selector->lastBuilt.removeIf(gone);
+        if (prunedPool > 0 || prunedBuilt > 0) Configs::dataManager->profilesRepo->Save(ent);
+
+        // Only the running one holds a config that can go stale. A member it
+        // never built changing is something the next build picks up by itself.
+        if (running == nullptr || running->id != ent->id) continue;
+        // A deleted member is already out of lastBuilt; a replaced one kept its
+        // id, so it takes the disturbed set to spot.
+        bool rebuild = prunedBuilt > 0;
+        for (int memberID : selector->lastBuilt) {
+            if (!disturbedSet.contains(memberID)) continue;
+            rebuild = true;
+            break;
+        }
+        if (rebuild) restartID = ent->id;
+    }
+
+    if (restartID < 0) return;
+    MW_show_log(tr("[Auto selector] The subscription replaced profiles it was running on — rebuilding."));
+    profile_start(restartID);
 }
 
 void MainWindow::on_auto_selector_exhausted(int profileID) {
@@ -340,7 +399,8 @@ void MainWindow::runIPTest(const QString& config, const QString& xrayConfig, con
     }
 }
 
-void MainWindow::urltest_current_group(const QList<int>& profileIDs) {
+void MainWindow::urltest_current_group(const QList<int>& requestedIDs) {
+    const auto profileIDs = withoutAutoSelectors(requestedIDs);
     if (profileIDs.isEmpty()) {
         return;
     }
@@ -457,7 +517,8 @@ void MainWindow::url_test_current() {
     });
 }
 
-void MainWindow::iptest_current_group(const QList<int>& profileIDs) {
+void MainWindow::iptest_current_group(const QList<int>& requestedIDs) {
+    const auto profileIDs = withoutAutoSelectors(requestedIDs);
     if (profileIDs.isEmpty()) {
         return;
     }
@@ -525,8 +586,11 @@ void MainWindow::iptest_current_group(const QList<int>& profileIDs) {
     });
 }
 
-void MainWindow::speedtest_current_group(const QList<int>& profileIDs, bool testCurrent)
+void MainWindow::speedtest_current_group(const QList<int>& requestedIDs, bool testCurrent)
 {
+    // testCurrent measures the live connection rather than a row, so it stays
+    // valid for a running selector — it is the member actually carrying traffic.
+    const auto profileIDs = testCurrent ? requestedIDs : withoutAutoSelectors(requestedIDs);
     if (profileIDs.isEmpty() && !testCurrent) {
         return;
     }
