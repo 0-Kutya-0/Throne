@@ -1064,7 +1064,7 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
         if (ents.count() != 1) return;
         auto ent = Configs::dataManager->profilesRepo->GetProfile(ents.first());
 
-        auto result = Configs::BuildSingBoxConfig(ent, true);
+        auto result = Configs::BuildSingBoxConfig(ent);
         if (!result->error.isEmpty()) {
             MessageBoxWarning("Build config error", result->error);
             return;
@@ -2691,7 +2691,7 @@ void MainWindow::on_menu_export_config_triggered() {
     if (ents.count() != 1) return;
     auto ent = Configs::dataManager->profilesRepo->GetProfile(ents.first());
 
-    auto result = Configs::BuildSingBoxConfig(ent, true);
+    auto result = Configs::BuildSingBoxConfig(ent);
     QString config_core = QJsonObject2QString(result->coreConfig, true);
     QApplication::clipboard()->setText(config_core);
 
@@ -2703,7 +2703,7 @@ void MainWindow::on_menu_export_config_triggered() {
     msg.setDefaultButton(QMessageBox::Ok);
     msg.exec();
     if (msg.clickedButton() == button_1) {
-        result = BuildSingBoxConfig(ent, true);
+        result = BuildSingBoxConfig(ent);
         if (!result->error.isEmpty()) {
             MessageBoxWarning("Build config error", result->error);
             return;
