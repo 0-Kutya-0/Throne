@@ -20,6 +20,7 @@
 #include <QSystemTrayIcon>
 #include <QPointer>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QQueue>
 #include <QWaitCondition>
 #include <QProcess>
@@ -200,7 +201,8 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-    QTime lastFocusLoseTime;
+    // Monotonic, and invalid while the window is active or was never activated; see trayClickEvent().
+    QElapsedTimer sinceWindowDeactivated;
     ProfilesTableModel *profilesTableModel = nullptr;
     // What the view is attached to: rows from the view or its selection model are
     // proxy rows, not profilesTableModel rows.

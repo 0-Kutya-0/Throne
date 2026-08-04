@@ -1187,8 +1187,13 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
 }
 
 void MainWindow::trayClickEvent() {
-    if (isVisible() && !isMinimized() && lastFocusLoseTime.msecsTo(QTime::currentTime()) <= 300) HideWindow(this);
-    else {
+    constexpr qint64 recentlyActiveMs = 350;
+    const bool wasRecentlyActive = isActiveWindow() ||
+        (sinceWindowDeactivated.isValid() && sinceWindowDeactivated.elapsed() <= recentlyActiveMs);
+
+    if (isVisible() && !isMinimized() && wasRecentlyActive) {
+        HideWindow(this);
+    } else {
         ActivateWindow(this);
         refresh_proxy_list_column_size();
     }
@@ -1298,6 +1303,13 @@ void MainWindow::changeEvent(QEvent *event) {
     }
     if (event->type() == QEvent::WindowStateChange) {
         syncConnectionViewState();
+    }
+    if (event->type() == QEvent::ActivationChange) {
+        // Stamped here rather than from a WindowDeactivate in eventFilter(): that event only
+        // reaches the filtered children because QWidget::event() forwards it down, and only to
+        // the ones that are currently visible, so state-dependent widgets could drop it.
+        if (isActiveWindow()) sinceWindowDeactivated.invalidate();
+        else sinceWindowDeactivated.start();
     }
     QMainWindow::changeEvent(event);
 }
@@ -3460,9 +3472,6 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             auto size = ui->splitter->size();
             ui->splitter->setSizes({size.height() / 2, size.height() / 2});
         }
-    }
-    if (event->type() == QEvent::WindowDeactivate) {
-        lastFocusLoseTime = QTime::currentTime();
     }
     return QMainWindow::eventFilter(obj, event);
 }
