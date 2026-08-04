@@ -1,6 +1,9 @@
 #include "include/stats/autoselector/AutoSelectorMonitor.hpp"
 
 #include "include/api/RPC.h"
+#include "include/database/DatabaseManager.h"
+#include "include/database/ProfilesRepo.h"
+#include "include/database/entities/Profile.h"
 #include "include/ui/mainwindow_interface.h"
 
 #include <QDateTime>
@@ -93,11 +96,58 @@ namespace Stats
         view.profileID = profileID;
         view.phase = "starting";
         view.membersTotal = static_cast<int>(info.members.size());
+        // Start the persist clock now: nothing measured in the first seconds is
+        // worth writing, and the members already carry the results this build
+        // was ranked on.
+        lastHealthPersist = QDateTime::currentMSecsSinceEpoch();
         active = true;
+    }
+
+    // The core measures continuously and far more thoroughly than a one-off URL
+    // test ever does; throwing that away on every stop is what made a restart
+    // behave like a first run. Writing it onto the member profiles means the
+    // ranking survives, the results stay inside the profile's validity window so
+    // no second sweep is triggered, and the rebuilt config can hand the numbers
+    // straight back to the core as its warm start.
+    void AutoSelectorMonitor::PersistHealth()
+    {
+        QList<AutoSelectorMemberView> members;
+        {
+            QMutexLocker lock(&mutex);
+            if (!active || !view.valid) return;
+            // A suspended core believes the local network is down, so nothing it
+            // reports right now describes the servers.
+            if (view.suspended) return;
+            members = view.members;
+            lastHealthPersist = QDateTime::currentMSecsSinceEpoch();
+        }
+
+        QList<std::shared_ptr<Configs::Profile>> dirty;
+        for (const auto &member : members) {
+            if (member.profileID < 0 || member.probes == 0) continue;
+            int latency;
+            if (member.isUsable() && member.averageMs > 0) {
+                latency = member.averageMs;
+            } else if (member.isDead()) {
+                // Every sample in the window failed. Anything softer than that —
+                // a cooldown, a member the prober has not reached — says nothing
+                // conclusive, so it keeps whatever result it already had.
+                latency = -1;
+            } else {
+                continue;
+            }
+            auto profile = Configs::dataManager->profilesRepo->GetProfile(member.profileID);
+            if (profile == nullptr || profile->latency == latency) continue;
+            profile->SetLatency(latency);
+            dirty << profile;
+        }
+        if (dirty.isEmpty()) return;
+        Configs::dataManager->profilesRepo->SaveBatch(dirty);
     }
 
     void AutoSelectorMonitor::Clear()
     {
+        PersistHealth();
         QMutexLocker lock(&mutex);
         active = false;
         view = AutoSelectorView{};
@@ -263,6 +313,7 @@ namespace Stats
         }
 
         emit updated();
+        if (now - lastHealthPersist >= kHealthPersistSecs * 1000) PersistHealth();
         if (fireExhausted) {
             // Second, independent check: the OS default route. If this machine
             // has no network at all, every profile "failing" says nothing about

@@ -1273,6 +1273,16 @@ namespace Configs {
         auto bridgePorts = MkManyPorts(bridgeCount);
         int portIdx = 0;
 
+        // What the core measured last time, replayed with its real age so it
+        // expires on the core's own schedule. Without this every restart is a
+        // cold start: nothing is ranked, the first pick is only as good as the
+        // ordering, and the pool has to be re-measured before any of it means
+        // anything. Only results inside the profile's validity window are worth
+        // carrying over — past that they are exactly as suspect as they are to
+        // the rest of the planner.
+        const auto builtAt = QDateTime::currentSecsSinceEpoch();
+        QJsonArray warm;
+
         QJsonArray memberTags;
         int idx = 0;
         for (const auto &[member, hopIDs, bridges] : planned)
@@ -1286,6 +1296,20 @@ namespace Configs {
             const auto tag = prefix + "-0";
             memberTags.append(tag);
             info.members.append({tag, member});
+            if (member->latency != 0 && member->latency_at > 0 && selector->resultValidityMins > 0)
+            {
+                if (const auto age = builtAt - member->latency_at;
+                    age >= 0 && age <= static_cast<qint64>(selector->resultValidityMins) * 60)
+                {
+                    warm.append(QJsonObject{
+                        {"tag", tag},
+                        // A failure carries rtt 0, which is how the core reads
+                        // "known bad" rather than "never measured".
+                        {"rtt", member->latency > 0 ? member->latency : 0},
+                        {"age", static_cast<double>(age)},
+                    });
+                }
+            }
             // buildOutboundChain credits this member's hops; the selector itself
             // must be credited too so its own total reflects the group.
             if (!ctx->buildConfigResult->chainGroups.isEmpty())
@@ -1321,6 +1345,7 @@ namespace Configs {
                         : selector->testURL},
             {"interval", Int2String(selector->intervalSec) + "s"},
             {"bench_interval", Int2String(selector->benchIntervalSec) + "s"},
+            {"watch_interval", Int2String(selector->watchIntervalSec) + "s"},
             {"active_size", selector->activeSize},
             {"sampling", selector->sampling},
             {"tolerance", selector->toleranceMs},
@@ -1328,8 +1353,16 @@ namespace Configs {
             {"dial_retries", selector->dialRetries},
             {"interrupt_exist_connections", selector->interruptOnSwitch},
         };
+        if (!warm.isEmpty()) groupObject["warm"] = warm;
         if (selector->maxRTTms > 0) groupObject["max_rtt"] = Int2String(selector->maxRTTms) + "ms";
-        if (!selector->connectivityURL.isEmpty()) groupObject["connectivity_url"] = selector->connectivityURL;
+        // Without an independent endpoint the core can only fall back to error
+        // classification and the OS route, which cannot tell "the link is up but
+        // the internet is not" from "these servers died" — the case where a pool
+        // gets wrongly written off. Fall back to the latency test URL, which is
+        // reachable directly by definition.
+        groupObject["connectivity_url"] = selector->connectivityURL.isEmpty()
+                                              ? Configs::dataManager->settingsRepo->test_latency_url
+                                              : selector->connectivityURL;
         if (selector->balance)
         {
             groupObject["balance"] = true;

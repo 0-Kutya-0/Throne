@@ -36,6 +36,12 @@ namespace Configs
         QString connectivityURL; // direct probe used to spot a local outage
         int intervalSec = 300;
         int benchIntervalSec = 600;
+        // How often the profile currently in use is re-checked on its own. Kept
+        // separate from intervalSec because that one is sized for the cost of
+        // sweeping hundreds of members, which is far too slow for the one member
+        // actually carrying traffic — and a server that breaks while still
+        // accepting connections raises no error for anything else to catch.
+        int watchIntervalSec = 15;
         int activeSize = 8;
         int sampling = 10;
         int toleranceMs = 300;
@@ -89,6 +95,7 @@ namespace Configs
             if (object.contains("connectivity_url")) connectivityURL = object["connectivity_url"].toString();
             if (object.contains("interval_sec")) intervalSec = object["interval_sec"].toInt(60);
             if (object.contains("bench_interval_sec")) benchIntervalSec = object["bench_interval_sec"].toInt(600);
+            if (object.contains("watch_interval_sec")) watchIntervalSec = object["watch_interval_sec"].toInt(15);
             if (object.contains("active_size")) activeSize = object["active_size"].toInt(10);
             if (object.contains("sampling")) sampling = object["sampling"].toInt(10);
             if (object.contains("tolerance_ms")) toleranceMs = object["tolerance_ms"].toInt(100);
@@ -124,6 +131,7 @@ namespace Configs
             object["connectivity_url"] = connectivityURL;
             object["interval_sec"] = intervalSec;
             object["bench_interval_sec"] = benchIntervalSec;
+            object["watch_interval_sec"] = watchIntervalSec;
             object["active_size"] = activeSize;
             object["sampling"] = sampling;
             object["tolerance_ms"] = toleranceMs;
@@ -161,6 +169,10 @@ namespace Configs
             if (resultValidityMins < 0) resultValidityMins = 0;
             if (intervalSec < 10) intervalSec = 10;
             if (benchIntervalSec < intervalSec) benchIntervalSec = intervalSec;
+            if (watchIntervalSec < 5) watchIntervalSec = 5;
+            // Watching slower than the whole tier is probed would make it dead
+            // weight; the round already covers the selected member by then.
+            if (watchIntervalSec > intervalSec) watchIntervalSec = intervalSec;
             if (activeSize < 1) activeSize = 1;
             if (expected < 1) expected = 1;
             // The ready set has to sit inside the closely-checked set, or some

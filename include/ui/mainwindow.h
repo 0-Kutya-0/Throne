@@ -200,6 +200,7 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+    QTime lastFocusLoseTime;
     ProfilesTableModel *profilesTableModel = nullptr;
     // What the view is attached to: rows from the view or its selection model are
     // proxy rows, not profilesTableModel rows.
@@ -360,6 +361,8 @@ private:
     void refresh_proxy_list_impl_refresh_data(const QList<int>& ids = {}, bool mayNeedReset = false);
 
     void parseQrImage(const QPixmap *image);
+
+    void trayClickEvent();
 
     void keyPressEvent(QKeyEvent *event) override;
 

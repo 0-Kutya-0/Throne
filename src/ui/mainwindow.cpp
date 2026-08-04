@@ -774,8 +774,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     tray->setContextMenu(trayMenu);
     connect(tray, &QSystemTrayIcon::activated, qApp, [=, this](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger && getOS() != Darwin) {
-            ActivateWindow(this);
-            refresh_proxy_list_column_size();
+            trayClickEvent();
         }
     });
 
@@ -1185,6 +1184,14 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
     if (!Configs::dataManager->settingsRepo->flag_tray) show();
 
     ui->data_view->setStyleSheet("background: transparent; border: none;");
+}
+
+void MainWindow::trayClickEvent() {
+    if (isVisible() && !isMinimized() && lastFocusLoseTime.msecsTo(QTime::currentTime()) <= 300) HideWindow(this);
+    else {
+        ActivateWindow(this);
+        refresh_proxy_list_column_size();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
@@ -3453,6 +3460,9 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             auto size = ui->splitter->size();
             ui->splitter->setSizes({size.height() / 2, size.height() / 2});
         }
+    }
+    if (event->type() == QEvent::WindowDeactivate) {
+        lastFocusLoseTime = QTime::currentTime();
     }
     return QMainWindow::eventFilter(obj, event);
 }

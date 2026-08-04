@@ -113,6 +113,10 @@ namespace Stats
         // Force a full re-check of every member now.
         void RequestRecheck() const;
 
+        // Writes what the core has measured back onto the member profiles, so a
+        // restart can hand it straight back instead of re-measuring the pool.
+        void PersistHealth();
+
     signals:
         // Fresh state arrived from the core.
         void updated();
@@ -135,6 +139,7 @@ namespace Stats
         qint64 exhaustedSince = 0;
         qint64 lastRebuildRequest = 0;
         int rebuildBackoffSecs = 0;
+        qint64 lastHealthPersist = 0;
     };
 
     extern AutoSelectorMonitor *autoSelectorMonitor;
@@ -147,4 +152,8 @@ namespace Stats
     // ceiling, so a subscription that is entirely dead cannot spin.
     constexpr int kRebuildBackoffMinSecs = 60;
     constexpr int kRebuildBackoffMaxSecs = 600;
+    // How often the core's measurements are written back to the member profiles.
+    // Often enough that a crash loses little, rare enough that a 300-member pool
+    // is not writing rows every couple of seconds.
+    constexpr int kHealthPersistSecs = 60;
 } // namespace Stats

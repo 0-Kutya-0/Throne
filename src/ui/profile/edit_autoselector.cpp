@@ -123,6 +123,7 @@ void EditAutoSelector::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->connectivity_url->setText(outbound->connectivityURL);
     ui->interval->setValue(outbound->intervalSec);
     ui->bench_interval->setValue(outbound->benchIntervalSec);
+    ui->watch_interval->setValue(outbound->watchIntervalSec);
     ui->active_size->setValue(outbound->activeSize);
     ui->sampling->setValue(outbound->sampling);
     ui->tolerance->setValue(outbound->toleranceMs);
@@ -174,6 +175,7 @@ bool EditAutoSelector::onEnd() {
     outbound->connectivityURL = ui->connectivity_url->text().trimmed();
     outbound->intervalSec = ui->interval->value();
     outbound->benchIntervalSec = ui->bench_interval->value();
+    outbound->watchIntervalSec = ui->watch_interval->value();
     outbound->activeSize = ui->active_size->value();
     outbound->sampling = ui->sampling->value();
     outbound->toleranceMs = ui->tolerance->value();
