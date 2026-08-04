@@ -1227,7 +1227,6 @@ namespace Configs {
                 auto bridgePorts = MkManyPorts(1);
                 custom->bridgePort = bridgePorts[0];
                 custom->bridgeAuth = GetRandomString(32);
-                custom->bridgeHost = GenRandomLoopback();
 
                 auto bridgeInbound = xraySocksInbound(tags::xrayFullConfigIn,
                     {true, custom->bridgePort, custom->bridgeAuth, custom->bridgeHost});
@@ -1265,7 +1264,7 @@ namespace Configs {
             };
             if (ctx.singToXrayTransitioned) {
                 coreBridgeConfig singToXrayBridgeConf = {
-                    true, bridgePort(req.singToXrayPort), GetRandomString(32), GenRandomLoopback()
+                    true, bridgePort(req.singToXrayPort), GetRandomString(32)
                 };
                 ctx.singToXrayBridges << singToXrayBridgeConf;
                 auto bridgeEnt = ProfilesRepo::NewProfile("socks");
@@ -1278,7 +1277,7 @@ namespace Configs {
             }
             coreBridgeConfig xrayToSingBridgeConf;
             if (ctx.xrayToSingTransitioned) {
-                xrayToSingBridgeConf = {true, bridgePort(req.xrayToSingPort), GetRandomString(32), GenRandomLoopback()};
+                xrayToSingBridgeConf = {true, bridgePort(req.xrayToSingPort), GetRandomString(32)};
                 ctx.xrayToSingBridges << xrayToSingBridgeConf;
             }
 
