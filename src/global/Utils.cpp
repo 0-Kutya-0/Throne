@@ -10,6 +10,7 @@
 #include <QTimer>
 #include <QMessageBox>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -393,6 +394,47 @@ void Deeplink_FlushPending() {
     const QString url = g_pendingDeeplink;
     g_pendingDeeplink.clear();
     MW_handle_deeplink(url);
+}
+
+static QStringList g_pendingFiles;
+
+QStringList LaunchFiles_ExtractFromArgs(const QStringList &args, const QDir &launchDir) {
+    QStringList files;
+    // Skip argv[0], our own flags, and the deeplink. "-appdata" is the only flag
+    // taking a value, and that directory must not be read as a config to import.
+    for (int i = 1; i < args.size(); i++) {
+        const auto &arg = args[i];
+        if (arg.startsWith('-')) {
+            if (arg == "-appdata") i++;
+            continue;
+        }
+        if (arg.startsWith("throne://")) continue;
+
+        // Desktop launchers hand over file:// URLs, terminals plain paths, and a
+        // relative path resolves against the directory we were launched from -
+        // which main() abandons early on.
+        auto path = arg.startsWith("file://") ? QUrl(arg).toLocalFile() : arg;
+        if (path.isEmpty()) continue;
+        const QFileInfo info(launchDir, path);
+        if (info.isFile()) files << info.absoluteFilePath();
+    }
+    return files;
+}
+
+void LaunchFiles_Submit(const QStringList &paths) {
+    if (paths.isEmpty()) return;
+    if (MW_import_files) {
+        MW_import_files(paths);
+    } else {
+        g_pendingFiles += paths; // main window not up yet; replayed by LaunchFiles_FlushPending
+    }
+}
+
+void LaunchFiles_FlushPending() {
+    if (g_pendingFiles.isEmpty() || !MW_import_files) return;
+    const QStringList paths = g_pendingFiles;
+    g_pendingFiles.clear();
+    MW_import_files(paths);
 }
 
 void runOnNewThread(const std::function<void()> &callback, bool wait) {

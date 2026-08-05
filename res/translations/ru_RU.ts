@@ -3940,7 +3940,7 @@ Please try again.</source>
         <translation>Нажмите для сортировки по Outbound</translation>
     </message>
     <message>
-        <source>Add profile from File</source>
+        <source>Add profile from File(s)</source>
         <translation>Добавить профиль из файла</translation>
     </message>
     <message>

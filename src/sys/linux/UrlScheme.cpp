@@ -25,7 +25,7 @@ static QString desktopFilePath() {
 }
 
 QString UrlScheme_DesiredState() {
-    return execTarget();
+    return "v2|" + execTarget();
 }
 
 void UrlScheme_Apply() {
@@ -35,13 +35,17 @@ void UrlScheme_Apply() {
     QFile f(path);
     if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream ts(&f);
+        // The config mime types are declared but never claimed as a default, which
+        // puts Throne in the file manager's "Open With" list without taking .json
+        // away from whatever the user reads it with. That list skips NoDisplay
+        // entries, so the entry has to be a visible one.
         ts << "[Desktop Entry]\n"
            << "Type=Application\n"
            << "Name=Throne\n"
-           << "Exec=\"" << execTarget() << "\" %u\n"
-           << "MimeType=x-scheme-handler/throne;\n"
-           << "Terminal=false\n"
-           << "NoDisplay=true\n";
+           << "Icon=throne\n"
+           << "Exec=\"" << execTarget() << "\" %U\n"
+           << "MimeType=x-scheme-handler/throne;application/json;application/yaml;text/yaml;text/plain;\n"
+           << "Terminal=false\n";
         ts.flush();
         f.close();
     }

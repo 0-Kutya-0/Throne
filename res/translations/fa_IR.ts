@@ -2611,7 +2611,7 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add profile from File</source>
+        <source>Add profile from File(s)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

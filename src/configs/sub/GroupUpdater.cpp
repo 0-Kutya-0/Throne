@@ -783,6 +783,27 @@ namespace Subscription {
         });
     }
 
+    void GroupUpdater::AsyncImportBatch(const QStringList &payloads, const std::function<void()> &finish) {
+        if (payloads.isEmpty()) return;
+
+        runOnNewThread([=,this] {
+            Configs::dataManager->settingsRepo->imported_count = 0;
+            auto rawUpdater = std::make_unique<RawUpdater>();
+
+            MW_show_log(">>>>>>>> " + QObject::tr("Processing subscription data..."));
+            for (const auto &payload: payloads) {
+                rawUpdater->update(payload.trimmed());
+            }
+            Configs::dataManager->profilesRepo->AddProfileBatch(rawUpdater->updated_order, rawUpdater->gid_add_to);
+            MW_show_log(">>>>>>>> " + QObject::tr("Process complete, applying..."));
+
+            Configs::dataManager->settingsRepo->imported_count = rawUpdater->updated_order.count();
+            MW_dialog_message(MwMessage::SubscriptionFinished, {});
+            emit asyncUpdateCallback(rawUpdater->gid_add_to);
+            if (finish != nullptr) finish();
+        });
+    }
+
     void GroupUpdater::Update(const QString &_str, int _sub_gid, bool _not_sub_as_url, bool showDiff) {
         // 创建 rawUpdater
         Configs::dataManager->settingsRepo->imported_count = 0;

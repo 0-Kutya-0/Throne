@@ -1305,7 +1305,7 @@ QTabBar::tab:selected {
   </action>
   <action name="actionAdd_profile_from_File">
    <property name="text">
-    <string>Add profile from File</string>
+    <string>Add profile from File(s)</string>
    </property>
    <property name="shortcut">
     <string notr="true">Ctrl+O</string>

@@ -89,6 +89,9 @@
 #include <QFileDialog>
 #include <QToolTip>
 #include <QMimeData>
+#include <QBuffer>
+#include <QImageReader>
+#include <QStringConverter>
 #include <random>
 #include <3rdparty/QHotkey/qhotkey.h>
 #include <3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp>
@@ -174,12 +177,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             handle_deeplink_impl(url);
         });
     };
+    MW_import_files = [=,this](const QStringList &paths) {
+        runOnUiThread([=,this]
+        {
+            importFromFiles(paths);
+        });
+    };
 
     // handle AutoRun migration and privilege matching
     AutoRun_FixPrivilegeIfNeeded();
     AutoRun_MigrateIfNeeded();
 
-    // register the throne:// URL scheme (self-heals if the install was moved)
+    // register the throne:// URL scheme and the config file handler (self-heals if
+    // the install was moved)
     UrlScheme_RegisterIfNeeded();
 
     // Setup misc UI
@@ -1109,21 +1119,16 @@ connect(ui->actionRestart_Proxy, &QAction::triggered, this, [=,this] {
     });
     connect(ui->actionAdd_profile_from_File, &QAction::triggered, this, [=,this]()
     {
-        auto path = QFileDialog::getOpenFileName();
-        if (path.isEmpty())
-        {
-            return;
-        }
-        auto file = QFile(path);
-        if (!file.exists()) return;
-        if (file.size() > 50 * 1024 * 1024) {
-            MW_show_log("File too large, will not process it");
-            return;
-        }
-        if (!file.open(QIODevice::ReadOnly)) return;
-        auto contents = file.readAll();
-        file.close();
-        Subscription::groupUpdater->AsyncUpdate(contents);
+        // "All files" is listed first so it is the default: config files routinely
+        // carry no extension, and a type filter would hide them from the picker.
+        const auto filters = QStringList{
+            tr("All files (*)"),
+            tr("Config files (*.json *.conf *.txt *.yaml *.yml *.ini)"),
+            tr("QR code images (*.png *.jpg *.jpeg *.bmp *.gif *.webp)"),
+        };
+        const auto paths = QFileDialog::getOpenFileNames(this, tr("Select profile files"), QString(), filters.join(";;"));
+        if (paths.isEmpty()) return;
+        importFromFiles(paths);
     });
 
     connect(qApp, &QGuiApplication::commitDataRequest, this, &MainWindow::on_commitDataRequest);
@@ -1340,6 +1345,105 @@ void MainWindow::scheduleProxyListRefresh() {
     if (m_proxyListRefreshDebounce) m_proxyListRefreshDebounce->start(200);
 }
 
+static constexpr qint64 kMaxImportFileSize = 50 * 1024 * 1024;
+
+// Tells a text config apart from a binary file by its content, because the name
+// promises nothing: configs come as .json, .conf, .txt or with no extension.
+// A byte order mark, when there is one, also pins the encoding and gets dropped
+// on decode - Qt's json parser rejects a config that still carries it.
+static bool decodeImportedText(const QByteArray &bytes, QString &out) {
+    if (const auto encoding = QStringConverter::encodingForData(bytes)) {
+        QStringDecoder decoder(*encoding);
+        out = decoder(bytes);
+        return !decoder.hasError();
+    }
+
+    // No BOM: reject anything holding NUL bytes or a heavy share of control
+    // characters. What is left decodes leniently, since a config written in a
+    // legacy 8-bit encoding still parses - only its names come out garbled.
+    const qsizetype sample = std::min<qsizetype>(bytes.size(), 8192);
+    qsizetype control = 0;
+    for (qsizetype i = 0; i < sample; i++) {
+        const auto c = static_cast<unsigned char>(bytes[i]);
+        if (c == 0) return false;
+        if (c < 0x20 && c != '\t' && c != '\n' && c != '\r' && c != '\v' && c != '\f' && c != 0x1B) control++;
+    }
+    if (control * 20 > sample) return false;
+
+    out = QString::fromUtf8(bytes);
+    return true;
+}
+
+void MainWindow::importFromFiles(const QStringList &paths)
+{
+    QStringList payloads;
+    QStringList problems;
+
+    for (const QString &path : paths) {
+        const auto name = QFileInfo(path).fileName();
+        auto file = QFile(path);
+        if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
+            problems << tr("%1: cannot be opened").arg(name);
+            continue;
+        }
+        if (file.size() > kMaxImportFileSize) {
+            file.close();
+            problems << tr("%1: larger than 50 MB, skipped").arg(name);
+            continue;
+        }
+        const auto bytes = file.readAll();
+        file.close();
+
+        // Decide the type from the bytes rather than the suffix, so a QR code
+        // screenshot saved without one still reaches the decoder.
+        QBuffer buffer;
+        buffer.setData(bytes);
+        buffer.open(QIODevice::ReadOnly);
+        QImageReader reader(&buffer);
+        reader.setDecideFormatFromContent(true);
+        if (reader.canRead()) {
+            const auto image = reader.read();
+            const QVector<QString> texts = image.isNull()
+                                               ? QVector<QString>{}
+                                               : QrDecoder().decode(image.convertToFormat(QImage::Format_Grayscale8));
+            if (texts.isEmpty()) {
+                problems << tr("%1: no QR code found").arg(name);
+                continue;
+            }
+            for (const QString &text : texts) {
+                MW_show_log("QR Code Result:\n" + text);
+                payloads << text.trimmed();
+            }
+            continue;
+        }
+
+        QString text;
+        if (!decodeImportedText(bytes, text) || text.trimmed().isEmpty()) {
+            problems << tr("%1: not a readable config file").arg(name);
+            continue;
+        }
+        payloads << text.trimmed();
+    }
+
+    for (const QString &problem : problems) MW_show_log(problem);
+
+    // A payload that is itself a url keeps the single item path: that one asks
+    // whether to make a subscription group out of it, which a batch cannot.
+    QStringList batch;
+    for (const QString &payload : payloads) {
+        if (payload.startsWith("http://") || payload.startsWith("https://")) {
+            Subscription::groupUpdater->AsyncUpdate(payload);
+        } else {
+            batch << payload;
+        }
+    }
+    if (!batch.isEmpty()) Subscription::groupUpdater->AsyncImportBatch(batch);
+
+    if (payloads.isEmpty() && !problems.isEmpty()) {
+        MessageBoxWarning(software_name, tr("Nothing could be imported:") + "\n" + problems.join("\n"));
+    }
+}
+
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
 {
     if (event->mimeData()->hasUrls() || event->mimeData()->hasText()) {
@@ -1354,29 +1458,17 @@ void MainWindow::dropEvent(QDropEvent* event)
     auto mimeData = event->mimeData();
 
     if (mimeData->hasUrls()) {
-        QList<QUrl> urlList = mimeData->urls();
-        for (const QUrl &url : urlList) {
-            if (url.isLocalFile()) {
-                if (auto qpx = QPixmap(url.toLocalFile()); !qpx.isNull())
-                {
-                    parseQrImage(&qpx);
-                } else if (auto file = QFile(url.toLocalFile()); file.exists() && file.open(QFile::ReadOnly))
-                {
-                    if (file.size() > 50 * 1024 * 1024)
-                    {
-                        file.close();
-                        MW_show_log("File size is larger than 50MB, will not parse it");
-                        event->acceptProposedAction();
-                        return;
-                    }
-                    auto contents = file.readAll();
-                    file.close();
-                    Subscription::groupUpdater->AsyncUpdate(contents);
-                }
-            }
+        QStringList paths;
+        for (const QUrl &url : mimeData->urls()) {
+            if (url.isLocalFile()) paths << url.toLocalFile();
         }
-        event->acceptProposedAction();
-        return;
+        // Remote urls (a link dragged out of a browser) carry no file and fall
+        // through to the text handler below.
+        if (!paths.isEmpty()) {
+            importFromFiles(paths);
+            event->acceptProposedAction();
+            return;
+        }
     }
 
     if (mimeData->hasText()) {

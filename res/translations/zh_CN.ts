@@ -3967,7 +3967,7 @@ Please start your profile again.</source>
         <translation>点击“按出站排序”</translation>
     </message>
     <message>
-        <source>Add profile from File</source>
+        <source>Add profile from File(s)</source>
         <translation>添加文件中的配置档</translation>
     </message>
     <message>

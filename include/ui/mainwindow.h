@@ -364,6 +364,11 @@ private:
 
     void parseQrImage(const QPixmap *image);
 
+    // Imports local files picked from the file dialog or dropped on the window.
+    // What each file is gets decided from its bytes, never from its name: config
+    // files arrive as .json, .conf, .txt or with no extension at all.
+    void importFromFiles(const QStringList &paths);
+
     void trayClickEvent();
 
     void keyPressEvent(QKeyEvent *event) override;

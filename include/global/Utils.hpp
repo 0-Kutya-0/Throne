@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <QObject>
+#include <QDir>
 #include <QString>
 #include <QStringList>
 #include <QDebug>
@@ -112,11 +113,22 @@ inline std::function<void(MwMessage, QStringList)> MW_dialog_message;
 // Handles a "throne://" deeplink. Set by MainWindow; marshals to the UI thread.
 inline std::function<void(QString)> MW_handle_deeplink;
 
+// Imports config files the OS handed us ("Open with Throne"). Set by MainWindow;
+// marshals to the UI thread.
+inline std::function<void(QStringList)> MW_import_files;
+
 // Deeplink plumbing (see Utils.cpp). Delivery channels feed URLs in here; the
 // pending buffer covers URLs that arrive before the main window exists.
 QString Deeplink_ExtractFromArgs(const QStringList &args);
 void Deeplink_Submit(const QString &url);
 void Deeplink_FlushPending();
+
+// Same plumbing for files opened with the app. Paths arrive as launch arguments,
+// as a second instance's hand-off, or (macOS) as a file-open event, and may be
+// given either as a path or as a file:// URL.
+QStringList LaunchFiles_ExtractFromArgs(const QStringList &args, const QDir &launchDir);
+void LaunchFiles_Submit(const QStringList &paths);
+void LaunchFiles_FlushPending();
 
 // Dispatchers
 
