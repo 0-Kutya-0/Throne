@@ -7,6 +7,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QThread>
 
 namespace Configs {
     std::string DatabaseManager::deriveStatsDbPath(const std::string& dbPath) {
@@ -15,7 +16,7 @@ namespace Configs {
     }
 
     DatabaseManager::DatabaseManager(const std::string& dbPath)
-        : db(dbPath), statsDb(deriveStatsDbPath(dbPath)) {
+        : db(dbPath), statsDb(deriveStatsDbPath(dbPath), true) {
         // Create entity IDs table first (before repos are initialized)
         createEntityIdsTable(db);
         
@@ -49,6 +50,14 @@ namespace Configs {
         }
     }
     
+    void DatabaseManager::RunDeferredMaintenance() {
+        runOnNewThread([this] {
+            QThread::msleep(MAINTENANCE_DELAY_MS);
+            db.RunMaintenance();
+            statsDb.RunMaintenance();
+        });
+    }
+
     void DatabaseManager::initializeRepos() {
         profilesRepo = std::make_unique<ProfilesRepo>(db);
         groupsRepo = std::make_unique<GroupsRepo>(db);

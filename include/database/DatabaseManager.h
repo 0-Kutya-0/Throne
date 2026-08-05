@@ -34,6 +34,9 @@ namespace Configs {
 
         explicit DatabaseManager(const std::string& dbPath);
         ~DatabaseManager() = default;
+
+        // Call once, after the UI is up.
+        void RunDeferredMaintenance();
         
         // Non-copyable
         DatabaseManager(const DatabaseManager&) = delete;

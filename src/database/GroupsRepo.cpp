@@ -121,68 +121,42 @@ namespace Configs {
         QString columnWidthJson = QString::fromUtf8(columnWidthDoc.toJson(QJsonDocument::Compact));
         QString profilesJson = QString::fromUtf8(profilesDoc.toJson(QJsonDocument::Compact));
         
-        // Check if group exists
-        auto checkQuery = db.query("SELECT id FROM groups WHERE id = ?", id);
-        bool exists = checkQuery && checkQuery->executeStep();
-        
-        if (exists) {
-            // Update
-            db.exec(R"(
-                UPDATE groups 
-                SET archive = ?, skip_auto_update = ?, auto_clear_unavailable = ?, name = ?, url = ?, info = ?,
-                    sub_last_update = ?, front_proxy_id = ?, landing_proxy_id = ?,
-                    column_width_json = ?, profiles_json = ?, scroll_last_profile = ?, test_sort_by = ?, traffic_sort_by = ?, test_items_to_show = ?,
-                    type_sort_by = ?,
-                    updated_at = strftime('%s', 'now')
-                WHERE id = ?
-            )",
-                group->archive ? 1 : 0,
-                group->skip_auto_update ? 1 : 0,
-                group->auto_clear_unavailable ? 1 : 0,
-                group->name.toStdString(),
-                group->url.toStdString(),
-                group->info.toStdString(),
-                static_cast<long long>(group->sub_last_update),
-                group->front_proxy_id,
-                group->landing_proxy_id,
-                columnWidthJson.toStdString(),
-                profilesJson.toStdString(),
-                group->scroll_last_profile,
-                static_cast<int>(group->test_sort_by),
-                static_cast<int>(group->traffic_sort_by),
-                static_cast<int>(group->test_items_to_show),
-                static_cast<int>(group->type_sort_by),
-                id
-            );
-        } else {
-            // Insert
-            db.exec(R"(
-                INSERT INTO groups 
-                (id, archive, skip_auto_update, auto_clear_unavailable, name, url, info, sub_last_update,
-                 front_proxy_id, landing_proxy_id,
-                 column_width_json, profiles_json, scroll_last_profile, test_sort_by, traffic_sort_by, test_items_to_show,
-                 type_sort_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            )",
-                id,
-                group->archive ? 1 : 0,
-                group->skip_auto_update ? 1 : 0,
-                group->auto_clear_unavailable ? 1 : 0,
-                group->name.toStdString(),
-                group->url.toStdString(),
-                group->info.toStdString(),
-                static_cast<long long>(group->sub_last_update),
-                group->front_proxy_id,
-                group->landing_proxy_id,
-                columnWidthJson.toStdString(),
-                profilesJson.toStdString(),
-                group->scroll_last_profile,
-                static_cast<int>(group->test_sort_by),
-                static_cast<int>(group->traffic_sort_by),
-                static_cast<int>(group->test_items_to_show),
-                static_cast<int>(group->type_sort_by)
-            );
-        }
+        db.exec(R"(
+            INSERT INTO groups
+            (id, archive, skip_auto_update, auto_clear_unavailable, name, url, info, sub_last_update,
+             front_proxy_id, landing_proxy_id,
+             column_width_json, profiles_json, scroll_last_profile, test_sort_by, traffic_sort_by, test_items_to_show,
+             type_sort_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                archive = excluded.archive, skip_auto_update = excluded.skip_auto_update,
+                auto_clear_unavailable = excluded.auto_clear_unavailable, name = excluded.name,
+                url = excluded.url, info = excluded.info, sub_last_update = excluded.sub_last_update,
+                front_proxy_id = excluded.front_proxy_id, landing_proxy_id = excluded.landing_proxy_id,
+                column_width_json = excluded.column_width_json, profiles_json = excluded.profiles_json,
+                scroll_last_profile = excluded.scroll_last_profile, test_sort_by = excluded.test_sort_by,
+                traffic_sort_by = excluded.traffic_sort_by, test_items_to_show = excluded.test_items_to_show,
+                type_sort_by = excluded.type_sort_by,
+                updated_at = strftime('%s', 'now')
+        )",
+            id,
+            group->archive ? 1 : 0,
+            group->skip_auto_update ? 1 : 0,
+            group->auto_clear_unavailable ? 1 : 0,
+            group->name.toStdString(),
+            group->url.toStdString(),
+            group->info.toStdString(),
+            static_cast<long long>(group->sub_last_update),
+            group->front_proxy_id,
+            group->landing_proxy_id,
+            columnWidthJson.toStdString(),
+            profilesJson.toStdString(),
+            group->scroll_last_profile,
+            static_cast<int>(group->test_sort_by),
+            static_cast<int>(group->traffic_sort_by),
+            static_cast<int>(group->test_items_to_show),
+            static_cast<int>(group->type_sort_by)
+        );
     }
 
     std::shared_ptr<Group> GroupsRepo::loadFromDatabase(int id) const {

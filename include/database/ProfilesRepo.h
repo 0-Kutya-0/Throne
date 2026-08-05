@@ -17,9 +17,6 @@ namespace Configs {
         // Identity map: id -> weak_ptr<Profile>
         mutable std::map<int, std::weak_ptr<Profile>> identityMap;
 
-        // Helper to serialize Profile to JSON
-        QJsonObject profileToJson(const Profile* profile) const;
-        
         // Helper to deserialize Profile from JSON
         std::shared_ptr<Profile> profileFromJson(const QJsonObject& json) const;
         

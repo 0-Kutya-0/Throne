@@ -52,14 +52,12 @@ namespace Configs {
     // and surfaces as an exception.
     constexpr int BUSY_TIMEOUT_MS = 5000;
 
-    // Reclaim free-list pages with a one-time VACUUM at startup when the file has
-    // accumulated significant dead space (SQLite never returns freed pages to the
-    // OS on its own without auto_vacuum). Both thresholds must be met, so we never
-    // VACUUM away trivial fragmentation on every launch:
-    //   - at least VACUUM_MIN_FREE_BYTES of free-list pages (absolute floor), and
-    //   - free pages make up at least VACUUM_MIN_FREE_RATIO of the whole file.
+    // Both thresholds must be met; SQLite never returns freed pages to the OS on its own.
     constexpr long long VACUUM_MIN_FREE_BYTES = 4LL * 1024 * 1024; // 4 MiB
     constexpr double VACUUM_MIN_FREE_RATIO = 0.50;                 // 50%
+
+    constexpr int INCREMENTAL_VACUUM_PAGES = 1024;
+    constexpr unsigned long MAINTENANCE_DELAY_MS = 30000;
 
     inline void NotifyError(const std::string& query, std::exception& e) {
         runOnUiThread([=] {
@@ -83,15 +81,18 @@ namespace Configs {
         void execBatchInsertProfilesChunk(const std::vector<ProfileInsertRow>& rows);
         void execBatchReplaceProfilesChunk(const std::vector<ProfileInsertRow>& rows);
     public:
-        Database(const std::string& path)
+        explicit Database(const std::string& path, bool incrementalVacuum = false)
             : db(path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE, BUSY_TIMEOUT_MS) {
+            // Must precede journal_mode: WAL writes the header, after which auto_vacuum no longer takes.
+            if (incrementalVacuum) db.exec("PRAGMA auto_vacuum = INCREMENTAL");
             db.exec("PRAGMA foreign_keys = ON");
             db.exec("PRAGMA journal_mode = WAL");
             db.exec("PRAGMA synchronous = NORMAL");
             db.exec("PRAGMA mmap_size = 67108864"); // 64MB
-            checkpointWal();
-            maybeVacuum();
         }
+
+        // Not safe from the constructor: a VACUUM there stalls startup.
+        void RunMaintenance();
 
     private:
 

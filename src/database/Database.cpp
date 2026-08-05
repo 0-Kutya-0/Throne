@@ -18,6 +18,11 @@ namespace Configs {
         }
     }
 
+    void Database::RunMaintenance() {
+        checkpointWal();
+        maybeVacuum();
+    }
+
     void Database::maybeVacuum() {
         try {
             const long long freePages = db.execAndGet("PRAGMA freelist_count").getInt64();
@@ -29,11 +34,15 @@ namespace Configs {
             const double freeRatio = static_cast<double>(freePages) / static_cast<double>(pageCount);
             if (freeBytes < VACUUM_MIN_FREE_BYTES || freeRatio < VACUUM_MIN_FREE_RATIO) return;
 
-            // VACUUM rebuilds the database; in WAL mode the on-disk shrink only
-            // lands when the WAL is checkpointed, so truncate it afterwards.
-            db.exec("VACUUM");
+            if (db.execAndGet("PRAGMA auto_vacuum").getInt64() == 2) {
+                db.exec("PRAGMA incremental_vacuum(" + std::to_string(INCREMENTAL_VACUUM_PAGES) + ")");
+            } else {
+                db.exec("VACUUM");
+            }
+            // In WAL mode the on-disk shrink only lands once the WAL is checkpointed.
             checkpointWal();
         } catch (std::exception& e) {
+            // A concurrent transaction on this connection fails VACUUM; next launch retries.
             std::cerr << "DB VACUUM check error: " << e.what() << std::endl;
         }
     }

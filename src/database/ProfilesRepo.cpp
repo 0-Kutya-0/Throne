@@ -56,32 +56,6 @@ namespace Configs {
         return false;
     }
 
-    QJsonObject ProfilesRepo::profileToJson(const Profile* profile) const {
-        QJsonObject json;
-        
-        // Simple fields
-        json["type"] = profile->type;
-        json["name"] = profile->outbound->name;
-        json["id"] = profile->id;
-        json["gid"] = profile->gid;
-        json["latency"] = profile->latency;
-        json["latency_at"] = static_cast<qint64>(profile->latency_at);
-        json["dl_speed"] = profile->dl_speed;
-        json["ul_speed"] = profile->ul_speed;
-        json["test_country"] = profile->test_country;
-        json["ip_out"] = profile->ip_out;
-
-        // Complex objects - serialize to JSON strings
-        if (profile->outbound) {
-            json["outbound"] = profile->outbound->ExportToJson();
-        }
-        
-        json["traffic_dl"] = static_cast<qint64>(profile->traffic_downlink);
-        json["traffic_up"] = static_cast<qint64>(profile->traffic_uplink);
-        
-        return json;
-    }
-
     std::shared_ptr<Profile> ProfilesRepo::profileFromJson(const QJsonObject& json) const {
         auto profile = std::make_shared<Profile>();
         
@@ -121,66 +95,41 @@ namespace Configs {
     }
 
     void ProfilesRepo::saveToDatabase(const Profile* profile, int id) const {
-        QJsonObject json = profileToJson(profile);
-        QJsonDocument doc(json);
-        QString jsonStr = QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
-        
         QString outboundJson;
         if (profile->outbound) {
             QJsonDocument outboundDoc(profile->outbound->ExportToJson());
             outboundJson = QString::fromUtf8(outboundDoc.toJson(QJsonDocument::Compact));
         }
         QString name = profile->outbound ? profile->outbound->name : QString();
-        const long long traffic_dl = static_cast<long long>(profile->traffic_downlink);
-        const long long traffic_up = static_cast<long long>(profile->traffic_uplink);
-        
-        auto checkQuery = db.query("SELECT id FROM profiles WHERE id = ?", id);
-        bool exists = checkQuery && checkQuery->executeStep();
-        
-        if (exists) {
-            db.exec(R"(
-                UPDATE profiles
-                SET type = ?, name = ?, gid = ?, latency = ?, latency_at = ?, dl_speed = ?, ul_speed = ?,
-                    test_country = ?, ip_out = ?, outbound_json = ?,
-                    traffic_dl = ?, traffic_up = ?, updated_at = strftime('%s', 'now')
-                WHERE id = ?
-            )",
-                profile->type.toStdString(),
-                name.toStdString(),
-                profile->gid,
-                profile->latency,
-                static_cast<long long>(profile->latency_at),
-                profile->dl_speed.toStdString(),
-                profile->ul_speed.toStdString(),
-                profile->test_country.toStdString(),
-                profile->ip_out.toStdString(),
-                outboundJson.toStdString(),
-                traffic_dl,
-                traffic_up,
-                id
-            );
-        } else {
-            db.exec(R"(
-                INSERT INTO profiles
-                (id, type, name, gid, latency, latency_at, dl_speed, ul_speed, test_country,
-                ip_out, outbound_json, traffic_dl, traffic_up)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            )",
-                id,
-                profile->type.toStdString(),
-                name.toStdString(),
-                profile->gid,
-                profile->latency,
-                static_cast<long long>(profile->latency_at),
-                profile->dl_speed.toStdString(),
-                profile->ul_speed.toStdString(),
-                profile->test_country.toStdString(),
-                profile->ip_out.toStdString(),
-                outboundJson.toStdString(),
-                traffic_dl,
-                traffic_up
-            );
-        }
+
+        db.exec(R"(
+            INSERT INTO profiles
+            (id, type, name, gid, latency, latency_at, dl_speed, ul_speed, test_country,
+            ip_out, outbound_json, traffic_dl, traffic_up)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                type = excluded.type, name = excluded.name, gid = excluded.gid,
+                latency = excluded.latency, latency_at = excluded.latency_at,
+                dl_speed = excluded.dl_speed, ul_speed = excluded.ul_speed,
+                test_country = excluded.test_country, ip_out = excluded.ip_out,
+                outbound_json = excluded.outbound_json,
+                traffic_dl = excluded.traffic_dl, traffic_up = excluded.traffic_up,
+                updated_at = strftime('%s', 'now')
+        )",
+            id,
+            profile->type.toStdString(),
+            name.toStdString(),
+            profile->gid,
+            profile->latency,
+            static_cast<long long>(profile->latency_at),
+            profile->dl_speed.toStdString(),
+            profile->ul_speed.toStdString(),
+            profile->test_country.toStdString(),
+            profile->ip_out.toStdString(),
+            outboundJson.toStdString(),
+            static_cast<long long>(profile->traffic_downlink),
+            static_cast<long long>(profile->traffic_uplink)
+        );
     }
 
     ProfileInsertRow ProfilesRepo::profileToInsertRow(const Profile* profile, int id, int gid) const {
