@@ -64,6 +64,11 @@ namespace Configs
         // Ranked membership from the last client-side sweep, best first.
         QList<int> pool;
         qint64 poolRankedAt = 0;
+        // A member the user picked by hand in the stats dialog, -1 for fully
+        // automatic. A standing preference rather than run-scoped state, so it
+        // outlives a restart; the core drops it by itself if that profile is not
+        // in the pool it ends up building.
+        int pinnedID = -1;
         // The subset actually emitted into the last built config.
         QList<int> lastBuilt;
         qint64 lastBuiltAt = 0;
@@ -108,6 +113,7 @@ namespace Configs
             if (object.contains("balance_interval_sec")) balanceIntervalSec = object["balance_interval_sec"].toInt(30);
             if (object.contains("pool")) pool = QJsonArray2QListInt(object["pool"].toArray());
             if (object.contains("pool_ranked_at")) poolRankedAt = static_cast<qint64>(object["pool_ranked_at"].toDouble());
+            if (object.contains("pinned_id")) pinnedID = object["pinned_id"].toInt(-1);
             if (object.contains("last_built")) lastBuilt = QJsonArray2QListInt(object["last_built"].toArray());
             if (object.contains("last_built_at")) lastBuiltAt = static_cast<qint64>(object["last_built_at"].toDouble());
             if (object.contains("history")) history = object["history"].toArray();
@@ -144,6 +150,7 @@ namespace Configs
             object["balance_interval_sec"] = balanceIntervalSec;
             object["pool"] = QListInt2QJsonArray(pool);
             object["pool_ranked_at"] = static_cast<double>(poolRankedAt);
+            object["pinned_id"] = pinnedID;
             object["last_built"] = QListInt2QJsonArray(lastBuilt);
             object["last_built_at"] = static_cast<double>(lastBuiltAt);
             object["history"] = history;

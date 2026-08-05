@@ -101,6 +101,8 @@ namespace Configs {
         bool log_auto_scroll = true;
         bool start_minimal = false;
         int max_log_line = 200;
+        // On-disk diagnostic log only; log_level is the core's browser verbosity.
+        QString log_file_level = "debug";
         QString splitter_state = "";
         bool enable_stats = true;
         int stats_tab = 0; // either connection or log

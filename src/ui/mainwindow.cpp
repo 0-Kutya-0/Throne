@@ -9,6 +9,7 @@
 #include "include/configs/sub/GroupUpdater.hpp"
 #include "include/configs/sub/RouteUpdater.hpp"
 #include "include/global/PeriodicRunner.hpp"
+#include "include/global/Logger.hpp"
 #include "include/stats/autoselector/AutoSelectorMonitor.hpp"
 #include "include/ui/stats/dialog_auto_selector.h"
 #include "include/sys/Process.hpp"
@@ -239,6 +240,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     });
     MW_show_log = [=,this](const QString &log) {
         append_log(log);
+        Logging::WriteUserLog(log);
     };
 
     // Listen port if random
@@ -1928,6 +1930,7 @@ void MainWindow::prepare_exit()
         return;
     }
     Configs::dataManager->settingsRepo->prepare_exit = true;
+    LOG_INFO("prepare_exit started, tearing down proxy/tun/core");
     //
     if (Configs::dataManager->settingsRepo->spmode_system_proxy) set_system_proxy(false);
     if (Configs::dataManager->settingsRepo->system_dns_set) set_system_dns(false, false);

@@ -3,6 +3,7 @@
 #include "include/api/RPC.h"
 #include "include/database/DatabaseManager.h"
 #include "include/database/ProfilesRepo.h"
+#include "include/configs/outbounds/autoselector.h"
 #include "include/database/entities/Profile.h"
 #include "include/ui/mainwindow_interface.h"
 
@@ -182,6 +183,37 @@ namespace Stats
         API::defaultClient->AutoSelectorAction(&ok, tag, "recheck");
     }
 
+    QString AutoSelectorMonitor::RequestSelect(const QString &member)
+    {
+        QString tag;
+        int selectorID = -1;
+        int memberID = -1;
+        {
+            QMutexLocker lock(&mutex);
+            if (!active) return QObject::tr("No auto selector is running.");
+            tag = groupTag;
+            selectorID = profileID;
+            if (!member.isEmpty()) {
+                memberID = tagToProfile.value(member, -1);
+                if (memberID < 0) return QObject::tr("That profile is not in the running pool.");
+            }
+        }
+        bool ok = false;
+        const auto error = API::defaultClient->AutoSelectorAction(&ok, tag, "select", member);
+        if (!ok) return QObject::tr("Could not reach the core.");
+        if (!error.isEmpty()) return error;
+
+        // Stored as a profile id rather than a tag: tags are positional within
+        // one build and mean nothing to the next one.
+        if (auto selector = Configs::dataManager->profilesRepo->GetProfile(selectorID); selector != nullptr) {
+            if (auto bean = selector->AutoSelector(); bean != nullptr && bean->pinnedID != memberID) {
+                bean->pinnedID = memberID;
+                Configs::dataManager->profilesRepo->Save(selector);
+            }
+        }
+        return {};
+    }
+
     void AutoSelectorMonitor::Loop()
     {
         while (true) {
@@ -218,6 +250,7 @@ namespace Stats
         next.groupTag = wantedTag;
         next.phase = QString::fromStdString(status->phase.value());
         next.selectedTag = QString::fromStdString(status->selected.value());
+        next.pinnedTag = QString::fromStdString(status->pinned.value());
         next.balance = status->balance.value();
         next.balanceMode = QString::fromStdString(status->balance_mode.value());
         next.suspended = status->suspended.value();
@@ -263,10 +296,12 @@ namespace Stats
                 entry.lastProbeMs = member.last_probe_ms.value();
                 entry.cooldownUntilMs = member.cooldown_until_ms.value();
                 entry.lastError = QString::fromStdString(member.last_error.value());
+                entry.pinned = !next.pinnedTag.isEmpty() && entry.tag == next.pinnedTag;
                 if (entry.selected) {
                     next.selectedName = entry.name;
                     next.selectedProfileID = entry.profileID;
                 }
+                if (entry.pinned) next.pinnedName = entry.name;
                 // "untested" counts as usable: it has not failed, the prober
                 // simply has not reached it yet.
                 if (entry.isUsable() || entry.state == "untested") usable++;

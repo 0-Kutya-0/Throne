@@ -1410,6 +1410,10 @@ namespace Configs {
             
             const auto builtAt = QDateTime::currentSecsSinceEpoch();
             QJsonArray warm;
+            // Resolved while walking the members: the user's pick is stored as a
+            // profile id, and it only means anything if that profile made this
+            // build's cut.
+            QString pinnedTag;
 
             QJsonArray memberTags;
             int idx = 0;
@@ -1427,6 +1431,7 @@ namespace Configs {
                 if (!ctx.error.isEmpty()) return {};
                 memberTags.append(tag);
                 info.members.append({tag, member});
+                if (member->id == selector->pinnedID) pinnedTag = tag;
                 if (member->latency != 0 && member->latency_at > 0 && selector->resultValidityMins > 0)
                 {
                     if (const auto age = builtAt - member->latency_at;
@@ -1483,6 +1488,7 @@ namespace Configs {
                 {"interrupt_exist_connections", selector->interruptOnSwitch},
             };
             if (!warm.isEmpty()) groupObject["warm"] = warm;
+            if (!pinnedTag.isEmpty()) groupObject["pinned"] = pinnedTag;
             if (selector->maxRTTms > 0) groupObject["max_rtt"] = Int2String(selector->maxRTTms) + "ms";
             // Without an independent endpoint the core can only fall back to error
             // classification and the OS route, which cannot tell "the link is up but

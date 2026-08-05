@@ -105,6 +105,7 @@ namespace Configs {
             {"test_url",                   &test_latency_url},
             {"inbound_address",            &inbound_address},
             {"log_level",                  &log_level},
+            {"log_file_level",             &log_file_level},
             {"mux_protocol",               &mux_protocol},
             {"fragment_implementation",    &fragment_implementation},
             {"fragment_size",              &fragment_size},

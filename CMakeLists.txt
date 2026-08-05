@@ -28,6 +28,9 @@ if (NOT MSVC)
     add_compile_options(-fno-omit-frame-pointer)
 endif()
 
+# Qt drops file/line from QMessageLogContext in non-debug builds without this.
+add_compile_definitions(QT_MESSAGELOGCONTEXT)
+
 #### default prefix path ####
 
 message("[CMAKE_PREFIX_PATH] ${CMAKE_PREFIX_PATH}")
@@ -59,6 +62,8 @@ set(PROJECT_SOURCES
         src/main.cpp
         src/global/Configs.cpp
         src/global/Utils.cpp
+        include/global/Logger.hpp
+        src/global/Logger.cpp
         include/global/PeriodicRunner.hpp
         src/global/PeriodicRunner.cpp
         src/global/HTTPRequestHelper.cpp

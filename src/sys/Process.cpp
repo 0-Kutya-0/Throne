@@ -1,5 +1,6 @@
 #include "include/sys/Process.hpp"
 #include "include/global/Configs.hpp"
+#include "include/global/Logger.hpp"
 
 #include <QTimer>
 #include <QDir>
@@ -41,6 +42,15 @@ namespace Configs_sys {
                 failed_to_start = true;
                 MW_show_log("start core error occurred: " + errorString() + "\n");
             }
+            LOG_ERROR(QString("core process error %1: %2").arg(static_cast<int>(error)).arg(errorString()));
+        });
+        connect(this, &QProcess::finished, this, [&](int exitCode, ExitStatus exitStatus) {
+            const bool crashed = exitStatus == CrashExit || exitCode != 0;
+            Logging::Write(crashed ? Logging::Level::Error : Logging::Level::Info,
+                           QString("core process exited: code=%1 status=%2%3")
+                               .arg(exitCode)
+                               .arg(exitStatus == CrashExit ? "crash" : "normal")
+                               .arg(Configs::dataManager->settingsRepo->prepare_exit ? " (during shutdown)" : ""));
         });
         connect(this, &QProcess::stateChanged, this, [&](ProcessState state) {
             if (state == NotRunning) {
@@ -81,6 +91,9 @@ namespace Configs_sys {
 
         auto env = QProcessEnvironment::systemEnvironment();
         env.insert("THRONE_CORE_SOCKET", m_socketName);
+        // Turns an unrecovered Go panic into a real abort, so it dumps all
+        // goroutine stacks and WER captures a minidump of the core too.
+        env.insert("GOTRACEBACK", "crash");
         if (m_debugMode) env.insert("THRONE_CORE_DEBUG", "1");
         // Point Xray-core's asset loader at our writable config dir so full Xray
         // configs whose routing uses geoip:/geosite: tags can find geoip.dat /

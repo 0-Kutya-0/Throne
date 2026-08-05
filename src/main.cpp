@@ -17,6 +17,7 @@
 
 
 #include "include/global/Configs.hpp"
+#include "include/global/Logger.hpp"
 
 #include "include/ui/mainwindow_interface.h"
 #include "include/stats/traffic/TrafficStatsManager.hpp"
@@ -103,6 +104,8 @@ void loadTranslate(const QString& locale) {
 #define LOCAL_SERVER_PREFIX "throne-"
 
 int main(int argc, char* argv[]) {
+    Logging::InstallQtMessageHandler();
+
     // Core dump
 #ifdef Q_OS_WIN
     Windows_SetCrashHandler();
@@ -175,7 +178,8 @@ int main(int argc, char* argv[]) {
     }
     if (!wd.exists()) wd.mkpath(wd.absolutePath());
     if (!wd.exists("config")) wd.mkdir("config");
-    QDir::setCurrent(wd.absoluteFilePath("config"));
+    const QString configDir = wd.absoluteFilePath("config");
+    QDir::setCurrent(configDir);
     QDir("temp").removeRecursively();
 
     // Record app start for the Runtime Stats uptime readout.
@@ -183,6 +187,8 @@ int main(int argc, char* argv[]) {
 
     // Load database
     Configs::initDB(QString(QDir::currentPath() + QDir::separator() + "throne.db").toStdString());
+
+    Logging::SetLevel(Logging::LevelFromString(Configs::dataManager->settingsRepo->log_file_level));
 
     // Start traffic-statistics maintenance (startup downsample + background rollup).
     Stats::trafficStatsManager->Init();
@@ -280,11 +286,21 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    // Must follow the single-instance check: opening the log earlier truncates
+    // the running instance's file and leaves a marker it would report as a crash.
+    Logging::Init(configDir);
+    LOG_INFO(QString("elevated: %1, appdata mode: %2").arg(Configs::IsAdmin() ? "yes" : "no").arg(useAppdata ? "yes" : "no"));
+#ifdef Q_OS_WIN
+    Windows_SetCrashDumpPath();
+    Windows_ConfigureWER();
+#endif
+
     // QLocalServer
     QLocalServer server(qApp);
     server.setSocketOptions(QLocalServer::WorldAccessOption);
     if (!server.listen(serverName)) {
         qWarning() << "Failed to start QLocalServer! Error:" << server.errorString();
+        Logging::Shutdown();
         return 1;
     }
     QObject::connect(&server, &QLocalServer::newConnection, qApp, [&] {
@@ -325,6 +341,8 @@ int main(int argc, char* argv[]) {
     {
         server.close();
         QLocalServer::removeServer(serverName);
+        // Every quit path lands here; missing it is reported as a crash next start.
+        Logging::Shutdown();
     });
 
 #ifdef Q_OS_LINUX
@@ -348,6 +366,11 @@ int main(int argc, char* argv[]) {
     API::defaultClient = new API::Client();
 
     UI_InitMainWindow();
+
+    if (Logging::PreviousSessionCrashed()) {
+        MW_show_log(QObject::tr("[Warn] Throne did not shut down cleanly last time. "
+                                "Diagnostics were saved to: %1").arg(Logging::LogDir()));
+    }
 
     // Deliver a deeplink and any files passed on the command line (cold start), then
     // replay whatever arrived during startup (e.g. a macOS FileOpen event before the

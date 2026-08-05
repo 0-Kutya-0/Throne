@@ -21,6 +21,7 @@ namespace Stats
         QString state; // ok | degraded | untested | dead | cooldown
         bool selected = false;
         bool selectedUDP = false;
+        bool pinned = false;
         bool qualified = false;
         bool active = false;
         int averageMs = 0;
@@ -58,6 +59,11 @@ namespace Stats
         QString selectedTag;
         QString selectedName;
         int selectedProfileID = -1;
+        // Set when the user pinned a member by hand. Differs from selectedTag
+        // whenever that member is not currently healthy — the pin is a
+        // preference, and the ranking still takes over when it has to.
+        QString pinnedTag;
+        QString pinnedName;
         bool balance = false;
         QString balanceMode;
         // The core believes the LOCAL network is down and has frozen its
@@ -112,6 +118,11 @@ namespace Stats
 
         // Force a full re-check of every member now.
         void RequestRecheck() const;
+
+        // Pins the group to one member, or hands it back to automatic selection
+        // when `tag` is empty. Returns the core's error, empty on success. The
+        // choice is stored on the profile so it outlives a restart.
+        [[nodiscard]] QString RequestSelect(const QString &tag);
 
         // Writes what the core has measured back onto the member profiles, so a
         // restart can hand it straight back instead of re-measuring the pool.

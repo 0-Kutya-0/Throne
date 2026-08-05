@@ -7,6 +7,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QPushButton>
 #include <QScreen>
@@ -89,6 +90,12 @@ namespace
     // Explains the row in plain words, so a demoted server never looks arbitrary.
     QString noteText(const Stats::AutoSelectorMemberView &member)
     {
+        if (member.pinned) {
+            if (member.selected) return QObject::tr("your choice, carrying traffic now");
+            // The pin is a preference, not an override: the selector had to move
+            // off it, and will come back once it is working again.
+            return QObject::tr("your choice, but not usable right now");
+        }
         if (member.selected) return QObject::tr("carrying traffic now");
         if (member.state == "cooldown") {
             const auto secs = (member.cooldownUntilMs - QDateTime::currentMSecsSinceEpoch()) / 1000;
@@ -130,6 +137,20 @@ DialogAutoSelector::DialogAutoSelector(QWidget *parent) : QDialog(parent)
     controls->addWidget(m_onlyProblems);
     controls->addStretch();
 
+    m_pin = new QPushButton(tr("Use this profile"), this);
+    m_pin->setToolTip(tr("Keep the selected profile in use instead of letting the ranking choose. "
+                         "Useful when several profiles measure much the same and you prefer one of "
+                         "them.\n\nIt stays a preference, not a lock: if that profile stops working "
+                         "the selector still moves on, and comes back to your choice once it "
+                         "recovers."));
+    connect(m_pin, &QPushButton::clicked, this, [this] { applySelection(highlightedTag()); });
+    controls->addWidget(m_pin);
+
+    m_release = new QPushButton(tr("Back to automatic"), this);
+    m_release->setToolTip(tr("Stop preferring a particular profile and let the ranking decide again."));
+    connect(m_release, &QPushButton::clicked, this, [this] { applySelection({}); });
+    controls->addWidget(m_release);
+
     m_recheck = new QPushButton(tr("Check all now"), this);
     m_recheck->setToolTip(tr("Re-measure every running profile immediately instead of waiting for the "
                              "next scheduled check."));
@@ -158,6 +179,12 @@ DialogAutoSelector::DialogAutoSelector(QWidget *parent) : QDialog(parent)
     // then the user's to adjust, which Stretch would fight on every poll.
     header->setSectionResizeMode(QHeaderView::Interactive);
     header->setStretchLastSection(true);
+    connect(m_table, &QTableWidget::itemSelectionChanged, this, [this] {
+        m_pin->setEnabled(!highlightedTag().isEmpty() && highlightedTag() != m_pinnedTag);
+    });
+    connect(m_table, &QTableWidget::itemDoubleClicked, this, [this](QTableWidgetItem *) {
+        applySelection(highlightedTag());
+    });
     layout->addWidget(m_table, 1);
 
     m_footer = new QLabel(this);
@@ -182,6 +209,34 @@ void DialogAutoSelector::fitToColumns()
     resize(target.boundedTo(available));
 }
 
+QString DialogAutoSelector::highlightedTag() const
+{
+    const auto rows = m_table->selectionModel() != nullptr ? m_table->selectionModel()->selectedRows()
+                                                           : QModelIndexList{};
+    if (rows.isEmpty()) return {};
+    // The tag rides on the name cell rather than being looked up by row: sorting
+    // and filtering both reorder the table under the selection.
+    const auto *item = m_table->item(rows.first().row(), ColName);
+    return item == nullptr ? QString() : item->data(Qt::UserRole).toString();
+}
+
+void DialogAutoSelector::applySelection(const QString &tag)
+{
+    if (tag.isEmpty() && m_pinnedTag.isEmpty()) return;
+    const auto error = Stats::autoSelectorMonitor->RequestSelect(tag);
+    if (!error.isEmpty()) {
+        m_footer->setText(tr("Could not change the profile: %1").arg(error));
+        return;
+    }
+    // The core applies this immediately; the table only catches up on the next
+    // poll, so say so rather than looking like nothing happened.
+    m_pinnedTag = tag;
+    m_footer->setText(tag.isEmpty() ? tr("Back to automatic — the selector will choose again.")
+                                    : tr("Now using your chosen profile."));
+    m_pin->setEnabled(false);
+    m_release->setEnabled(!tag.isEmpty());
+}
+
 void DialogAutoSelector::refresh()
 {
     const auto view = Stats::autoSelectorMonitor->Snapshot();
@@ -191,9 +246,14 @@ void DialogAutoSelector::refresh()
         m_footer->clear();
         m_table->setRowCount(0);
         m_recheck->setEnabled(false);
+        m_pin->setEnabled(false);
+        m_release->setEnabled(false);
         return;
     }
     m_recheck->setEnabled(true);
+    m_pinnedTag = view.pinnedTag;
+    m_pin->setEnabled(!highlightedTag().isEmpty() && highlightedTag() != m_pinnedTag);
+    m_release->setEnabled(!m_pinnedTag.isEmpty());
     m_headline->setText(view.summary());
     m_detail->setText(view.detail());
 
@@ -208,6 +268,14 @@ void DialogAutoSelector::refresh()
             const auto secs = (view.nextRoundMs - QDateTime::currentMSecsSinceEpoch()) / 1000;
             if (secs > 0) footer << tr("Next in %1s.").arg(secs);
         }
+    }
+    if (!view.pinnedTag.isEmpty()) {
+        const auto pinnedName = view.pinnedName.isEmpty() ? view.pinnedTag : view.pinnedName;
+        footer << (view.pinnedTag == view.selectedTag
+                       ? tr("Using %1 because you chose it.").arg(pinnedName)
+                       : tr("You chose %1, but it is not working right now, so the selector picked "
+                            "another. It will go back to yours once it recovers.")
+                             .arg(pinnedName));
     }
     if (!view.lastSwitchReason.isEmpty() && view.lastSwitchMs > 0) {
         footer << tr("Last switch %1 (%2).").arg(agoText(view.lastSwitchMs), view.lastSwitchReason);
@@ -331,9 +399,11 @@ void DialogAutoSelector::buildRows(const Stats::AutoSelectorView &view)
         setCell(row, ColNote, noteText(member));
 
         auto *nameItem = m_table->item(row, ColName);
+        nameItem->setData(Qt::UserRole, member.tag);
         auto font = nameItem->font();
-        if (font.bold() != member.selected) {
+        if (font.bold() != member.selected || font.italic() != member.pinned) {
             font.setBold(member.selected);
+            font.setItalic(member.pinned);
             nameItem->setFont(font);
         }
     }

@@ -5,6 +5,8 @@
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/database/entities/Group.h"
+#include "include/database/entities/Profile.h"
+#include "include/stats/autoselector/AutoSelectorMonitor.hpp"
 #include "include/ui/mainwindow_interface.h"
 
 #include <QFormLayout>
@@ -33,6 +35,26 @@ EditAutoSelector::EditAutoSelector(QWidget *parent) : QWidget(parent), ui(new Ui
     ui->advanced_layout->setColumnStretch(1, 1);
 
     mirrorTooltipsToLabels();
+
+    // Releasing the pin takes effect on the spot rather than on save: the button
+    // only exists when a pin is set, so there is nothing to weigh up, and a
+    // cancelled dialog silently restoring a preference the user just dropped
+    // would be worse than the small inconsistency of writing outside onEnd.
+    connect(ui->pinned_clear, &QPushButton::clicked, this, [this] {
+        m_pinnedID = -1;
+        refreshPinnedRow();
+        if (ent != nullptr) {
+            if (auto outbound = ent->AutoSelector(); outbound != nullptr) {
+                outbound->pinnedID = -1;
+                Configs::dataManager->profilesRepo->Save(ent);
+            }
+        }
+        // The running core holds its own copy, so it has to hear about this too
+        // or nothing visible would happen until the next start.
+        if (Stats::autoSelectorMonitor->Active()) {
+            (void) Stats::autoSelectorMonitor->RequestSelect({});
+        }
+    });
 
     connect(ui->balance, &QCheckBox::toggled, this, [this] { updateBalanceEnabled(); });
     connect(ui->balance_mode, &QComboBox::currentIndexChanged, this, [this] { updateBalanceEnabled(); });
@@ -122,6 +144,8 @@ void EditAutoSelector::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->test_url->setText(outbound->testURL);
     ui->connectivity_url->setText(outbound->connectivityURL);
     ui->interval->setValue(outbound->intervalSec);
+    m_pinnedID = outbound->pinnedID;
+    refreshPinnedRow();
     ui->bench_interval->setValue(outbound->benchIntervalSec);
     ui->watch_interval->setValue(outbound->watchIntervalSec);
     ui->active_size->setValue(outbound->activeSize);
@@ -174,6 +198,7 @@ bool EditAutoSelector::onEnd() {
     outbound->testURL = ui->test_url->text().trimmed();
     outbound->connectivityURL = ui->connectivity_url->text().trimmed();
     outbound->intervalSec = ui->interval->value();
+    outbound->pinnedID = m_pinnedID;
     outbound->benchIntervalSec = ui->bench_interval->value();
     outbound->watchIntervalSec = ui->watch_interval->value();
     outbound->activeSize = ui->active_size->value();
@@ -199,6 +224,24 @@ bool EditAutoSelector::onEnd() {
     }
     outbound->pool = pool;
     return true;
+}
+
+// The whole row disappears when nothing is pinned: an auto selector is
+// automatic by default, and a permanently visible "Preferred profile: none"
+// only invites the question of what it is for.
+void EditAutoSelector::refreshPinnedRow() const
+{
+    const bool pinned = m_pinnedID >= 0;
+    ui->pinned_l->setVisible(pinned);
+    ui->pinned_name->setVisible(pinned);
+    ui->pinned_clear->setVisible(pinned);
+    if (!pinned) return;
+
+    auto member = Configs::dataManager->profilesRepo->GetProfile(m_pinnedID);
+    const auto name = member != nullptr && member->outbound != nullptr
+                          ? member->outbound->DisplayName()
+                          : QObject::tr("a profile that no longer exists");
+    ui->pinned_name->setText(tr("%1 — chosen by you, so the selector stays on it while it works").arg(name));
 }
 
 void EditAutoSelector::updateBalanceEnabled() const {

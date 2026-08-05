@@ -33,12 +33,25 @@ private:
     // Widens the dialog to whatever the nine columns actually need.
     void fitToColumns();
 
+    // Pins the group to the highlighted row, or releases the pin. `tag` empty
+    // means "back to automatic".
+    void applySelection(const QString &tag);
+
+    // The member tag behind the highlighted row, empty when nothing is selected.
+    [[nodiscard]] QString highlightedTag() const;
+
     QLabel *m_headline = nullptr;
     QLabel *m_detail = nullptr;
     QLabel *m_footer = nullptr;
     QTableWidget *m_table = nullptr;
     QPushButton *m_recheck = nullptr;
+    QPushButton *m_pin = nullptr;
+    QPushButton *m_release = nullptr;
     QCheckBox *m_onlyProblems = nullptr;
+
+    // What the core last reported as pinned, so the buttons can reflect it
+    // without asking again.
+    QString m_pinnedTag;
 
     int m_sortColumn = 0;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
