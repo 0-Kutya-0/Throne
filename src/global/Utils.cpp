@@ -343,8 +343,14 @@ void HideWindow(QWidget *w) {
 }
 
 void runOnUiThread(const std::function<void()> &callback, bool wait) {
-    // any thread
-    auto thread = mainwindow->thread();
+    // any thread. Targets qApp's thread rather than mainwindow's: they are the
+    // same thread, but qApp exists for the whole of main() while mainwindow stays
+    // null until UI_InitMainWindow(). Background work started before that (e.g.
+    // the traffic-stats rollup) can report errors through here, and dereferencing
+    // the null mainwindow crashed the worker thread.
+    auto *app = QCoreApplication::instance();
+    if (app == nullptr) return;
+    auto thread = app->thread();
     if (thread == QThread::currentThread()) {
         callback();
         return;

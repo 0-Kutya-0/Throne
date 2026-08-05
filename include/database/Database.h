@@ -47,6 +47,11 @@ namespace Configs {
     // Run WAL checkpoint after this many write operations (exec or batch chunk).
     constexpr int WAL_CHECKPOINT_AFTER_WRITES = 10000;
 
+    // How long a statement waits for a competing writer's lock before SQLITE_BUSY
+    // is raised. SQLiteCpp defaults to 0, i.e. transient contention fails instantly
+    // and surfaces as an exception.
+    constexpr int BUSY_TIMEOUT_MS = 5000;
+
     // Reclaim free-list pages with a one-time VACUUM at startup when the file has
     // accumulated significant dead space (SQLite never returns freed pages to the
     // OS on its own without auto_vacuum). Both thresholds must be met, so we never
@@ -79,7 +84,7 @@ namespace Configs {
         void execBatchReplaceProfilesChunk(const std::vector<ProfileInsertRow>& rows);
     public:
         Database(const std::string& path)
-            : db(path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE) {
+            : db(path, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE, BUSY_TIMEOUT_MS) {
             db.exec("PRAGMA foreign_keys = ON");
             db.exec("PRAGMA journal_mode = WAL");
             db.exec("PRAGMA synchronous = NORMAL");

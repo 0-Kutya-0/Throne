@@ -10,7 +10,6 @@
 #include <QApplication>
 #include <QDir>
 #include <QDateTime>
-#include <QMessageBox>
 
 typedef BOOL(WINAPI *MINIDUMPWRITEDUMP)(
     HANDLE hProcess,
@@ -55,15 +54,19 @@ LONG __stdcall CreateCrashHandler(EXCEPTION_POINTERS *pException) {
                 dumpText = "";
             }
             // 创建消息提示
-            QMessageBox::critical(NULL, "Application crashed",
-                                 QString("ErrorCode: %1 ErrorAddr:%2 ErrorFlag: %3 ErrorPara: %4\nVersion: %5\nDump file at %6")
+            // Win32 MessageBox rather than QMessageBox: this filter runs on
+            // whichever thread faulted, and constructing a QWidget off the GUI
+            // thread faults again inside the handler, which re-enters the filter
+            // and recurses.
+            const QString msg = QString("ErrorCode: %1 ErrorAddr:%2 ErrorFlag: %3 ErrorPara: %4\nVersion: %5\nDump file at %6")
                                      .arg(errCode)
                                      .arg(errAddr)
                                      .arg(errFlag)
                                      .arg(errPara)
                                      .arg(NKR_VERSION)
-                                     .arg(dumpText),
-                                 QMessageBox::Ok);
+                                     .arg(dumpText);
+            MessageBoxW(NULL, reinterpret_cast<LPCWSTR>(msg.utf16()), L"Application crashed",
+                        MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
         }
     }
     return EXCEPTION_EXECUTE_HANDLER;
