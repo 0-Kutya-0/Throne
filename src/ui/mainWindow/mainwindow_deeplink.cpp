@@ -287,7 +287,7 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
             }
         }
         if (changed(MwArg::DisableAdmin)) {
-            AutoRun_FixPrivilegeIfNeeded();
+            AutoRun_FixTaskIfNeeded();
         }
         if (changed(MwArg::ProfileListDisplay)) {
             // The security suffix changes the Type column's width; drop its

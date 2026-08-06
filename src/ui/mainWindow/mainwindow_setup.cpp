@@ -139,8 +139,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         });
     };
 
-    // handle AutoRun migration and privilege matching
-    AutoRun_FixPrivilegeIfNeeded();
+    // handle AutoRun migration and stale task settings
+    AutoRun_FixTaskIfNeeded();
     AutoRun_MigrateIfNeeded();
 
     // register the throne:// URL scheme and the config file handler (self-heals if
