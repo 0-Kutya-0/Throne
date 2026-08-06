@@ -41,7 +41,7 @@
    so the widest button in any language is the tight one -- its text runs closest
    to the arrow. It fits because the drawn chevron only occupies the middle of
    its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to "fix" this: that widens
+   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
    all five for a gap only one of them ever needs (#1665). If a future
    translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
@@ -90,7 +90,7 @@ QToolButton::menu-indicator {
    so the widest button in any language is the tight one -- its text runs closest
    to the arrow. It fits because the drawn chevron only occupies the middle of
    its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to "fix" this: that widens
+   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
    all five for a gap only one of them ever needs (#1665). If a future
    translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
@@ -139,7 +139,7 @@ QToolButton::menu-indicator {
    so the widest button in any language is the tight one -- its text runs closest
    to the arrow. It fits because the drawn chevron only occupies the middle of
    its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to "fix" this: that widens
+   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
    all five for a gap only one of them ever needs (#1665). If a future
    translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
@@ -188,7 +188,7 @@ QToolButton::menu-indicator {
    so the widest button in any language is the tight one -- its text runs closest
    to the arrow. It fits because the drawn chevron only occupies the middle of
    its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to "fix" this: that widens
+   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
    all five for a gap only one of them ever needs (#1665). If a future
    translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
@@ -237,7 +237,7 @@ QToolButton::menu-indicator {
    so the widest button in any language is the tight one -- its text runs closest
    to the arrow. It fits because the drawn chevron only occupies the middle of
    its 16px subcontrol box, leaving ~14px clear at the button edge against the
-   label's ~14.5px of slack. Don't pad the buttons to "fix" this: that widens
+   label's ~14.5px of slack. Don't pad the buttons to &quot;fix&quot; this: that widens
    all five for a gap only one of them ever needs (#1665). If a future
    translation looks cramped here, check that label first. */
 QToolButton::menu-indicator {
@@ -749,14 +749,6 @@ QTabBar::tab:selected {
     <property name="title">
      <string>Program</string>
     </property>
-    <widget class="QMenu" name="menu_spmode">
-     <property name="title">
-      <string>System Proxy</string>
-     </property>
-     <addaction name="menu_spmode_system_proxy"/>
-     <addaction name="menu_spmode_vpn"/>
-     <addaction name="menu_spmode_disabled"/>
-    </widget>
     <addaction name="actionHide_window"/>
     <addaction name="separator"/>
     <addaction name="menu_add_from_input"/>
@@ -767,7 +759,6 @@ QTabBar::tab:selected {
     <addaction name="actionStart_with_system"/>
     <addaction name="actionRemember_last_proxy"/>
     <addaction name="actionAllow_LAN"/>
-    <addaction name="menu_spmode"/>
     <addaction name="separator"/>
     <addaction name="actionRestart_Proxy"/>
     <addaction name="actionRestart_Program"/>
@@ -823,6 +814,13 @@ QTabBar::tab:selected {
     <property name="title">
      <string>Hidden menu</string>
     </property>
+    <widget class="QMenu" name="menu_spmode">
+     <property name="title">
+      <string>Operation Mode</string>
+     </property>
+     <addaction name="menu_spmode_system_proxy"/>
+     <addaction name="menu_spmode_vpn"/>
+    </widget>
     <addaction name="menu_update_subscription"/>
     <addaction name="menu_resolve_domain"/>
     <addaction name="menu_remove_invalid"/>
@@ -833,6 +831,7 @@ QTabBar::tab:selected {
     <addaction name="actionSpeedtest_Group"/>
     <addaction name="actionResolve_Out_IP"/>
     <addaction name="actionRefresh_Column_Widths"/>
+    <addaction name="menu_spmode"/>
    </widget>
    <widget class="QMenu" name="menuRouting_Menu">
     <property name="title">
@@ -1015,7 +1014,7 @@ QTabBar::tab:selected {
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Enable System Proxy</string>
+    <string>System Proxy</string>
    </property>
   </action>
   <action name="menu_spmode_disabled">
@@ -1140,7 +1139,7 @@ QTabBar::tab:selected {
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Enable Tun</string>
+    <string>Tun Mode</string>
    </property>
   </action>
   <action name="menu_clone">

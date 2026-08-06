@@ -711,7 +711,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     trayMenu->addAction(ui->actionAllow_LAN);
     trayMenu->addSeparator();
 
-    auto *actSelectServer = new QAction(tr("Select Server"), trayMenu);
+    auto *actSelectServer = new QAction(tr("Select Profile"), trayMenu);
     connect(actSelectServer, &QAction::triggered, this, [this]() { openTraySelector(false); });
     trayMenu->addAction(actSelectServer);
     auto *actSelectRouting = new QAction(tr("Select Routing"), trayMenu);
@@ -722,7 +722,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         auto* traySpmodeMenu = new QMenu(ui->menu_spmode->title(), trayMenu);
         traySpmodeMenu->addAction(ui->menu_spmode_system_proxy);
         traySpmodeMenu->addAction(ui->menu_spmode_vpn);
-        traySpmodeMenu->addAction(ui->menu_spmode_disabled);
         connect(traySpmodeMenu, &QMenu::aboutToShow, this, [=,this]() {
             ui->menu_spmode_disabled->setChecked(!(Configs::dataManager->settingsRepo->spmode_system_proxy || Configs::dataManager->settingsRepo->spmode_vpn));
             ui->menu_spmode_system_proxy->setChecked(Configs::dataManager->settingsRepo->spmode_system_proxy);
