@@ -49,6 +49,7 @@ namespace Configs_sys {
 }
 
 class TrayProfileSelector;
+class TestRunner;
 
 namespace Qv2ray::ui { class SyntaxHighlighter; }
 
@@ -63,6 +64,17 @@ enum class RefreshAnchor {
     KeepPlace,
     // As above, but if all of them were deleted select whatever took their row.
     Removal,
+};
+
+// What the app launches in place of itself once on_menu_exit_triggered() has torn
+// it down. Doubles as get_elevated_permissions()'s reason: on Windows that exits
+// and relaunches elevated with the matching flag.
+enum class ExitReason {
+    None,
+    RunUpdater,
+    Restart,
+    RestartWithTun,
+    RestartWithDns,
 };
 
 class MainWindow : public QMainWindow {
@@ -104,7 +116,7 @@ public:
 
     void set_spmode_vpn(bool enable, bool save = true);
 
-    bool get_elevated_permissions(int reason = 3);
+    bool get_elevated_permissions(ExitReason reason = ExitReason::RestartWithTun);
 
     void start_select_mode(QObject *context, const std::function<void(int)> &callback);
 
@@ -216,17 +228,9 @@ private:
     void openTraySelector(bool routing);
     QShortcut *shortcut_esc = new QShortcut(QKeySequence::Cancel, this);
     //
+    // Shared by the test sweeps and the batch profile scans (remove-invalid).
     QThreadPool *parallelCoreCallPool = new QThreadPool(this);
-    std::atomic<bool> stopSpeedtest = false;
-    QMutex speedtestRunning;
-    std::atomic<bool> currentUnderTest = false;
-    // Speed-test byte accounting. Tests bypass the clash tracker (they dial the
-    // outbound directly), so their traffic is counted only here: the core reports
-    // each test's cumulative bytes, and we diff against the last reported value
-    // per outbound tag to credit the delta. Guarded so the live micro-poll and
-    // the final reconciliation pass don't race.
-    QMutex speedtestCreditMu_;
-    QHash<QString, QPair<qint64, qint64>> speedtestCredited_;
+    std::unique_ptr<TestRunner> testRunner;
     //
     Configs_sys::CoreProcess *core_process = nullptr;
     QMutex coreProcessMutex; // serializes core_process init (DS_cores) vs IPC newConnection (UI)
@@ -257,7 +261,7 @@ private:
     QMutex mu_starting;
     QMutex mu_stopping;
     QMutex mu_exit;
-    int exit_reason = 0;
+    ExitReason exit_reason = ExitReason::None;
     //
     QMutex mu_download_update;
     //
@@ -268,7 +272,8 @@ private:
     SpeedWidget *speedChartWidget;
     //
     // for data view
-    QDateTime lastUpdated = QDateTime::currentDateTime();
+    // Repaint throttle, in ms since epoch. Atomic: worker threads drive it too.
+    std::atomic<qint64> lastUpdatedMs = QDateTime::currentMSecsSinceEpoch();
     DataViewHtmlGenerator dataViewHtmlGenerator_;
 
     // shortcuts
@@ -438,8 +443,6 @@ private:
 
     bool verify_core_pid(QLocalSocket *socket);
 
-    void urltest_current_group(const QList<int>& profileIDs);
-
     // Measures the members of an auto selector that have no test result yet
     // (plus `stale`, whose stored result is known to be out of date) and
     // rewrites its ranked pool. Blocks — call from a worker thread.
@@ -458,14 +461,6 @@ private:
     // Guards the re-entrant profile_start used to rank before building.
     bool auto_selector_ranked = false;
 
-    void iptest_current_group(const QList<int>& profileIDs);
-
-    void stopTests();
-
-    void runURLTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID = -1);
-
-    void runIPTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID = -1);
-
     // If `error` reports missing Xray geo assets (geoip.dat / geosite.dat), prompt
     // once (guarded by m_xrayGeoAssetBusy) and download the missing .dat files in
     // the background. Shared by profile start and the test paths. `contextName` is
@@ -475,10 +470,6 @@ private:
 
     void url_test_current();
 
-    void speedtest_current_group(const QList<int>& profileIDs, bool testCurrent = false);
-
-    void runSpeedTest(const QString& config, const QString& xrayConfig, const QStringList& xrayFullConfigs, bool useDefault, bool testCurrent, const QStringList& outboundTags, const QMap<QString, int>& tag2entID, int entID = -1);
-
     bool set_system_dns(bool set, bool save_set = true);
 
     void CheckUpdate();
@@ -487,17 +478,9 @@ private:
 
     void setupConnectionSortMenu();
 
-    void querySpeedtest(const QMap<QString, int>& tag2entID, bool testCurrent);
-
-    // Credit the delta between a test's cumulative bytes (curUp/curDown) and the
-    // last reported values for `tag`. Feeds the time-series stats (the tested
-    // config + a synthetic "Speedtest" app) and the legacy per-profile total.
-    // Speed tests bypass the clash tracker, so the looper never sees these bytes;
-    // this is the only place they are counted, for both a selected-profile test
-    // and a current-instance test.
-    void creditSpeedtestTraffic(const std::shared_ptr<Configs::Profile>& profile, const QString& tag, qint64 curUp, qint64 curDown);
-
-    void queryCountryTest(const QMap<QString, int>& tag2entID, bool testCurrent);
+    // The window's own component, not an outside caller: it drives the data
+    // view, the profile table and the geo-asset prompt while a sweep runs.
+    friend class TestRunner;
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;

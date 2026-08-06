@@ -71,6 +71,13 @@ namespace API {
 
         static constexpr int kIOTimeoutMs = 30000;
 
+    public:
+        // Call() status. Anything non-zero is a failed RPC.
+        static constexpr int CallOK = 0;
+        static constexpr int CallNotConnected = -1919;
+
+    private:
+
         // Called on io_thread via readyRead
         void onReadyRead() {
             if (sock == nullptr) return;
@@ -183,10 +190,9 @@ namespace API {
             connected_.store(true, std::memory_order_release);
         }
 
-        // Returns 0 on success, non-zero on failure.
         int Call(const QString &methodName, const std::string &req,
                  std::vector<uint8_t> &rsp, int timeout_ms = 0) {
-            if (!connected_.load(std::memory_order_acquire)) return -1919;
+            if (!connected_.load(std::memory_order_acquire)) return CallNotConnected;
 
             const int ms = (timeout_ms > 0) ? timeout_ms : kIOTimeoutMs;
 
@@ -294,8 +300,6 @@ namespace API {
         channel->Reconnect(socket);
     }
 
-#define CALL_OK 0
-
 #define NOT_OK      \
     *rpcOK = false; \
     MW_show_log(QString("IPC call failed (code %1)\n").arg(status));
@@ -305,7 +309,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("Start", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return QString::fromStdString(reply.error.value());
         } else {
@@ -320,7 +324,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("Stop", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return QString::fromStdString(reply.error.value());
         } else {
@@ -335,7 +339,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("QueryStats", spb::pb::serialize<std::string>(request), resp, 500);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             return reply;
         }
         return {};
@@ -346,7 +350,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("Test", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -362,7 +366,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("StopTest", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK) {
+        if (status == LocalSocketChannel::CallOK) {
             *rpcOK = true;
         } else {
             NOT_OK
@@ -376,7 +380,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("QueryURLTest", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -390,7 +394,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("IPTest", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -407,7 +411,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("QueryIPTest", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -422,7 +426,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("GetDefaultInterface", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -437,7 +441,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("QueryAutoSelectors", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -456,7 +460,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("AutoSelectorAction", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return QString::fromStdString(reply.error.value());
         } else {
@@ -470,7 +474,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("SetSystemDNS", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK) {
+        if (status == LocalSocketChannel::CallOK) {
             *rpcOK = true;
             return "";
         } else {
@@ -486,10 +490,10 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("QueryConnections", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             return reply;
         }
-        if (status != CALL_OK) MW_show_log("Failed to query connections: IPC error");
+        if (status != LocalSocketChannel::CallOK) MW_show_log("Failed to query connections: IPC error");
         return {};
     }
 
@@ -508,7 +512,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("CheckConfig", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply))
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply))
         {
             *rpcOK = true;
             return QString::fromStdString(reply.error.value());
@@ -526,7 +530,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("IsPrivileged", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply))
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply))
         {
             *rpcOK = true;
             return reply.has_privilege.value();
@@ -543,7 +547,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("SpeedTest", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -561,7 +565,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("QuerySpeedTest", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -577,7 +581,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("QueryCountryTest", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {
@@ -593,7 +597,7 @@ namespace API {
         std::vector<uint8_t> resp;
         auto status = channel->Call("GenWgKeyPair", spb::pb::serialize<std::string>(request), resp);
 
-        if (status == CALL_OK && tryDeserialize(resp, reply)) {
+        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
             return reply;
         } else {

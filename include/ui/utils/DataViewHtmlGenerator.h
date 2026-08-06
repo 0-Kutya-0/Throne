@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QMutex>
 #include "include/global/HTTPRequestHelper.hpp"
 #ifndef Q_MOC_RUN
 #include <core/server/gen/libcore.pb.h>
@@ -61,6 +62,7 @@ public:
 private:
     static QString getProgressBar(long long current, long long total);
 
+    // The *SectionHtml helpers assume buildHtml already holds mu_.
     QString downloadSectionHtml();
 
     QString speedtestSectionHtml();
@@ -69,10 +71,14 @@ private:
 
     QString autoSelectorSectionHtml();
 
+    // Pool threads seed panels while buildHtml reads them; QStrings need more
+    // than the atomic counter below.
+    mutable QMutex mu_;
+
     DownloadPanelState download_ = {};
     SpeedtestPanelState speedtest_ = {};
     LatencyTestPanelState latencyTest_ = {};
     AutoSelectorPanelState autoSelector_ = {};
 
-    std::atomic<int> testProgress;
+    std::atomic<int> testProgress{0};
 };

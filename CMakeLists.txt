@@ -123,8 +123,21 @@ set(PROJECT_SOURCES
         src/ui/setting/ThemeManager.cpp
         src/ui/setting/Icon.cpp
 
-        src/ui/mainwindow_rpc.cpp
-        src/ui/mainwindow.cpp
+        src/ui/mainWindow/mainwindow_setup.cpp
+        src/ui/mainWindow/mainwindow_events.cpp
+        src/ui/mainWindow/mainwindow_groups.cpp
+        src/ui/mainWindow/mainwindow_view.cpp
+        src/ui/mainWindow/mainwindow_connections.cpp
+        src/ui/mainWindow/mainwindow_profiles.cpp
+        src/ui/mainWindow/mainwindow_deeplink.cpp
+        src/ui/mainWindow/mainwindow_system.cpp
+        src/ui/mainWindow/mainwindow_log.cpp
+        src/ui/mainWindow/mainwindow_hotkeys.cpp
+        src/ui/mainWindow/mainwindow_profile_lifecycle.cpp
+        src/ui/mainWindow/mainwindow_autoselector.cpp
+        src/ui/mainWindow/TestRunner.cpp
+        include/ui/mainWindow/MainWindowInternal.h
+        include/ui/mainWindow/TestRunner.h
         include/ui/mainwindow.h
         include/ui/mainwindow.ui
         include/ui/widget/StartStopButton.hpp

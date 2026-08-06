@@ -4,11 +4,13 @@
 #include "include/global/Configs.hpp"
 
 void DataViewHtmlGenerator::setDownloadReport(const DownloadProgressReport &report, bool show) {
+    QMutexLocker lk(&mu_);
     download_.visible = show;
     download_.report = report;
 }
 
 void DataViewHtmlGenerator::seedSpeedTest(int totalProfiles) {
+    QMutexLocker lk(&mu_);
     testProgress.store(0);
     Configs::dataManager->settingsRepo->speed_test_mode == Configs::TestConfig::COUNTRY ? speedtest_.kind = SpeedtestPanelState::Kind::Country : speedtest_.kind = SpeedtestPanelState::Kind::Speed;
     speedtest_.totalProfiles = totalProfiles;
@@ -16,6 +18,7 @@ void DataViewHtmlGenerator::seedSpeedTest(int totalProfiles) {
 }
 
 void DataViewHtmlGenerator::setSpeedtestProgress(const QString &profileName, const libcore::SpeedTestResult &result) {
+    QMutexLocker lk(&mu_);
     speedtest_.profileName = profileName;
     speedtest_.dlSpeed = QString::fromStdString(result.dl_speed.value());
     speedtest_.ulSpeed = QString::fromStdString(result.ul_speed.value());
@@ -25,6 +28,7 @@ void DataViewHtmlGenerator::setSpeedtestProgress(const QString &profileName, con
 }
 
 void DataViewHtmlGenerator::seedLatencyTest(LatencyTestPanelState::Kind kind, int totalProfiles) {
+    QMutexLocker lk(&mu_);
     testProgress.store(0);
     latencyTest_.visible = true;
     latencyTest_.kind = kind;
@@ -32,12 +36,14 @@ void DataViewHtmlGenerator::seedLatencyTest(LatencyTestPanelState::Kind kind, in
 }
 
 void DataViewHtmlGenerator::setAutoSelectorStatus(const QString &summary, const QString &detail) {
+    QMutexLocker lk(&mu_);
     autoSelector_.summary = summary;
     autoSelector_.detail = detail;
     autoSelector_.visible = !summary.isEmpty();
 }
 
 void DataViewHtmlGenerator::clearTestSections() {
+    QMutexLocker lk(&mu_);
     latencyTest_ = {};
     speedtest_ = {};
     testProgress.store(0);
@@ -48,6 +54,7 @@ void DataViewHtmlGenerator::addTestProgress(int count) {
 }
 
 QString DataViewHtmlGenerator::buildHtml() {
+    QMutexLocker lk(&mu_);
     QString html;
     if (download_.visible) {
         html += downloadSectionHtml();

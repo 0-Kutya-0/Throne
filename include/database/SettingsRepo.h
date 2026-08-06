@@ -39,7 +39,7 @@ namespace Configs {
         
         // Running (not saved to DB, runtime state only)
         QString core_socket_name = "";
-        int started_id = -1919;
+        int started_id = NoProfileId;
         bool core_running = false;
         bool prepare_exit = false;
         bool spmode_vpn = false;
@@ -153,7 +153,7 @@ namespace Configs {
         // Remember
         bool remember_system_proxy = false;
         bool remember_tun = false;
-        int remember_id = -1919;
+        int remember_id = NoProfileId;
         bool remember_enable = false;
         bool windows_set_admin = false;
         QMap<QString, QKeySequence> shortcuts;
