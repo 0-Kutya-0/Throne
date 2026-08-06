@@ -79,17 +79,17 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     currentRoute = Configs::dataManager->routesRepo->GetRouteProfile(Configs::dataManager->settingsRepo->current_route_id);
     if (currentRoute == nullptr) currentRoute = chainList[0];
 
-    QStringList qsValue = {""};
     QString dnsHelpDocumentUrl;
 
+    // All four strategy pickers share one order; they used to disagree, so the same
+    // position meant "prefer_ipv4" in one and "ipv4_only" in the next.
     ui->default_domain_strategy->addItems(Configs::DomainStrategy::DomainStrategy);
     ui->domainStrategyCombo->addItems(Configs::DomainStrategy::DomainStrategy);
-    qsValue += QString("prefer_ipv4 prefer_ipv6 ipv4_only ipv6_only").split(" ");
     ui->dns_object->setPlaceholderText(DecodeB64IfValid("ewogICJzZXJ2ZXJzIjogW10sCiAgInJ1bGVzIjogW10sCiAgImZpbmFsIjogIiIsCiAgInN0cmF0ZWd5IjogIiIsCiAgImRpc2FibGVfY2FjaGUiOiBmYWxzZSwKICAiZGlzYWJsZV9leHBpcmUiOiBmYWxzZSwKICAiaW5kZXBlbmRlbnRfY2FjaGUiOiBmYWxzZSwKICAicmV2ZXJzZV9tYXBwaW5nIjogZmFsc2UsCiAgImZha2VpcCI6IHt9Cn0="));
     dnsHelpDocumentUrl = "https://sing-box.sagernet.org/configuration/dns/";
 
-    ui->direct_dns_strategy->addItems(qsValue);
-    ui->remote_dns_strategy->addItems(qsValue);
+    ui->direct_dns_strategy->addItems(Configs::DomainStrategy::DomainStrategy);
+    ui->remote_dns_strategy->addItems(Configs::DomainStrategy::DomainStrategy);
     ui->local_override->setText(Configs::dataManager->settingsRepo->core_box_underlying_dns);
     ui->cache_cap->setText(Int2String(Configs::dataManager->settingsRepo->dns_cache_capacity));
     ui->disable_cache->setChecked(Configs::dataManager->settingsRepo->dns_disable_cache);

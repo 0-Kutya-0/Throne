@@ -195,9 +195,18 @@ QString ReadFileText(const QString &path) {
     return stream.readAll();
 }
 
+// A failed listen() leaves serverPort() at 0, which callers would otherwise bake
+// into a config as a port nothing can connect to; retry before giving that slot up.
+static bool listenWithRetry(QTcpServer *server) {
+    for (int attempt = 0; attempt < 3; attempt++) {
+        if (server->listen()) return true;
+    }
+    return false;
+}
+
 int MkPort() {
     QTcpServer s;
-    s.listen();
+    if (!listenWithRetry(&s)) return 0;
     auto port = s.serverPort();
     s.close();
     return port;
@@ -208,7 +217,7 @@ QList<int> MkManyPorts(int num) {
     QList<QTcpServer*> servers;
     for (int i=0;i<num;i++) {
         auto server = new QTcpServer();
-        server->listen();
+        listenWithRetry(server);
         servers.append(server);
         res.append(server->serverPort());
     }

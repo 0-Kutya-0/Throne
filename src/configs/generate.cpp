@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QFileInfo>
+#include <QHostAddress>
 
 
 #include "include/database/GroupsRepo.h"
@@ -133,6 +134,9 @@ namespace Configs {
         struct TunDeps {
             QJsonArray directIPSets;
             QJsonArray directIPCIDRs;
+            // Bypassable private ranges the route profile aims somewhere other than
+            // direct, so the Tun has to carry them itself. See buildInboundSection.
+            QSet<QString> hijackedPrivateRanges;
         };
 
         struct RoutingDeps {
@@ -185,6 +189,17 @@ namespace Configs {
             if (ctx.xrayToSingBridges.size() != ctx.singIngressTags.size())
                 return "xray to sing-box bridges count does not match ingress tags count";
             return {};
+        }
+
+        // Whether two CIDRs share any address. A bare IP counts as a /32 (or /128);
+        // unparseable input and cross-family pairs never overlap.
+        bool prefixesOverlap(const QString &lhs, const QString &rhs) {
+            const auto a = QHostAddress::parseSubnet(lhs);
+            const auto b = QHostAddress::parseSubnet(rhs);
+            if (a.second < 0 || b.second < 0) return false;
+            if (a.first.protocol() != b.first.protocol()) return false;
+            return a.second <= b.second ? b.first.isInSubnet(a.first, a.second)
+                                        : a.first.isInSubnet(b.first, b.second);
         }
 
         // ------------------------------------------------------- json fragments
@@ -554,6 +569,13 @@ namespace Configs {
                 .ruleSets = &preReqs.tun.directIPSets,
                 .ipCIDRs = &preReqs.tun.directIPCIDRs,
             });
+
+            // Which private ranges the profile still needs the Tun to carry.
+            for (const auto &cidr : routeChain->get_hijacked_ips()) {
+                for (const auto &range : tunBypassablePrivateRanges()) {
+                    if (prefixesOverlap(range, cidr)) preReqs.tun.hijackedPrivateRanges << range;
+                }
+            }
 
             // Extra core (single ent OR final hop in a chain)
             auto extraCoreEnt = resolveExtraCoreProfile(ctx.ent);
@@ -941,11 +963,17 @@ namespace Configs {
                 if (settings.vpn_ipv6) tunAddress += tunIPv6CIDR;
                 inboundObj["address"] = tunAddress;
 
+                // sing-tun subtracts route_exclude_address from the routes it installs,
+                // so an excluded range never reaches the core at all — a route rule
+                // aimed at it can never fire (#1741). Loopback and broadcast stay out
+                // unconditionally; the rest are given up only while no rule claims them.
                 QJsonArray routeExcludeAddrs;
-                if (!settings.disable_private_range_bypass) routeExcludeAddrs = {
-                    "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "224.0.0.0/4",
-                    "255.255.255.255/32"
-                };
+                if (!settings.disable_private_range_bypass) {
+                    routeExcludeAddrs = {"127.0.0.0/8", "255.255.255.255/32"};
+                    for (const auto &range : tunBypassablePrivateRanges()) {
+                        if (!tun.hijackedPrivateRanges.contains(range)) routeExcludeAddrs << range;
+                    }
+                }
                 QJsonArray routeExcludeSets;
                 if (settings.enable_tun_routing)
                 {
@@ -1225,6 +1253,10 @@ namespace Configs {
                     return ingressTag;
                 }
                 auto bridgePorts = MkManyPorts(1);
+                if (bridgePorts[0] <= 0) {
+                    ctx.error = "Could not reserve a local port for the custom Xray full config bridge";
+                    return ingressTag;
+                }
                 custom->bridgePort = bridgePorts[0];
                 custom->bridgeAuth = GetRandomString(32);
 
@@ -1257,15 +1289,20 @@ namespace Configs {
             // selector runs this for every member it builds. Only pay for it when a
             // chain actually bridges cores and the caller did not hand us a port.
             QList<int> ports;
+            // A pre-probed 0 means the caller's own probe failed, so re-probe rather
+            // than bake a port nothing can connect to into the config.
             auto bridgePort = [&ports](int given) {
-                if (given >= 0) return given;
+                if (given > 0) return given;
                 if (ports.isEmpty()) ports = MkManyPorts(2);
                 return ports.takeFirst();
             };
             if (ctx.singToXrayTransitioned) {
-                coreBridgeConfig singToXrayBridgeConf = {
-                    true, bridgePort(req.singToXrayPort), GetRandomString(32)
-                };
+                const int port = bridgePort(req.singToXrayPort);
+                if (port <= 0) {
+                    ctx.error = "Could not reserve a local port for the sing-box -> Xray bridge";
+                    return ingressTag;
+                }
+                coreBridgeConfig singToXrayBridgeConf = {true, port, GetRandomString(32)};
                 ctx.singToXrayBridges << singToXrayBridgeConf;
                 auto bridgeEnt = ProfilesRepo::NewProfile("socks");
                 auto socksOutbound = bridgeEnt->Socks();
@@ -1277,7 +1314,12 @@ namespace Configs {
             }
             coreBridgeConfig xrayToSingBridgeConf;
             if (ctx.xrayToSingTransitioned) {
-                xrayToSingBridgeConf = {true, bridgePort(req.xrayToSingPort), GetRandomString(32)};
+                const int port = bridgePort(req.xrayToSingPort);
+                if (port <= 0) {
+                    ctx.error = "Could not reserve a local port for the Xray -> sing-box bridge";
+                    return ingressTag;
+                }
+                xrayToSingBridgeConf = {true, port, GetRandomString(32)};
                 ctx.xrayToSingBridges << xrayToSingBridgeConf;
             }
 
