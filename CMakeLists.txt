@@ -12,7 +12,29 @@ if(MSVC)
     string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools DBus)
+#### Dead code stripping ####
+# link.exe disables /OPT:REF and /OPT:ICF whenever /DEBUG is passed.
+if (MSVC)
+    add_link_options(
+            $<$<NOT:$<CONFIG:Debug>>:/INCREMENTAL:NO>
+            $<$<NOT:$<CONFIG:Debug>>:/OPT:REF>
+            $<$<NOT:$<CONFIG:Debug>>:/OPT:ICF>
+    )
+else ()
+    add_compile_options(-ffunction-sections -fdata-sections)
+    if (APPLE)
+        add_link_options(-Wl,-dead_strip)
+    else ()
+        add_link_options(-Wl,--gc-sections)
+    endif ()
+endif ()
+
+if (UNIX AND NOT APPLE)
+    set(QT_DBUS_COMPONENT DBus)
+    set(QT_DBUS_LIBRARY Qt6::DBus)
+endif ()
+
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools ${QT_DBUS_COMPONENT})
 
 #### Platform Variables ####
 if (APPLE)
@@ -39,6 +61,9 @@ message("[CMAKE_PREFIX_PATH] ${CMAKE_PREFIX_PATH}")
 list(APPEND CMAKE_FIND_ROOT_PATH ${CMAKE_PREFIX_PATH})
 message("[CMAKE_FIND_ROOT_PATH] ${CMAKE_FIND_ROOT_PATH}")
 
+# Must precede every add_subdirectory/add_library below.
+set(BUILD_SHARED_LIBS OFF)
+
 include("cmake/print.cmake")
 include("cmake/nkr.cmake")
 include("cmake/QHotkey.cmake")
@@ -52,7 +77,6 @@ endif ()
 include("cmake/myproto.cmake")
 list(APPEND NKR_EXTERNAL_TARGETS myproto)
 
-set(BUILD_SHARED_LIBS OFF)
 list(APPEND NKR_EXTERNAL_TARGETS qhotkey)
 
 # Sources
@@ -280,13 +304,6 @@ set(PROJECT_SOURCES
         src/ui/profile/edit_ssh.cpp
         include/ui/profile/edit_ssh.h
         include/ui/profile/edit_ssh.ui
-        include/sys/macos/MacOS.h
-
-        src/sys/linux/LinuxCap.cpp
-
-        src/sys/macos/MacOS.cpp
-
-        src/sys/Process.cpp
         include/ui/mainwindow_interface.h
         include/stats/connections/connectionLister.hpp
         src/stats/connectionLister/connectionLister.cpp
@@ -356,21 +373,6 @@ set(PROJECT_SOURCES
         include/ui/stats/dialog_auto_selector.h
         src/ui/stats/dialog_auto_selector.cpp
         include/configs/outbounds/extracore.h
-        include/ui/profile/edit_socks.h
-        src/ui/profile/edit_socks.cpp
-        include/ui/profile/edit_socks.ui
-        include/ui/profile/edit_http.h
-        src/ui/profile/edit_http.cpp
-        include/ui/profile/edit_http.ui
-        include/ui/profile/edit_trojan.h
-        src/ui/profile/edit_trojan.cpp
-        include/ui/profile/edit_trojan.ui
-        include/ui/profile/edit_hysteria.h
-        src/ui/profile/edit_hysteria.cpp
-        include/ui/profile/edit_hysteria.ui
-        include/ui/profile/edit_tuic.h
-        src/ui/profile/edit_tuic.cpp
-        include/ui/profile/edit_tuic.ui
         include/ui/profile/edit_advanced.h
         src/ui/profile/edit_advanced.cpp
         include/ui/profile/edit_advanced.ui
@@ -415,8 +417,6 @@ set(PROJECT_SOURCES
 
         include/database/SettingsRepo.h
         src/database/SettingsRepo.cpp
-        include/sys/linux/systemChecks.h
-        src/sys/linux/systemChecks.cpp
         include/configs/sub/warp.h
         src/configs/sub/warp.cpp
         include/global/Common.h
@@ -428,6 +428,9 @@ if (NOT APPLE AND Qt6_VERSION VERSION_GREATER_EQUAL 6.9.0)
     if (WIN32)
         list(APPEND PROJECT_SOURCES res/EmojiFontWin.qrc)
     endif ()
+    # rcc's default threshold leaves these TTFs uncompressed.
+    set_property(SOURCE res/EmojiFont.qrc res/EmojiFontWin.qrc
+            PROPERTY AUTORCC_OPTIONS "--compress-algo;zlib;--compress;9;--threshold;5")
 endif ()
 
 # Qt exe
@@ -502,7 +505,7 @@ target_sources(Throne PRIVATE ${CMAKE_BINARY_DIR}/translations.qrc)
 # Target Link
 
 target_link_libraries(Throne PRIVATE
-        Qt6::Widgets Qt6::Network Qt6::DBus
+        Qt6::Widgets Qt6::Network ${QT_DBUS_LIBRARY}
         Threads::Threads
         ${NKR_EXTERNAL_TARGETS}
         ${PLATFORM_LIBRARIES}

@@ -10,10 +10,7 @@ cp $GITHUB_WORKSPACE/build/Throne $DEST
 #### copy Throne.png ####
 cp $GITHUB_WORKSPACE/res/public/Throne.png $DEST
 
-cd download-artifact
-cd *$DEST_SUFFIX
-tar xvzf artifacts.tgz -C ../../
-cd ../..
+source "$(dirname "$0")/extract_core_artifact.sh"
 
 sudo add-apt-repository universe
 sudo apt install libfuse2

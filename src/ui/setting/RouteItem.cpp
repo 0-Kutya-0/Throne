@@ -4,6 +4,8 @@
 #include "include/global/Configs.hpp"
 #include "include/configs/sub/RouteUpdater.hpp"
 
+#include <srslist.h>
+
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>

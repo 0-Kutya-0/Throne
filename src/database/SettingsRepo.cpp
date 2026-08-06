@@ -1,4 +1,5 @@
 #include "include/database/SettingsRepo.h"
+#include "NkrVersion.h"
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QMutexLocker>

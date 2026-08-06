@@ -14,10 +14,13 @@
 
 
 #include "include/database/entities/Profile.h"
+#ifdef Q_OS_LINUX
 #include "include/sys/linux/systemChecks.h"
+#endif
 
 #include <algorithm>
 #include <string_view>
+#include <srslist.h>
 
 namespace {
     // Single binary search over the sorted ruleSetList — replaces the
@@ -430,10 +433,9 @@ namespace Configs {
             const auto &settings = *dataManager->settingsRepo;
             ctx.tunEnabled = settings.spmode_vpn;
             ctx.os = getOS();
-            if (ctx.os == Linux)
-            {
-                ctx.isResolvedUsed = isSystemdResolvedDefaultResolver();
-            }
+#ifdef Q_OS_LINUX
+            ctx.isResolvedUsed = isSystemdResolvedDefaultResolver();
+#endif
             auto &preReqs = ctx.prerequisites;
 
             // Get route chain

@@ -1,4 +1,5 @@
 #include "include/ui/mainwindow.h"
+#include "NkrVersion.h"
 
 #include <QApplication>
 #include <QHeaderView>

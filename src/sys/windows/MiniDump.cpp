@@ -1,5 +1,6 @@
 #include "include/sys/windows/MiniDump.h"
 #include "include/global/Logger.hpp"
+#include "NkrVersion.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
