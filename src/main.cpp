@@ -289,7 +289,7 @@ int main(int argc, char* argv[]) {
     // Must follow the single-instance check: opening the log earlier truncates
     // the running instance's file and leaves a marker it would report as a crash.
     Logging::Init(configDir);
-    LOG_INFO(QString("elevated: %1, appdata mode: %2").arg(Configs::IsAdmin() ? "yes" : "no").arg(useAppdata ? "yes" : "no"));
+    LOG_INFO(QString("appdata mode: %1").arg(useAppdata ? "yes" : "no"));
 #ifdef Q_OS_WIN
     Windows_SetCrashDumpPath();
     Windows_ConfigureWER();
