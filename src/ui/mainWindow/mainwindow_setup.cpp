@@ -200,7 +200,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // Listen port if random
     if (Configs::dataManager->settingsRepo->random_inbound_port)
     {
-        Configs::dataManager->settingsRepo->inbound_socks_port = MkPort();
+        Configs::dataManager->settingsRepo->inbound_socks_port = MkPort(Configs::dataManager->settingsRepo->inbound_address);
     }
 
     //init HWID data

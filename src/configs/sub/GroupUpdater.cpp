@@ -618,10 +618,25 @@ namespace Subscription {
         }
     }
 
+    // fkYAML picks the input encoding from the first four bytes: a NUL among
+    // them makes it decode the whole document as UTF-16/UTF-32, and those
+    // decoders walk the buffer in fixed strides without an end check, so a body
+    // whose length isn't a multiple of the stride reads out of bounds (#1746).
+    // Well-formed UTF-8 with no NUL byte can match neither a UTF-16/32
+    // signature nor a non-UTF-8 BOM, which pins the parser to its UTF-8 path.
+    // NUL is not a legal YAML stream character anyway, so dropping it here
+    // cannot lose anything a conforming subscription could have sent.
+    std::string sanitizeClashYaml(const QString &str) {
+        QString normalized = str;
+        normalized.remove(QChar(QChar::Null));
+        if (normalized.startsWith(QChar(QChar::ByteOrderMark))) normalized.remove(0, 1);
+        return normalized.toStdString(); // toStdString() == toUtf8(): always well-formed
+    }
+
     void RawUpdater::updateClash(const QString& str)
     {
         try {
-            fkyaml::node node = fkyaml::node::deserialize(str.toStdString());
+            fkyaml::node node = fkyaml::node::deserialize(sanitizeClashYaml(str));
             clash::Clash clash_config = node.get_value<clash::Clash>();
     
             for (const auto& out : clash_config.proxies)
@@ -708,9 +723,18 @@ namespace Subscription {
     
                 updated_order += ent;
             }
-        } catch (const fkyaml::exception &ex) {
+        // Hostile subscription bodies reach the parser here, and it can fail with
+        // more than fkyaml::exception (std::bad_alloc / std::length_error from an
+        // oversized allocation, anything a from_node() overload throws), so catch
+        // broadly rather than letting an import take the app down.
+        } catch (const std::exception &ex) {
+            auto msg = QString::fromUtf8(ex.what());
             runOnUiThread([=] {
-                MessageBoxWarning("YAML Exception", ex.what());
+                MessageBoxWarning("YAML Exception", msg);
+            });
+        } catch (...) {
+            runOnUiThread([] {
+                MessageBoxWarning("YAML Exception", QObject::tr("Failed to parse the Clash configuration."));
             });
         }
     }

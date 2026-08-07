@@ -248,9 +248,17 @@ inline QString DisplayDest(const QString& dest, QString domain)
 
 // Format & Misc
 
-int MkPort();
+// Reserve free TCP ports by binding and releasing them. `address` must be the
+// interface the caller is going to bind, because "is this port free" is a different
+// question per interface — and because listen()'s own default is the dual-stack
+// any-address, which Windows refuses outright on a host with IPv6 disabled. An empty
+// address means any interface. Both return 0 / a 0 entry when no port could be
+// reserved; callers must treat that as an error rather than emit it into a config.
+int MkPort(const QString &address = {});
 
-QList<int> MkManyPorts(int num);
+// Defaults to loopback: every caller reserves ports for the sing-box <-> Xray socks
+// bridges, which listen on 127.0.0.1.
+QList<int> MkManyPorts(int num, const QString &address = "127.0.0.1");
 
 QString DisplayTime(long long time, int formatType = 0);
 

@@ -1254,7 +1254,7 @@ namespace Configs {
                     ctx.error = "Custom Xray full config is not valid JSON";
                     return ingressTag;
                 }
-                auto bridgePorts = MkManyPorts(1);
+                auto bridgePorts = MkManyPorts(1, custom->bridgeHost);
                 if (bridgePorts[0] <= 0) {
                     ctx.error = "Could not reserve a local port for the custom Xray full config bridge";
                     return ingressTag;

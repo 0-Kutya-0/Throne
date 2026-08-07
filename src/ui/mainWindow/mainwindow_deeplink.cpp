@@ -280,7 +280,7 @@ void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {
             else ui->system_dns->hide();
         }
         if (changed(MwArg::ChoosePort)) {
-            settings->inbound_socks_port = MkPort();
+            settings->inbound_socks_port = MkPort(settings->inbound_address);
             if (settings->spmode_system_proxy) {
                 set_spmode_system_proxy(false);
                 set_spmode_system_proxy(true);

@@ -195,29 +195,32 @@ QString ReadFileText(const QString &path) {
     return stream.readAll();
 }
 
-// A failed listen() leaves serverPort() at 0, which callers would otherwise bake
-// into a config as a port nothing can connect to; retry before giving that slot up.
-static bool listenWithRetry(QTcpServer *server) {
+static bool listenWithRetry(QTcpServer *server, const QString &address) {
+    QHostAddress bindAddress;
+    const bool anyInterface = address.isEmpty() || !bindAddress.setAddress(address);
     for (int attempt = 0; attempt < 3; attempt++) {
-        if (server->listen()) return true;
+        if (!anyInterface && server->listen(bindAddress)) return true;
+        if (anyInterface && (server->listen(QHostAddress::Any) || server->listen(QHostAddress::AnyIPv4))) return true;
     }
+    MW_show_log("[Ports] could not reserve a local port on " + (anyInterface ? "any interface" : address) +
+                ": " + server->errorString());
     return false;
 }
 
-int MkPort() {
+int MkPort(const QString &address) {
     QTcpServer s;
-    if (!listenWithRetry(&s)) return 0;
+    if (!listenWithRetry(&s, address)) return 0;
     auto port = s.serverPort();
     s.close();
     return port;
 }
 
-QList<int> MkManyPorts(int num) {
+QList<int> MkManyPorts(int num, const QString &address) {
     QList<int> res;
     QList<QTcpServer*> servers;
     for (int i=0;i<num;i++) {
         auto server = new QTcpServer();
-        listenWithRetry(server);
+        listenWithRetry(server, address);
         servers.append(server);
         res.append(server->serverPort());
     }
