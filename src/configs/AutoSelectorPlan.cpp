@@ -60,14 +60,13 @@ namespace Configs
             if (member->type == "chain" || member->type == "autoselector") return AutoSelectorSkip::MetaType;
             if (member->type == "tailscale") return AutoSelectorSkip::Tailscale;
             if (member->outbound->IsExtraCore()) return AutoSelectorSkip::ExtraCore;
-            // Xray-backed members are fine — each gets its own socks bridge into
-            // the shared sidecar — but a full config wants an Xray instance to
-            // itself, which a pool cannot give it.
-            if (member->outbound->IsXrayFullConfig()) return AutoSelectorSkip::FullConfig;
             if (member->type == "custom") {
                 const auto custom = member->Custom();
                 if (custom == nullptr) return AutoSelectorSkip::Missing;
-                if (custom->type != Custom::CustomOutbound && custom->type != Custom::CustomXrayOutbound) {
+                // Only a sing-box full config is excluded: it wants the whole box,
+                // whereas an Xray one just gets an instance of its own.
+                if (custom->type != Custom::CustomOutbound && custom->type != Custom::CustomXrayOutbound
+                    && custom->type != Custom::CustomXrayFullConfig) {
                     return AutoSelectorSkip::FullConfig;
                 }
                 // Members share one config, and the Xray ones share a single
@@ -107,6 +106,17 @@ namespace Configs
                 inXray = xray;
             }
             return transitions;
+        }
+
+        // chainScanError's rules, applied per member: reaching them through
+        // buildOutboundChain would fail the whole build instead of this one.
+        bool xrayFullConfigFitsChain(const std::shared_ptr<Profile> &landing,
+                                     const std::shared_ptr<Profile> &front)
+        {
+            if (front != nullptr) return false;
+            if (landing == nullptr || landing->outbound == nullptr) return true;
+            return !landing->outbound->IsXray() && !landing->outbound->IsXrayFullConfig()
+                   && !landing->outbound->IsExtraCore();
         }
 
         // Ranking key: measured members first (fastest first), then untested,
@@ -170,7 +180,12 @@ namespace Configs
                     skips[skip]++;
                     continue;
                 }
-                if (coreTransitions(landing, member, front) > 2) {
+                if (member->outbound->IsXrayFullConfig()) {
+                    if (!xrayFullConfigFitsChain(landing, front)) {
+                        skips[AutoSelectorSkip::XrayFullChained]++;
+                        continue;
+                    }
+                } else if (coreTransitions(landing, member, front) > 2) {
                     skips[AutoSelectorSkip::CoreTransitions]++;
                     continue;
                 }
@@ -225,6 +240,8 @@ namespace Configs
             case AutoSelectorSkip::NameFilter: return QObject::tr("filtered out by name");
             case AutoSelectorSkip::CountryFilter: return QObject::tr("filtered out by country");
             case AutoSelectorSkip::Unavailable: return QObject::tr("last test failed");
+            case AutoSelectorSkip::XrayFullChained:
+                return QObject::tr("Xray full config cannot be combined with the group's proxies");
             default: return {};
         }
     }

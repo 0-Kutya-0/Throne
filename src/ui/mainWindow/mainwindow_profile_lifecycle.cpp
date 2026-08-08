@@ -238,16 +238,20 @@ void MainWindow::profile_start(int _id) {
         req.disable_stats = Configs::dataManager->settingsRepo->disable_traffic_stats;
         req.xray_config = QJsonObject2QString(result->xrayConfig, true).toStdString();
         req.need_xray = !result->xrayConfig.isEmpty();
-        if (req.need_xray) {
+        for (const auto &full : result->xrayFullConfigs) req.xray_full_configs.push_back(full.toStdString());
+        if (req.need_xray || !req.xray_full_configs.empty()) {
             // Resolution is wired in the core (ThroneWiring), not baked into the config: point
             // it at sing-box's loopback DNS-in. Test instances leave these empty.
             req.xray_outbound_dns_address = ("127.0.0.1:" + QString::number(Configs::dataManager->settingsRepo->core_dns_in_port)).toStdString();
             req.xray_outbound_dns_strategy = Configs::getXrayOutboundDomainStrategy().toStdString();
-            // A pool's Xray members may be probe-only, so let the sidecar stay cold between
-            // dials. The idle window must outlast the probe interval or it restarts every round.
             if (auto selector = ent->AutoSelector(); selector != nullptr) {
+                // A pool's Xray members may be probe-only, so let the sidecar stay cold between
+                // dials. The idle window must outlast the probe interval or it restarts every round.
                 req.xray_lazy_start = true;
                 req.xray_idle_seconds = std::max(120, selector->intervalSec * 2);
+                // Resident on purpose: recycling would only put an instance build in
+                // front of every failover.
+                req.xray_full_idle_seconds = 0;
             }
         }
         if (!result->extraCoreData->path.isEmpty())

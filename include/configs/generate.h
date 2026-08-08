@@ -33,6 +33,8 @@ namespace Configs
         QString tunIPv4CIDR;
         bool isXrayNeeded = false;
         QJsonObject xrayConfig;
+        // Opaque full configs, one instance each; never merged into xrayConfig.
+        QStringList xrayFullConfigs;
         std::shared_ptr<ExtraCoreData> extraCoreData = std::make_shared<ExtraCoreData>();
 
         QList<TrafficChainGroup> chainGroups;

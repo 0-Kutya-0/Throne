@@ -17,12 +17,13 @@ namespace Configs
         MetaType,        // chain / another auto selector — no nesting
         CoreTransitions, // group's landing/front proxies push it past one core handoff
         ExtraCore,       // runs its own process
-        FullConfig,      // custom/Xray full config: its own box
+        FullConfig,      // sing-box full config: its own box
         Malformed,       // config does not parse; would break the shared build
         Tailscale,
         NameFilter,
         CountryFilter,
-        Unavailable, // last test failed and the profile excludes those
+        Unavailable,      // last test failed and the profile excludes those
+        XrayFullChained,  // Xray full config + the group's landing/front proxies
     };
 
     QString AutoSelectorSkipReason(AutoSelectorSkip skip);

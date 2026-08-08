@@ -205,6 +205,80 @@ namespace Configs {
                                         : a.first.isInSubnet(b.first, b.second);
         }
 
+        // A network prefix in raw byte form, so v4 and v6 share the splitting below.
+        struct RawPrefix {
+            QByteArray addr;
+            int bits = -1;
+        };
+
+        RawPrefix parsePrefix(const QString &cidr) {
+            const auto parsed = QHostAddress::parseSubnet(cidr);
+            if (parsed.second < 0) return {};
+            RawPrefix prefix;
+            prefix.bits = parsed.second;
+            if (parsed.first.protocol() == QAbstractSocket::IPv4Protocol) {
+                const auto v4 = parsed.first.toIPv4Address();
+                prefix.addr.resize(4);
+                for (int i = 0; i < 4; ++i) prefix.addr[i] = char((v4 >> (24 - 8 * i)) & 0xFF);
+            } else if (parsed.first.protocol() == QAbstractSocket::IPv6Protocol) {
+                const auto v6 = parsed.first.toIPv6Address();
+                prefix.addr = QByteArray(reinterpret_cast<const char *>(v6.c), 16);
+            } else {
+                return {};
+            }
+            return prefix;
+        }
+
+        QString prefixToString(const RawPrefix &prefix) {
+            QHostAddress addr;
+            if (prefix.addr.size() == 4) {
+                quint32 v4 = 0;
+                for (int i = 0; i < 4; ++i) v4 = (v4 << 8) | quint8(prefix.addr[i]);
+                addr = QHostAddress(v4);
+            } else {
+                Q_IPV6ADDR v6;
+                for (int i = 0; i < 16; ++i) v6[i] = quint8(prefix.addr[i]);
+                addr = QHostAddress(v6);
+            }
+            return addr.toString() + "/" + QString::number(prefix.bits);
+        }
+
+        bool prefixContains(const RawPrefix &outer, const RawPrefix &inner) {
+            if (outer.bits < 0 || inner.bits < 0) return false;
+            if (outer.addr.size() != inner.addr.size() || outer.bits > inner.bits) return false;
+            const int wholeBytes = outer.bits / 8;
+            if (outer.addr.left(wholeBytes) != inner.addr.left(wholeBytes)) return false;
+            const int restBits = outer.bits % 8;
+            if (restBits == 0) return true;
+            const auto mask = quint8(0xFF << (8 - restBits));
+            return (quint8(outer.addr[wholeBytes]) & mask) == (quint8(inner.addr[wholeBytes]) & mask);
+        }
+
+        // sing-tun subtracts every route_exclude_address entry from the routes it installs and
+        // offers no way to add one back, so a range that must stay partly routed is pre-split here.
+        QStringList subtractPrefix(const QStringList &ranges, const QString &hole) {
+            const auto cut = parsePrefix(hole);
+            if (cut.bits < 0) return ranges;
+            QStringList out;
+            for (const auto &entry : ranges) {
+                const auto range = parsePrefix(entry);
+                if (prefixContains(cut, range)) continue;
+                if (!prefixContains(range, cut)) {
+                    out << entry;
+                    continue;
+                }
+                for (int bits = range.bits + 1; bits <= cut.bits; ++bits) {
+                    RawPrefix sibling{cut.addr, bits};
+                    const int flipped = bits - 1;
+                    sibling.addr[flipped / 8] = char(quint8(sibling.addr[flipped / 8]) ^ quint8(0x80 >> (flipped % 8)));
+                    for (int i = bits; i < int(sibling.addr.size()) * 8; ++i)
+                        sibling.addr[i / 8] = char(quint8(sibling.addr[i / 8]) & ~quint8(0x80 >> (i % 8)));
+                    out << prefixToString(sibling);
+                }
+            }
+            return out;
+        }
+
         // ------------------------------------------------------- json fragments
 
         // sing-box matches process_path against the OS-native form.
@@ -970,18 +1044,24 @@ namespace Configs {
                 // aimed at it can never fire (#1741). Loopback and broadcast stay out
                 // unconditionally; the rest are given up only while no rule claims them.
                 QJsonArray routeExcludeAddrs;
+                QStringList excludedRanges;
                 if (!settings.disable_private_range_bypass) {
                     routeExcludeAddrs = {"127.0.0.0/8", "255.255.255.255/32"};
                     for (const auto &range : tunBypassablePrivateRanges()) {
-                        if (!tun.hijackedPrivateRanges.contains(range)) routeExcludeAddrs << range;
+                        if (!tun.hijackedPrivateRanges.contains(range)) excludedRanges << range;
                     }
                 }
                 QJsonArray routeExcludeSets;
                 if (settings.enable_tun_routing)
                 {
-                    for (auto item: tun.directIPCIDRs) routeExcludeAddrs << item;
+                    for (auto item: tun.directIPCIDRs) excludedRanges << item.toString();
                     for (auto item: tun.directIPSets) routeExcludeSets << item;
                 }
+
+                // macOS repoints the system DNS at an address inside the Tun subnet, so bypassing
+                // the range that holds it black-holes every query (#1738).
+                if (ctx.os == Darwin) excludedRanges = subtractPrefix(excludedRanges, tunIPv4CIDR);
+                for (const auto &range : excludedRanges) routeExcludeAddrs << range;
                 inboundObj["route_exclude_address"] = routeExcludeAddrs;
                 if (!routeExcludeSets.isEmpty()) inboundObj["route_exclude_address_set"] = routeExcludeSets;
                 inbounds += inboundObj;
@@ -1227,6 +1307,10 @@ namespace Configs {
             // Pre-probed bridge ports; -1 lets the chain probe its own.
             int singToXrayPort = -1;
             int xrayToSingPort = -1;
+            int xrayFullConfigPort = -1;
+            // Keep only Throne's bridge inbound: sibling configs from one
+            // subscription repeat the same ports and would fail to bind.
+            bool soleXrayInbound = false;
             bool warpWrap = false;
         };
 
@@ -1254,12 +1338,15 @@ namespace Configs {
                     ctx.error = "Custom Xray full config is not valid JSON";
                     return ingressTag;
                 }
-                auto bridgePorts = MkManyPorts(1, custom->bridgeHost);
-                if (bridgePorts[0] <= 0) {
+                // A pre-probed 0 means the caller's probe failed; re-probe rather
+                // than bake in a port nothing can connect to.
+                int port = req.xrayFullConfigPort;
+                if (port <= 0) port = MkManyPorts(1, custom->bridgeHost)[0];
+                if (port <= 0) {
                     ctx.error = "Could not reserve a local port for the custom Xray full config bridge";
                     return ingressTag;
                 }
-                custom->bridgePort = bridgePorts[0];
+                custom->bridgePort = port;
                 custom->bridgeAuth = GetRandomString(32);
 
                 auto bridgeInbound = xraySocksInbound(tags::xrayFullConfigIn,
@@ -1269,7 +1356,8 @@ namespace Configs {
                     {"destOverride", QJsonArray{"http", "tls", "quic"}},
                     {"routeOnly", false}
                 };
-                auto inbounds = ctx.forTest ? QJsonArray() : userXrayConfig["inbounds"].toArray();
+                auto inbounds = (ctx.forTest || req.soleXrayInbound) ? QJsonArray()
+                                                                     : userXrayConfig["inbounds"].toArray();
                 inbounds.prepend(bridgeInbound);
                 userXrayConfig["inbounds"] = inbounds;
 
@@ -1371,8 +1459,12 @@ namespace Configs {
         {
             bool singToXray = false;
             bool xrayToSing = false;
+            bool xrayFullConfig = false;
 
-            [[nodiscard]] int count() const { return (singToXray ? 1 : 0) + (xrayToSing ? 1 : 0); }
+            [[nodiscard]] int count() const
+            {
+                return (singToXray ? 1 : 0) + (xrayToSing ? 1 : 0) + (xrayFullConfig ? 1 : 0);
+            }
         };
 
         memberBridges bridgesFor(const QList<int> &hopIDs)
@@ -1383,6 +1475,7 @@ namespace Configs {
             {
                 auto hop = dataManager->profilesRepo->GetProfile(id);
                 if (hop == nullptr || hop->outbound == nullptr) continue;
+                if (hop->outbound->IsXrayFullConfig()) needed.xrayFullConfig = true;
                 const bool xray = hop->outbound->IsXray();
                 if (xray && !inXray) needed.singToXray = true;
                 if (!xray && inXray) needed.xrayToSing = true;
@@ -1465,14 +1558,30 @@ namespace Configs {
             {
                 const int singToXrayPort = bridges.singToXray ? bridgePorts[portIdx++] : -1;
                 const int xrayToSingPort = bridges.xrayToSing ? bridgePorts[portIdx++] : -1;
+                const int xrayFullConfigPort = bridges.xrayFullConfig ? bridgePorts[portIdx++] : -1;
 
                 const auto tag = buildOutboundChain(ctx, {
                     .hopIDs = hopIDs,
                     .prefix = hopTag(tags::poolChainPrefix, idx),
                     .singToXrayPort = singToXrayPort,
                     .xrayToSingPort = xrayToSingPort,
+                    .xrayFullConfigPort = xrayFullConfigPort,
+                    .soleXrayInbound = bridges.xrayFullConfig,
                 });
                 if (!ctx.error.isEmpty()) return {};
+                // buildOutboundChain has only one xrayConfig slot; drain it per
+                // member so the next one and buildXrayConfig find it empty.
+                if (bridges.xrayFullConfig)
+                {
+                    if (ctx.result->xrayConfig.isEmpty())
+                    {
+                        ctx.error = "Custom Xray full config member produced no Xray config";
+                        return {};
+                    }
+                    ctx.result->xrayFullConfigs << QJsonObject2QString(ctx.result->xrayConfig, false);
+                    ctx.result->xrayConfig = QJsonObject();
+                    ctx.result->isXrayNeeded = false;
+                }
                 memberTags.append(tag);
                 info.members.append({tag, member});
                 if (member->id == selector->pinnedID) pinnedTag = tag;
