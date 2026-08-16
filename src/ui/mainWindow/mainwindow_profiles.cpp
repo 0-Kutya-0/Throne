@@ -87,35 +87,55 @@ void MainWindow::on_menu_clone_triggered() {
 }
 
 void MainWindow::on_menu_delete_repeat_triggered() {
-    QList<std::shared_ptr<Configs::Profile>> out;
-    QList<std::shared_ptr<Configs::Profile>> out_del;
+    const auto group = Configs::dataManager->groupsRepo->CurrentGroup();
+    if (group == nullptr) return;
 
-    // One batch keeps every profile alive for both calls, which is what makes the
-    // by-pointer difference below identify the duplicates.
-    const auto groupProfiles = Configs::dataManager->profilesRepo->GetProfileBatch(
-        Configs::dataManager->groupsRepo->CurrentGroup()->Profiles());
-    Configs::ProfileFilter::Uniq(groupProfiles, out, false);
-    Configs::ProfileFilter::OnlyInSrc_ByPointer(groupProfiles, out, out_del);
+    // A duplicate row is positional: one id can own several rows, and distinct ids
+    // can carry the same config. Walking the id list catches both, where shared_ptr
+    // identity caught neither, since a repeated id resolves to one object (#1775).
+    const auto groupIds = group->Profiles();
+    const auto groupProfiles = Configs::dataManager->profilesRepo->GetProfileBatch(groupIds);
 
+    QList<std::shared_ptr<Configs::Profile>> uniq;
+    Configs::ProfileFilter::Uniq(groupProfiles, uniq, false);
+    QSet<int> keepIds;
+    for (const auto &ent: uniq) keepIds.insert(ent->id);
+
+    QHash<int, std::shared_ptr<Configs::Profile>> byId;
+    for (const auto &ent: groupProfiles) byId.insert(ent->id, ent);
+
+    QList<int> newOrder;
+    QList<int> del_ids;
+    QSet<int> placed;
     int remove_display_count = 0;
     QString remove_display;
-    for (const auto &ent: out_del) {
-        remove_display += ent->outbound->DisplayTypeAndName() + " \n ";
-        if (++remove_display_count == removeListPreviewLimit) {
-            remove_display += " ... ";
-            break;
+    for (int id: groupIds) {
+        const bool repeatedSlot = placed.contains(id);
+        placed.insert(id);
+        if (!repeatedSlot && keepIds.contains(id)) {
+            newOrder += id;
+            continue;
+        }
+        // A repeated slot loses the row but keeps the profile; only a distinct id
+        // carrying an already-seen config is an actual profile to delete.
+        if (!repeatedSlot) del_ids += id;
+        if (const auto ent = byId.value(id); ent != nullptr && remove_display_count < removeListPreviewLimit) {
+            remove_display += ent->outbound->DisplayTypeAndName() + " \n ";
+            if (++remove_display_count == removeListPreviewLimit) remove_display += " ... ";
         }
     }
 
-    if (!out_del.empty() &&
-        (Configs::dataManager->settingsRepo->skip_delete_confirmation || QMessageBox::question(this, tr("Confirmation"), tr("Remove %1 item(s) ?").arg(out_del.length()) + "\n" + remove_display) == QMessageBox::StandardButton::Yes)) {
-        QList<int> del_ids;
-        for (const auto &ent: out_del) {
-            del_ids += ent->id;
-        }
-        Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids, true);
-        refresh_proxy_list({}, true, RefreshAnchor::Removal);
+    const auto removed_rows = groupIds.size() - newOrder.size();
+    if (removed_rows == 0) return;
+    if (!Configs::dataManager->settingsRepo->skip_delete_confirmation &&
+        QMessageBox::question(this, tr("Confirmation"), tr("Remove %1 item(s) ?").arg(removed_rows) + "\n" + remove_display) != QMessageBox::StandardButton::Yes) {
+        return;
     }
+
+    group->profiles = newOrder;
+    Configs::dataManager->groupsRepo->Save(group);
+    if (!del_ids.isEmpty()) Configs::dataManager->profilesRepo->BatchDeleteProfiles(del_ids, true);
+    refresh_proxy_list({}, true, RefreshAnchor::Removal);
 }
 
 void MainWindow::on_menu_delete_triggered() {
