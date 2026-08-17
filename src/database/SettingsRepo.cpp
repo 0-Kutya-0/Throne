@@ -70,6 +70,9 @@ namespace Configs {
             {"dns_disable_expire", &dns_disable_expire},
             {"dns_reverse_mapping", &dns_reverse_mapping},
             {"disable_private_range_bypass", &disable_private_range_bypass},
+            {"dns_optimistic", &dns_optimistic},
+            {"dns_use_hosts", &dns_use_hosts},
+            {"dns_predefined_enable", &dns_predefined_enable},
         };
 
         intMap = {
@@ -147,6 +150,8 @@ namespace Configs {
             {"direct_dns",                 &direct_dns},
             {"direct_dns_strategy",        &direct_dns_strategy},
             {"dns_object",                 &dns_object},
+            {"dns_optimistic_timeout",     &dns_optimistic_timeout},
+            {"dns_query_timeout",          &dns_query_timeout},
             {"dns_final_out",              &dns_final_out},
             {"domain_strategy",            &resolve_domain_strategy},
             {"outbound_domain_strategy",   &default_domain_strategy},
@@ -161,6 +166,7 @@ namespace Configs {
 
         stringListMap = {
             {"dns_server_rules",         &dns_server_rules},
+            {"dns_predefined_rules",     &dns_predefined_rules},
             {"extra_core_paths",         &extraCorePaths},
             {"log_include_keyword",      &log_include_keyword},
             {"log_include_regex",        &log_include_regex},

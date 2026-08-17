@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QFileInfo>
 #include <QHostAddress>
+#include <QRegularExpression>
 
 
 #include "include/database/GroupsRepo.h"
@@ -47,6 +48,7 @@ namespace Configs {
             constexpr auto dnsLocal = "dns-local";
             constexpr auto dnsFake = "dns-fake";
             constexpr auto dnsTailscale = "dns-tailscale";
+            constexpr auto dnsHosts = "dns-hosts";
 
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
@@ -805,6 +807,8 @@ namespace Configs {
             bool independentCache = false;
             QJsonArray servers;
             QJsonArray rules;
+            // Merged in front of `rules` at the end; the tailscale block below prepends.
+            QJsonArray headRules;
             // remote
             if (!ctx.forTest) {
                 auto remoteDnsObj = buildDnsObj(ctx, settings.remote_dns);
@@ -862,22 +866,52 @@ namespace Configs {
             directDnsObj["domain_resolver"] = tags::dnsLocal;
             servers.append(directDnsObj);
 
-            // Handle localhost
-            if (!ctx.forTest) {
-                rules += QJsonObject{
-                        {"domain", "localhost"},
-                        {"action", "predefined"},
-                        {"query_type", "A"},
-                        {"rcode", "NOERROR"},
-                        {"answer", "localhost. IN A 127.0.0.1"},
-                    };
+            // Predefined
+            if (!ctx.forTest && settings.dns_predefined_enable) {
+                QList<PredefinedDNSEntry> predefined;
+                if (!ParsePredefinedDNS(settings.dns_predefined_rules, predefined)) predefined.clear();
 
-                rules += QJsonObject{
-                        {"domain", "localhost"},
+                // "*." is rewritten to the queried name by the core; a literal owner would have to parse as a zone name.
+                auto emitFamily = [&](const QString &domain, const QStringList &addrs, const QString &type) {
+                    // Refused rather than passed through, else the other family defeats the override.
+                    if (addrs.isEmpty()) {
+                        headRules += QJsonObject{
+                            {"domain", domain},
+                            {"action", "predefined"},
+                            {"query_type", type},
+                            {"rcode", "NXDOMAIN"},
+                        };
+                        return;
+                    }
+                    QJsonArray answers;
+                    for (const auto &addr : addrs) answers += QString("*. IN %1 %2").arg(type, addr);
+                    headRules += QJsonObject{
+                        {"domain", domain},
                         {"action", "predefined"},
-                        {"query_type", "AAAA"},
-                        {"rcode", "NXDOMAIN"},
+                        {"query_type", type},
+                        {"rcode", "NOERROR"},
+                        {"answer", answers},
                     };
+                };
+
+                for (const auto &entry : predefined) {
+                    emitFamily(entry.domain, entry.v4, "A");
+                    emitFamily(entry.domain, entry.v6, "AAAA");
+                }
+            }
+
+            // Hosts file
+            if (!ctx.forTest && settings.dns_use_hosts) {
+                servers += QJsonObject{{"tag", tags::dnsHosts}, {"type", "hosts"}};
+                // The transport NXDOMAINs whatever it cannot answer, hence the preferred_by
+                // gate and the query_type limit.
+                headRules += QJsonObject{
+                    {"preferred_by", QJsonArray{tags::dnsHosts}},
+                    {"query_type", QJsonArray{"A", "AAAA"}},
+                    {"action", "route"},
+                    {"server", tags::dnsHosts},
+                    {"disable_cache", true},
+                };
             }
 
             // Xray bridge hops resolve their own server domains through dns-in
@@ -915,7 +949,7 @@ namespace Configs {
                     v4["query_type"] = "A";
                     v4["action"] = "predefined";
                     v4["rcode"] = "NOERROR";
-                    v4["answer"] = QString("* IN A %1").arg(settings.dns_v4_resp);
+                    v4["answer"] = QString("*. IN A %1").arg(settings.dns_v4_resp);
                     rules += v4;
 
                     if (settings.dns_v6_resp.isEmpty()) return;
@@ -923,7 +957,7 @@ namespace Configs {
                     v6["query_type"] = "AAAA";
                     v6["action"] = "predefined";
                     v6["rcode"] = "NOERROR";
-                    v6["answer"] = QString("* IN AAAA %1").arg(settings.dns_v6_resp);
+                    v6["answer"] = QString("*. IN AAAA %1").arg(settings.dns_v6_resp);
                     rules += v6;
                 };
 
@@ -983,6 +1017,11 @@ namespace Configs {
             dnsLocalObj["tag"] = tags::dnsLocal;
             servers += dnsLocalObj;
 
+            if (!headRules.isEmpty()) {
+                for (const auto &rule : rules) headRules.append(rule);
+                rules = headRules;
+            }
+
             auto dnsObj = QJsonObject{
                 {"servers", servers},
                 {"rules", rules},
@@ -992,6 +1031,15 @@ namespace Configs {
             if (settings.dns_disable_expire) dnsObj["disable_expire"] = true;
             if (settings.dns_reverse_mapping) dnsObj["reverse_mapping"] = true;
             if (independentCache) dnsObj["independent_cache"] = true;
+            if (!settings.dns_query_timeout.isEmpty()) dnsObj["timeout"] = settings.dns_query_timeout;
+            // The core refuses the config outright when optimistic meets either cache switch.
+            if (settings.dns_optimistic && !settings.dns_disable_cache && !settings.dns_disable_expire) {
+                if (settings.dns_optimistic_timeout.isEmpty()) dnsObj["optimistic"] = true;
+                else dnsObj["optimistic"] = QJsonObject{
+                    {"enabled", true},
+                    {"timeout", settings.dns_optimistic_timeout},
+                };
+            }
             ctx.result->coreConfig["dns"] = dnsObj;
         }
 
@@ -2050,6 +2098,45 @@ namespace Configs {
         }
 
     } // namespace
+
+    bool ParsePredefinedDNS(const QStringList& lines, QList<PredefinedDNSEntry>& out, QString* error) {
+        QMap<QString, int> indexOf;
+        for (const auto& rawLine : lines) {
+            auto line = rawLine;
+            if (const auto hash = line.indexOf('#'); hash != -1) line = line.left(hash);
+            const auto fields = line.simplified().split(' ', Qt::SkipEmptyParts);
+            if (fields.isEmpty()) continue;
+
+            QHostAddress addr;
+            if (fields.size() < 2 || !addr.setAddress(fields[0])) {
+                if (error != nullptr) *error = rawLine.trimmed();
+                return false;
+            }
+            addr.setScopeId({});
+            const bool isV6 = addr.protocol() == QAbstractSocket::IPv6Protocol;
+
+            for (qsizetype i = 1; i < fields.size(); i++) {
+                auto domain = fields[i].toLower();
+                while (domain.endsWith('.')) domain.chop(1);
+                if (domain.isEmpty()) {
+                    if (error != nullptr) *error = rawLine.trimmed();
+                    return false;
+                }
+                if (!indexOf.contains(domain)) {
+                    indexOf[domain] = static_cast<int>(out.size());
+                    out.append(PredefinedDNSEntry{domain, {}, {}});
+                }
+                auto& bucket = isV6 ? out[indexOf[domain]].v6 : out[indexOf[domain]].v4;
+                if (const auto text = addr.toString(); !bucket.contains(text)) bucket.append(text);
+            }
+        }
+        return true;
+    }
+
+    bool IsValidDuration(const QString& text) {
+        static const QRegularExpression re(R"(^(?:\d+(?:\.\d+)?(?:ns|us|ms|s|m|h|d))+$)");
+        return re.match(text).hasMatch();
+    }
 
     std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile>& ent) {
         if (ent->type == "custom")
