@@ -13,6 +13,14 @@ namespace Configs {
             return !value.empty();
         }
 
+        QStringList splitList(const QString& value) {
+            QStringList result;
+            for (const auto& part : value.split(',', Qt::SkipEmptyParts)) {
+                if (const auto trimmed = part.trimmed(); !trimmed.isEmpty()) result << trimmed;
+            }
+            return result;
+        }
+
         void addXmuxField(QJsonObject& xmux, const QString& key, const std::string& value) {
             if (hasText(value)) xmux[key] = qs(value);
         }
@@ -751,11 +759,11 @@ namespace Configs {
         if (!Configs::XrayNetworks.contains(network)) return false;
         if (network == "raw" && query.queryItemValue("headerType") == "http") {
             QJsonObject request;
-            if (const auto path = query.queryItemValue("path", QUrl::FullyDecoded); !path.isEmpty()) {
-                request["path"] = QJsonArray{path};
+            if (const auto paths = splitList(query.queryItemValue("path", QUrl::FullyDecoded)); !paths.isEmpty()) {
+                request["path"] = QListStr2QJsonArray(paths);
             }
-            if (const auto host = query.queryItemValue("host", QUrl::FullyDecoded); !host.isEmpty()) {
-                request["headers"] = QJsonObject{{"Host", QJsonArray::fromStringList(host.split(','))}};
+            if (const auto hosts = splitList(query.queryItemValue("host", QUrl::FullyDecoded)); !hosts.isEmpty()) {
+                request["headers"] = QJsonObject{{"Host", QListStr2QJsonArray(hosts)}};
             }
             QJsonObject header{{"type", "http"}};
             if (!request.isEmpty()) header["request"] = request;
@@ -821,13 +829,19 @@ namespace Configs {
     QString xrayStreamSetting::ExportToLink() {
         QUrlQuery query;
         if (!network.isEmpty()) query.addQueryItem("type", network == "raw" ? "tcp" : network);
-        if (network == "raw" && rawSettings["header"].toObject()["type"] == "http") {
+        // value(), never operator[]: the mutable QJsonObject::operator[] inserts a null
+        // entry for a missing key, which would leave "header": null behind in rawSettings
+        // and end up in the generated Xray config
+        if (const auto header = rawSettings.value("header").toObject();
+            network == "raw" && header.value("type").toString() == "http") {
             query.addQueryItem("headerType", "http");
-            const auto request = rawSettings["header"].toObject()["request"].toObject();
-            const auto paths = request["path"].toArray();
-            if (!paths.isEmpty()) query.addQueryItem("path", paths.first().toString());
-            const auto hosts = request["headers"].toObject()["Host"].toArray();
-            if (!hosts.isEmpty()) query.addQueryItem("host", QJsonArray2QListString(hosts).join(','));
+            const auto request = header.value("request").toObject();
+            if (const auto paths = request.value("path").toArray(); !paths.isEmpty()) {
+                query.addQueryItem("path", QJsonArray2QListString(paths).join(','));
+            }
+            if (const auto hosts = request.value("headers").toObject().value("Host").toArray(); !hosts.isEmpty()) {
+                query.addQueryItem("host", QJsonArray2QListString(hosts).join(','));
+            }
         }
         if (!security.isEmpty()) query.addQueryItem("security", security);
         if (security == "tls") mergeUrlQuery(query, TLS->ExportToLink());
@@ -857,7 +871,8 @@ namespace Configs {
         QJsonObject object;
         object["network"] = network;
         object["security"] = security;
-        if (network == "raw" && !rawSettings.isEmpty()) object["rawSettings"] = rawSettings;
+        // no rawSettings here: identity matches a profile across a subscription update,
+        // so it must not carry values the subscription rotates (Host header, paths)
         if (security == "reality") {
             if (!reality->serverName.isEmpty()) object["sni"] = reality->serverName;
             if (!reality->fingerprint.isEmpty()) object["fingerprint"] = reality->fingerprint;

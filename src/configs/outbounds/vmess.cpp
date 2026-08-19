@@ -35,15 +35,31 @@ namespace Configs {
                 if (tlsStr == "tls") {
                     tls->enabled = true;
                     tls->server_name = objN["sni"].toString();
+                    tls->alpn = objN["alpn"].toString().split(',', Qt::SkipEmptyParts);
+                    const auto insecure = objN.contains("insecure")
+                                              ? objN["insecure"].toVariant().toString()
+                                              : objN["allowInsecure"].toVariant().toString();
+                    tls->insecure = insecure == "1" || insecure == "true";
+                    if (const auto fingerprint = objN["fp"].toString(); !fingerprint.isEmpty()) {
+                        tls->utls->enabled = true;
+                        tls->utls->fingerPrint = fingerprint;
+                    }
                 }
-                tls->alpn = objN["alpn"].toString().split(',', Qt::SkipEmptyParts);
-                const auto insecure = objN["insecure"].toString();
-                tls->insecure = insecure == "1" || insecure == "true";
-                if (const auto fingerprint = objN["fp"].toString(); !fingerprint.isEmpty()) {
-                    tls->utls->enabled = true;
-                    tls->utls->fingerPrint = fingerprint;
+
+                // Fields the V2RayN schema cannot express, carried in a Throne-only key
+                // as the same query string the extended vmess:// link used to hold; the
+                // dummy authority is there only to satisfy QUrl, nothing reads it.
+                if (const auto extra = objN["throneExtra"].toString(); !extra.isEmpty()) {
+                    const QString extraLink = "vmess://x@127.0.0.1:1?" + extra;
+                    transport->ParseFromLink(extraLink);
+                    multiplex->ParseFromLink(extraLink);
+                    const auto extraQuery = QUrlQuery(extra);
+                    if (extraQuery.hasQueryItem("globalPadding")) global_padding = extraQuery.queryItemValue("globalPadding") == "true";
+                    if (extraQuery.hasQueryItem("authenticatedLength")) authenticated_length = extraQuery.queryItemValue("authenticatedLength") == "true";
+                    if (extraQuery.hasQueryItem("packetEncoding")) packet_encoding = extraQuery.queryItemValue("packetEncoding");
+                    if (!Configs::vPacketEncoding.contains(packet_encoding)) packet_encoding = "";
                 }
-                
+
                 return !(uuid.isEmpty() || server.isEmpty());
             }
         }
@@ -116,7 +132,19 @@ namespace Configs {
                                  ? QStringLiteral("tcp")
                                  : transport->type == "http" ? QStringLiteral("h2") : transport->type;
         const auto path = network == "grpc" ? transport->service_name : transport->path;
-        const QJsonObject object{
+
+        // everything the V2RayN schema has no room for; other clients ignore the
+        // unknown key, so the link stays importable everywhere
+        QUrlQuery extra;
+        mergeUrlQuery(extra, transport->ExportToLink());
+        mergeUrlQuery(extra, multiplex->ExportToLink());
+        if (global_padding) extra.addQueryItem("globalPadding", "true");
+        if (authenticated_length) extra.addQueryItem("authenticatedLength", "true");
+        if (packet_encoding != "xudp") {
+            extra.addQueryItem("packetEncoding", packet_encoding.isEmpty() ? "none" : packet_encoding);
+        }
+
+        QJsonObject object{
             {"v", "2"},
             {"ps", name},
             {"add", server},
@@ -132,8 +160,9 @@ namespace Configs {
             {"sni", tls->server_name},
             {"alpn", tls->alpn.join(',')},
             {"fp", tls->utls->fingerPrint},
-            {"insecure", tls->insecure ? QStringLiteral("1") : QStringLiteral("0")},
         };
+        if (tls->insecure) object["allowInsecure"] = QStringLiteral("1");
+        if (!extra.isEmpty()) object["throneExtra"] = extra.toString(QUrl::FullyEncoded);
         const auto payload = QJsonDocument(object).toJson(QJsonDocument::Compact).toBase64();
         return QStringLiteral("vmess://") + QString::fromLatin1(payload);
     }
