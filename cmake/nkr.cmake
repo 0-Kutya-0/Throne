@@ -19,13 +19,15 @@ set(NKR_VERSION_MINOR 0)
 set(NKR_VERSION_PATCH 0)
 set(NKR_VERSION_REVISION 0)
 
-if (NOT NKR_VERSION_NUMERIC_STR MATCHES "^[0-9]+(\\.[0-9]+){0,3}$")
-    if (NKR_VERSION MATCHES "([0-9]+\\.[0-9]+(\\.[0-9]+){0,2})")
+# CMake's regex engine has no {n,m} quantifier -- braces match literally, so the
+# part count is bounded by the list(GET) guards below rather than by the pattern.
+if (NOT NKR_VERSION_NUMERIC_STR MATCHES "^[0-9]+(\\.[0-9]+)*$")
+    if (NKR_VERSION MATCHES "([0-9]+\\.[0-9]+(\\.[0-9]+)*)")
         set(NKR_VERSION_NUMERIC_STR "${CMAKE_MATCH_1}")
     endif ()
 endif ()
 
-if (NKR_VERSION_NUMERIC_STR MATCHES "^[0-9]+(\\.[0-9]+){0,3}$")
+if (NKR_VERSION_NUMERIC_STR MATCHES "^[0-9]+(\\.[0-9]+)*$")
     string(REPLACE "." ";" _nkr_parts "${NKR_VERSION_NUMERIC_STR}")
 
     list(LENGTH _nkr_parts _nkr_len)
