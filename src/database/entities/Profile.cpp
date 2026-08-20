@@ -39,7 +39,10 @@ namespace Configs
         if (group == nullptr) return "";
         QString result;
         if (!test_country.isEmpty()) result += UNICODE_LRO + CountryCodeToFlag(test_country) + " ";
-        if (latency < 0) {
+        if (latency == kLatencyConnectOnly) {
+            result = QObject::tr("Connect OK");
+            return result;
+        } else if (latency < 0) {
             result = "Unavailable";
             return result;
         } else if (latency > 0) {
@@ -54,7 +57,9 @@ namespace Configs
     }
 
     QColor Profile::DisplayLatencyColor() const {
-        if (latency < 0) {
+        if (latency == kLatencyConnectOnly) {
+            return Qt::darkCyan;
+        } else if (latency < 0) {
             return Qt::darkGray;
         } else if (latency > 0) {
             if (latency <= 100) {

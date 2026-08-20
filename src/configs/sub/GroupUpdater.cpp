@@ -3,6 +3,7 @@
 
 #include "include/configs/sub/GroupUpdater.hpp"
 #include "include/configs/sub/clash.hpp"
+#include "include/configs/sub/vpnFileImport.hpp"
 
 #include <QInputDialog>
 #include <QUrlQuery>
@@ -159,6 +160,41 @@ namespace Subscription {
         return ent;
     }
 
+    // Only directives at the start of a line count, so a stray "remote" cannot pull one in.
+    bool looksLikeOvpnConfig(const QString &str) {
+        bool hasRemote = false;
+        bool hasClientMarker = false;
+        for (const auto &line : str.split('\n')) {
+            const auto trimmed = line.trimmed();
+            if (trimmed.isEmpty() || trimmed.startsWith('#') || trimmed.startsWith(';')) continue;
+            if (trimmed.startsWith("remote ") || trimmed == "<ca>" || trimmed == "<tls-auth>" ||
+                trimmed == "<tls-crypt>" || trimmed == "<tls-crypt-v2>" || trimmed == "<secret>") {
+                hasRemote = true;
+            }
+            if (trimmed == "client" || trimmed == "tls-client" || trimmed.startsWith("dev ") ||
+                trimmed.startsWith("dev-type ") || trimmed.startsWith("proto ")) {
+                hasClientMarker = true;
+            }
+            if (hasRemote && hasClientMarker) return true;
+        }
+        return false;
+    }
+
+    // Every marker names openconnect itself, so no share link or subscription matches.
+    bool looksLikeOpenConnectProfile(const QString &str) {
+        if (str.contains("<AnyConnectProfile") || str.contains("<ServerList")) return true;
+        static const QRegularExpression cliRe(R"((?:^|\s)--protocol[= ](?:anyconnect|nc|gp|pulse|f5|fortinet)\b)");
+        static const QRegularExpression fileRe(R"(^[ \t]*protocol[ \t]*=[ \t]*(?:anyconnect|nc|gp|pulse|f5|fortinet)[ \t]*$)",
+                                               QRegularExpression::MultilineOption);
+        if (cliRe.match(str).hasMatch() || fileRe.match(str).hasMatch()) return true;
+        for (const auto &line : str.split('\n')) {
+            const auto trimmed = line.trimmed();
+            if (trimmed.isEmpty() || trimmed.startsWith('#')) continue;
+            return trimmed.startsWith("openconnect ");
+        }
+        return false;
+    }
+
     void RawUpdater::update(const QString &str, bool needParse, bool isBase64Decoded) {
         // Base64 encoded subscription
         if (!isBase64Decoded) {
@@ -227,6 +263,16 @@ namespace Subscription {
         if (str.contains("[Interface]") && str.contains("[Peer]"))
         {
             updateWireguardFileConfig(str);
+            return;
+        }
+
+        if (looksLikeOvpnConfig(str)) {
+            updateOpenVPNFileConfig(str);
+            return;
+        }
+
+        if (looksLikeOpenConnectProfile(str)) {
+            updateOpenConnectProfile(str);
             return;
         }
 
@@ -744,6 +790,49 @@ namespace Subscription {
         auto ent = Configs::ProfilesRepo::NewProfile("wireguard");
         auto ok = ent->Wireguard()->ParseFromLink(str);
         if (!ok) return;
+        updated_order += ent;
+    }
+
+    void RawUpdater::updateOpenVPNFileConfig(const QString& str)
+    {
+        QStringList problems;
+        auto ent = Configs::ProfilesRepo::NewProfile("openvpn");
+        auto ok = Configs::ParseOvpnConfig(str, *ent->OpenVPN(), &problems);
+        for (const auto &problem : problems) MW_show_log("OpenVPN: " + problem);
+        if (!ok) {
+            MW_show_log(QObject::tr("Failed to import the OpenVPN profile."));
+            return;
+        }
+        updated_order += ent;
+    }
+
+    void RawUpdater::updateOpenConnectProfile(const QString& str)
+    {
+        QStringList problems;
+        // An XML profile carries a host list, so it imports as several profiles.
+        if (str.contains("<AnyConnectProfile") || str.contains("<ServerList")) {
+            QList<std::shared_ptr<Configs::openconnect>> hosts;
+            auto ok = Configs::ParseAnyConnectXml(str, hosts, &problems);
+            for (const auto &problem : problems) MW_show_log("OpenConnect: " + problem);
+            if (!ok) {
+                MW_show_log(QObject::tr("Failed to import the OpenConnect profile."));
+                return;
+            }
+            for (const auto &host : hosts) {
+                auto ent = Configs::ProfilesRepo::NewProfile("openconnect");
+                ent->outbound = host;
+                updated_order += ent;
+            }
+            return;
+        }
+
+        auto ent = Configs::ProfilesRepo::NewProfile("openconnect");
+        auto ok = Configs::ParseOpenConnectProfile(str, *ent->OpenConnect(), &problems);
+        for (const auto &problem : problems) MW_show_log("OpenConnect: " + problem);
+        if (!ok) {
+            MW_show_log(QObject::tr("Failed to import the OpenConnect profile."));
+            return;
+        }
         updated_order += ent;
     }
 

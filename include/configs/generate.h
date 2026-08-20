@@ -39,6 +39,8 @@ namespace Configs
 
         QList<TrafficChainGroup> chainGroups;
         QList<AutoSelectorBuildInfo> autoSelectors;
+        // Endpoint hop tag -> profile id, so a live status can be named after its profile.
+        QMap<QString, int> vpnEndpointProfiles;
     };
 
     class BuildTestConfigResult {
@@ -103,6 +105,9 @@ namespace Configs
     std::shared_ptr<BuildConfigResult> BuildSingBoxConfig(const std::shared_ptr<Profile> &ent);
 
     bool IsValid(const std::shared_ptr<Profile> &ent);
+
+    // Eligible: an openvpn/openconnect profile, or a chain whose exit hop is one, never the reverse.
+    bool CanBeAuxEndpoint(const std::shared_ptr<Profile> &ent);
 
     std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles);
 }

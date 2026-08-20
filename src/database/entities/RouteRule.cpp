@@ -76,6 +76,22 @@ namespace Configs {
     QJsonObject RouteRule::get_rule_json(bool forView, const QString& outboundTag) {
         QJsonObject obj;
 
+        // Placeholder rule: it persists only the endpoint id, the gate comes from its resolved tag.
+        if (type == endpointPreferredBy) {
+            QString tag = outboundTag;
+            if (forView) {
+                const auto prof = Configs::dataManager->profilesRepo->GetProfile(outboundID);
+                if (prof == nullptr || prof->outbound == nullptr) return {};
+                tag = prof->outbound->DisplayName();
+            }
+            if (tag.isEmpty()) return {};
+            return QJsonObject{
+                {"preferred_by", QJsonArray{tag}},
+                {"action", "route"},
+                {"outbound", tag},
+            };
+        }
+
         if (!ip_version.isEmpty()) obj["ip_version"] = ip_version.toInt();
         if (!network.isEmpty()) obj["network"] = network;
         if (!protocol.isEmpty()) obj["protocol"] = protocol;
@@ -159,6 +175,14 @@ namespace Configs {
     }
 
     QJsonObject RouteRule::to_share_json() {
+        // Same key space as the endpoints list, so a rule and its endpoint drop or survive together.
+        if (type == endpointPreferredBy) {
+            return QJsonObject{
+                {"name", name},
+                {"type", ruleTypeToToken(type)},
+                {"outbound", outboundID},
+            };
+        }
         // Faithful, portable representation of a single rule for sharing: the sing-box
         // fields with outbound as a portable string (no adblock injection), plus our own
         // name + type token so simple/advanced rules round-trip.
@@ -525,6 +549,7 @@ namespace Configs {
 
     bool RouteRule::isEmpty() {
         if (type != custom) {
+            if (type == endpointPreferredBy) return false;
             if (type == simpleAddressProxy || type == simpleAddressBypass || type == simpleAddressBlock || type == simpleAddressWarpBypass) {
                 return domain.empty() &&
                     domain_suffix.empty() &&
@@ -544,6 +569,7 @@ namespace Configs {
 
     bool RouteRule::canEditAttr(const QString &attr) {
         if (type == custom) return true;
+        if (type == endpointPreferredBy) return false;
         if (type == simpleAddressProxy || type == simpleAddressBypass || type == simpleAddressBlock || type == simpleAddressWarpBypass) {
             return attr == "domain" || attr == "domain_suffix" || attr == "domain_keyword" || attr == "domain_regex" || attr == "rule_set" || attr == "ip_cidr";
         } else {

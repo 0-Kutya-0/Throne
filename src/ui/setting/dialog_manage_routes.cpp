@@ -524,7 +524,9 @@ void DialogManageRoutes::on_export_route_clicked()
     auto idx = ui->route_profiles->currentRow();
     if (idx < 0) return;
 
-    QApplication::clipboard()->setText(chainList[idx]->ToShareLink());
+    QString warnings;
+    QApplication::clipboard()->setText(chainList[idx]->ToShareLink(&warnings));
+    if (!warnings.isEmpty()) MessageBoxInfo(tr("Exported with warnings"), warnings);
 
     QToolTip::showText(QCursor::pos(), tr("Copied!"), this);
     int r = ++tooltipID;
@@ -599,10 +601,11 @@ void DialogManageRoutes::on_import_route_clicked()
         if (auto profile = Configs::RouteProfile::FromShareInput(clip, &fatal, &warnings, &wasOldArray)) {
             const QString what = wasOldArray ? tr("a routing rule list")
                                              : tr("routing profile \"%1\"").arg(profile->name);
-            if (QMessageBox::question(this, tr("Import from clipboard"),
-                                      tr("Import %1 from the clipboard?").arg(what))
+            QString prompt = tr("Import %1 from the clipboard?").arg(what);
+            // endpoints are already created by the parse above, before this prompt
+            if (!warnings.isEmpty()) prompt += "\n\n" + tr("Note:") + "\n" + warnings.trimmed();
+            if (QMessageBox::question(this, tr("Import from clipboard"), prompt)
                 == QMessageBox::StandardButton::Yes) {
-                if (!warnings.isEmpty()) MessageBoxInfo(tr("Imported with warnings"), warnings);
                 applyImportedProfile(profile, wasOldArray);
                 return;
             }

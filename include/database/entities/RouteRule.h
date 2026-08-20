@@ -1,6 +1,7 @@
 #pragma once
 #include <QUrl>
 #include <QJsonObject>
+#include <QObject>
 #include <QSet>
 
 namespace Configs {
@@ -26,7 +27,7 @@ namespace Configs {
     }
 
     // New rule types MUST be appended: RouteRule::type is persisted as the raw int.
-    enum ruleType {custom, simpleAddressProxy, simpleAddressBypass, simpleAddressBlock, simpleProcessNameProxy, simpleProcessNameBypass, simpleProcessNameBlock, simpleProcessPathProxy, simpleProcessPathBypass, simpleProcessPathBlock, simpleAddressWarpBypass, simpleProcessNameWarpBypass, simpleProcessPathWarpBypass};
+    enum ruleType {custom, simpleAddressProxy, simpleAddressBypass, simpleAddressBlock, simpleProcessNameProxy, simpleProcessNameBypass, simpleProcessNameBlock, simpleProcessPathProxy, simpleProcessPathBypass, simpleProcessPathBlock, simpleAddressWarpBypass, simpleProcessNameWarpBypass, simpleProcessPathWarpBypass, endpointPreferredBy};
 
     inline QString ruleTypeToString(ruleType type)
     {
@@ -43,6 +44,7 @@ namespace Configs {
         if (type == simpleAddressWarpBypass) return {"Simple Address Warp-bypass"};
         if (type == simpleProcessNameWarpBypass) return {"Simple Process Name Warp-bypass"};
         if (type == simpleProcessPathWarpBypass) return {"Simple Process Path Warp-bypass"};
+        if (type == endpointPreferredBy) return QObject::tr("Endpoint");
         return {"invalid"};
     }
 
@@ -63,6 +65,7 @@ namespace Configs {
             case simpleAddressWarpBypass: return {"simple_address_warp_bypass"};
             case simpleProcessNameWarpBypass: return {"simple_process_name_warp_bypass"};
             case simpleProcessPathWarpBypass: return {"simple_process_path_warp_bypass"};
+            case endpointPreferredBy: return {"endpoint_preferred_by"};
             default: return {"custom"};
         }
     }
@@ -81,6 +84,7 @@ namespace Configs {
         if (token == "simple_address_warp_bypass") return simpleAddressWarpBypass;
         if (token == "simple_process_name_warp_bypass") return simpleProcessNameWarpBypass;
         if (token == "simple_process_path_warp_bypass") return simpleProcessPathWarpBypass;
+        if (token == "endpoint_preferred_by") return endpointPreferredBy;
         return custom;
     }
 
