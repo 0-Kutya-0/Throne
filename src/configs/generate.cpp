@@ -767,7 +767,7 @@ namespace Configs {
 
             // Which private ranges the profile still needs the Tun to carry.
             for (const auto &cidr : routeChain->get_hijacked_ips()) {
-                for (const auto &range : tunBypassablePrivateRanges()) {
+                for (const auto &range : settings.vpn_private_ranges) {
                     if (prefixesOverlap(range, cidr)) preReqs.tun.hijackedPrivateRanges << range;
                 }
             }
@@ -1244,7 +1244,7 @@ namespace Configs {
                 QStringList excludedRanges;
                 if (!settings.disable_private_range_bypass) {
                     routeExcludeAddrs = {"127.0.0.0/8", "255.255.255.255/32"};
-                    for (const auto &range : tunBypassablePrivateRanges()) {
+                    for (const auto &range : settings.vpn_private_ranges) {
                         if (!tun.hijackedPrivateRanges.contains(range)) excludedRanges << range;
                     }
                 }
