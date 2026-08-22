@@ -2189,29 +2189,53 @@ namespace Configs {
             const auto &settings = *dataManager->settingsRepo;
 
             QJsonObject experimentalObj;
-            QJsonObject clash_api = {
-                {"default_mode", ""} // dummy to make sure it is created
-            };
-            if (settings.core_box_clash_api > 0){
-                clash_api = {
+            // Only the yacd listener now; the stats tracker comes from buildServicesSection.
+            if (settings.core_box_clash_api > 0) {
+                experimentalObj["clash_api"] = QJsonObject{
                     {"external_controller", settings.core_box_clash_listen_addr + ":" + Int2String(settings.core_box_clash_api)},
                     {"secret", settings.core_box_clash_api_secret},
                     {"external_ui", "dashboard"},
-                    };
-            }
-            if (settings.core_box_clash_api > 0 || settings.enable_stats)
-            {
-                experimentalObj["clash_api"] = clash_api;
+                };
             }
 
             experimentalObj["cache_file"] = QJsonObject{
                 {"enabled", true},
                 {"store_fakeip", true},
-                {"store_rdrc", true}
+                {"store_dns", true}
             };
 
             // apply
             ctx.result->coreConfig["experimental"] = experimentalObj;
+        }
+
+        // ------------------------------------------------------------- services
+
+        // The core builds the traffic tracker from the mere presence of an api service.
+        void buildServicesSection(BuildContext &ctx) {
+            if (ctx.forTest) return;
+            const auto &settings = *dataManager->settingsRepo;
+
+            const bool dashboard = settings.core_box_api_port > 0;
+            if (!dashboard && !settings.enable_stats) return;
+
+            QJsonObject api = {
+                {"type", "api"},
+                {"listen", "127.0.0.1"},
+                {"listen_port", dashboard ? settings.core_box_api_port : 0},
+                {"secret", settings.core_box_api_secret},
+            };
+            if (dashboard) {
+                // Defaults to "*", i.e. any page the user visits could reach loopback.
+                api["access_control_allow_origin"] = QJsonArray{
+                    "http://127.0.0.1:" + Int2String(settings.core_box_api_port)
+                };
+                api["dashboard"] = QJsonObject{
+                    {"enabled", true},
+                    {"path", apiDashboardDir},
+                };
+            }
+
+            ctx.result->coreConfig["services"] = QJsonArray{api};
         }
 
         // ----------------------------------------------------------------- xray
@@ -2380,6 +2404,9 @@ namespace Configs {
         if (failed()) return ctx.result;
 
         buildExperimentalSection(ctx);
+        if (failed()) return ctx.result;
+
+        buildServicesSection(ctx);
         if (failed()) return ctx.result;
 
         buildXrayConfig(ctx);

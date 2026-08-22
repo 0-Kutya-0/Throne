@@ -25,6 +25,7 @@
 #include <QSysInfo>
 #include <QDir>
 #include <QStandardPaths>
+#include <QUuid>
 #include <QCheckBox>
 #include <QScreen>
 #include <QVBoxLayout>
@@ -243,6 +244,16 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
                                         : "");
     ui->core_box_clash_api_secret->setText(Configs::dataManager->settingsRepo->core_box_clash_api_secret);
 
+    // sing-box API service
+    ui->core_box_api_port->setValidator(new QIntValidator(1, 65535, ui->core_box_api_port));
+    ui->core_box_api_port->setText(Configs::dataManager->settingsRepo->core_box_api_port > 0
+                                       ? Int2String(Configs::dataManager->settingsRepo->core_box_api_port)
+                                       : "");
+    ui->core_box_api_secret->setText(Configs::dataManager->settingsRepo->core_box_api_secret);
+    connect(ui->core_box_api_regen, &QPushButton::clicked, this, [this] {
+        ui->core_box_api_secret->setText(QUuid::createUuid().toString(QUuid::WithoutBraces).remove('-'));
+    });
+
     // Xray
     ui->xray_mux_concurrency->setText(Int2String(Configs::dataManager->settingsRepo->xray_mux_concurrency));
     ui->xray_default_mux->setChecked(Configs::dataManager->settingsRepo->xray_mux_default_on);
@@ -415,6 +426,10 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->core_box_clash_listen_addr = ui->core_box_clash_listen_addr->text();
     Configs::dataManager->settingsRepo->core_box_clash_api = ui->core_box_clash_api->text().toInt();
     Configs::dataManager->settingsRepo->core_box_clash_api_secret = ui->core_box_clash_api_secret->text();
+    Configs::dataManager->settingsRepo->core_box_api_port = ui->core_box_api_port->text().toInt();
+    // Blank means "no authentication" to sing-box, so never let the field clear it.
+    if (const auto secret = ui->core_box_api_secret->text(); !secret.isEmpty())
+        Configs::dataManager->settingsRepo->core_box_api_secret = secret;
 
     // Xray
     Configs::dataManager->settingsRepo->xray_mux_concurrency = ui->xray_mux_concurrency->text().toInt();

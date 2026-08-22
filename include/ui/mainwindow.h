@@ -257,6 +257,7 @@ private:
     ExitReason exit_reason = ExitReason::None;
     //
     QMutex mu_download_update;
+    QMutex mu_download_dashboard;
     //
     QMutex connectionListMu;
     //
@@ -454,6 +455,10 @@ private:
     bool set_system_dns(bool set, bool save_set = true);
 
     void CheckUpdate();
+
+    void OpenDashboard();
+
+    void SeedDashboard();
 
     void setupConnectionList();
 

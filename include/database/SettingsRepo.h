@@ -265,6 +265,9 @@ namespace Configs {
         int core_box_clash_api = -9090;
         QString core_box_clash_listen_addr = "127.0.0.1";
         QString core_box_clash_api_secret = "";
+        // Port only publishes the dashboard; the service itself also carries the stats tracker.
+        int core_box_api_port = -9091;
+        QString core_box_api_secret = "";
         QString core_box_underlying_dns = "";
         int core_dns_in_port = 5533;
 

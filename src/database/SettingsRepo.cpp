@@ -3,6 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QDebug>
+#include <QUuid>
 
 #include "include/global/Utils.hpp"
 
@@ -11,6 +12,11 @@ namespace Configs {
         initMaps();
         createTables();
         loadAllSettings();
+        // An empty secret disables authentication on the API service outright.
+        if (core_box_api_secret.isEmpty()) {
+            core_box_api_secret = QUuid::createUuid().toString(QUuid::WithoutBraces).remove('-');
+            Save();
+        }
     }
 
     void SettingsRepo::initMaps() {
@@ -93,6 +99,7 @@ namespace Configs {
             {"dns_server_listen_port", &dns_server_listen_port},
             {"redirect_listen_port",   &redirect_listen_port},
             {"core_box_clash_api",     &core_box_clash_api},
+            {"core_box_api_port",      &core_box_api_port},
             {"speed_test_mode",        &speed_test_mode},
             {"speed_test_timeout_ms",  &speed_test_timeout_ms},
             {"url_test_timeout_ms",    &url_test_timeout_ms},
@@ -132,6 +139,7 @@ namespace Configs {
             {"utlsFingerprint",            &utlsFingerprint},
             {"core_box_clash_listen_addr", &core_box_clash_listen_addr},
             {"core_box_clash_api_secret",  &core_box_clash_api_secret},
+            {"core_box_api_secret",        &core_box_api_secret},
             {"core_box_underlying_dns",    &core_box_underlying_dns},
             {"ntp_server_address",         &ntp_server_address},
             {"ntp_interval",               &ntp_interval},

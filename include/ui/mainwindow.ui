@@ -848,6 +848,7 @@ QTabBar::tab:selected {
     <addaction name="separator"/>
     <addaction name="menu_otp_manager"/>
     <addaction name="separator"/>
+    <addaction name="menu_open_dashboard"/>
     <addaction name="actionRuntime_Stats"/>
     <addaction name="actionTraffic_Stats"/>
     <addaction name="actionCheck_For_Update"/>
@@ -1195,6 +1196,11 @@ QTabBar::tab:selected {
   <action name="menu_open_config_folder">
    <property name="text">
     <string>Open Config Folder</string>
+   </property>
+  </action>
+  <action name="menu_open_dashboard">
+   <property name="text">
+    <string>Open Web dashboard</string>
    </property>
   </action>
   <action name="actionfake_4">
