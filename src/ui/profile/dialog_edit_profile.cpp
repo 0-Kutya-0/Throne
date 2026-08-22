@@ -8,6 +8,7 @@
 #include "include/ui/profile/edit_vless.h"
 #include "include/ui/profile/edit_anytls.h"
 #include "include/ui/profile/edit_mieru.h"
+#include "include/ui/profile/edit_snell.h"
 #include "include/ui/profile/edit_wireguard.h"
 #include "include/ui/profile/edit_openvpn.h"
 #include "include/ui/profile/edit_openconnect.h"
@@ -335,6 +336,7 @@ DialogEditProfile::DialogEditProfile(const QString &_type, int profileOrGroupId,
         LOAD_TYPE("trusttunnel")
         LOAD_TYPE("anytls")
         LOAD_TYPE("mieru")
+        LOAD_TYPE("snell")
         LOAD_TYPE("shadowtls")
         LOAD_TYPE("wireguard")
         LOAD_TYPE("openvpn")
@@ -458,6 +460,10 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         innerEditor = _innerWidget;
     } else if (type == "mieru") {
         auto _innerWidget = new EditMieru(this);
+        innerWidget = _innerWidget;
+        innerEditor = _innerWidget;
+    } else if (type == "snell") {
+        auto _innerWidget = new EditSnell(this);
         innerWidget = _innerWidget;
         innerEditor = _innerWidget;
     } else if (type == "shadowtls") {
