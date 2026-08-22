@@ -218,6 +218,8 @@ namespace Configs {
         // Linux only: emit `auto_redirect` on the Tun inbound. Newer kernels need it for the
         // system/mixed stacks to pass traffic, at the cost of this host acting as a gateway.
         bool vpn_auto_redirect = true;
+        // Only UDP and ICMP reach the bridge: pre-match aborts at the sniff rule for TCP.
+        bool vpn_l3_bridge = false;
         int vpn_mtu = 1500;
         bool disable_private_range_bypass = false;
         bool vpn_ipv6 = false;
