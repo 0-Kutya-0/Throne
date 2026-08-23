@@ -107,10 +107,6 @@ set(PROJECT_SOURCES
 
         3rdparty/qv2ray/v2/ui/LogHighlighter.cpp
         3rdparty/qv2ray/v2/ui/QvAutoCompleteTextEdit.cpp
-        3rdparty/qv2ray/v2/ui/widgets/common/QJsonModel.cpp
-        3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.cpp
-        3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.hpp
-        3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.ui
         3rdparty/qv2ray/v2/ui/widgets/speedchart/SpeedWidget.cpp
         3rdparty/qv2ray/v2/ui/widgets/speedchart/SpeedWidget.hpp
         3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.cpp
@@ -179,6 +175,19 @@ set(PROJECT_SOURCES
         src/ui/widget/TrayProfileSelector.cpp
         include/ui/widget/TrayOtpCodes.hpp
         src/ui/widget/TrayOtpCodes.cpp
+        include/ui/widget/json/JsonTree.h
+        src/ui/widget/json/JsonTree.cpp
+        include/ui/widget/json/JsonValidator.h
+        include/ui/widget/json/JsonSchemaValidator.h
+        src/ui/widget/json/JsonSchemaValidator.cpp
+        include/ui/widget/json/SchemaStore.h
+        src/ui/widget/json/SchemaStore.cpp
+        include/ui/widget/json/JsonCodeEdit.h
+        src/ui/widget/json/JsonCodeEdit.cpp
+        include/ui/widget/json/JsonIssueList.h
+        src/ui/widget/json/JsonIssueList.cpp
+        include/ui/widget/json/JsonEditorDialog.h
+        src/ui/widget/json/JsonEditorDialog.cpp
         include/ui/utils/DataViewHtmlGenerator.h
         src/ui/utils/DataViewHtmlGenerator.cpp
         include/ui/utils/ProfilesTableModel.h

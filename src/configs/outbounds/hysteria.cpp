@@ -72,6 +72,8 @@ namespace Configs {
             }
             if (query.hasQueryItem("min_packet_size")) min_packet_size = query.queryItemValue("min_packet_size").toInt();
             if (query.hasQueryItem("max_packet_size")) max_packet_size = query.queryItemValue("max_packet_size").toInt();
+            if (query.hasQueryItem("hop_interval_max")) hop_interval_max = query.queryItemValue("hop_interval_max");
+            if (query.hasQueryItem("bbr_profile")) bbr_profile = query.queryItemValue("bbr_profile");
         }
         
         if (query.hasQueryItem("upmbps")) up_mbps = query.queryItemValue("upmbps").toInt();
@@ -130,6 +132,8 @@ namespace Configs {
             }
             if (object.contains("obfsPassword")) obfs = object["obfsPassword"].toString();
             if (object.contains("password")) password = object["password"].toString();
+            if (object.contains("hop_interval_max")) hop_interval_max = object["hop_interval_max"].toString();
+            if (object.contains("bbr_profile")) bbr_profile = object["bbr_profile"].toString();
         }
         if (object.contains("tls")) tls->ParseFromJson(object["tls"].toObject());
         return true;
@@ -238,6 +242,8 @@ namespace Configs {
                 if (min_packet_size > 0) query.addQueryItem("min_packet_size", QString::number(min_packet_size));
                 if (max_packet_size > 0) query.addQueryItem("max_packet_size", QString::number(max_packet_size));
             }
+            if (!hop_interval_max.isEmpty()) query.addQueryItem("hop_interval_max", hop_interval_max);
+            if (!bbr_profile.isEmpty()) query.addQueryItem("bbr_profile", bbr_profile);
         }
         
         if (up_mbps > 0) query.addQueryItem("upmbps", QString::number(up_mbps));
@@ -298,6 +304,8 @@ namespace Configs {
                 };
             }
             if (!password.isEmpty()) object["password"] = password;
+            if (!hop_interval_max.isEmpty()) object["hop_interval_max"] = hop_interval_max;
+            if (!bbr_profile.isEmpty()) object["bbr_profile"] = bbr_profile;
         }
         object["tls"] = tls->ExportToJson();
         return object;
@@ -354,6 +362,10 @@ namespace Configs {
                 }
             }
             if (!password.isEmpty()) object["password"] = password;
+            // sing-box randomizes the hop interval within [hop_interval, hop_interval_max]; it rejects a max without a min.
+            if (!hop_interval_max.isEmpty() && !hop_interval.isEmpty()) object["hop_interval_max"] = hop_interval_max;
+            // An unknown profile makes sing-box refuse to start, so drop anything a subscription made up.
+            if (hysteriaBBRProfiles.contains(bbr_profile)) object["bbr_profile"] = bbr_profile;
         }
         object["tls"] = tls->Build().object;
         return {object, ""};

@@ -21,6 +21,7 @@ void EditHysteria::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->protocol_version->setCurrentText(outbound->protocol_version);
     ui->server_ports->setText(outbound->server_ports.join(","));
     ui->hop_interval->setText(outbound->hop_interval);
+    ui->hop_interval_max->setText(outbound->hop_interval_max);
     ui->up_mbps->setText(Int2String(outbound->up_mbps));
     ui->down_mbps->setText(Int2String(outbound->down_mbps));
     ui->obfs->setText(outbound->obfs);
@@ -33,6 +34,7 @@ void EditHysteria::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->min_packet_size->setText(Int2String(outbound->min_packet_size));
     ui->max_packet_size->setText(Int2String(outbound->max_packet_size));
     ui->obfuscation_type->setCurrentText(outbound->obfs_type);
+    ui->bbr_profile->setCurrentText(outbound->bbr_profile);
     ui->password->setText(outbound->password);
     editHysteriaLayout(outbound->protocol_version, outbound->obfs_type);
 }
@@ -42,6 +44,7 @@ bool EditHysteria::onEnd() {
     outbound->protocol_version = ui->protocol_version->currentText();
     outbound->server_ports = SplitAndTrim(ui->server_ports->text(), ",", false);
     outbound->hop_interval = ui->hop_interval->text();
+    outbound->hop_interval_max = ui->hop_interval_max->text();
     outbound->up_mbps = ui->up_mbps->text().toInt();
     outbound->down_mbps = ui->down_mbps->text().toInt();
     outbound->obfs = ui->obfs->text();
@@ -54,6 +57,7 @@ bool EditHysteria::onEnd() {
     outbound->min_packet_size = ui->min_packet_size->text().toInt();
     outbound->max_packet_size = ui->max_packet_size->text().toInt();
     outbound->obfs_type = ui->obfuscation_type->currentText();
+    outbound->bbr_profile = ui->bbr_profile->currentText();
     return true;
 }
 
@@ -77,6 +81,10 @@ void EditHysteria::editHysteriaLayout(const QString& version, const QString& obf
         ui->max_packet_size_l->setVisible(false);
         ui->obfuscation_type->setVisible(false);
         ui->obfuscation_type_l->setVisible(false);
+        ui->hop_interval_max->setVisible(false);
+        ui->hop_interval_max_l->setVisible(false);
+        ui->bbr_profile->setVisible(false);
+        ui->bbr_profile_l->setVisible(false);
     } else
     {
         ui->auth_type->setVisible(false);
@@ -92,6 +100,10 @@ void EditHysteria::editHysteriaLayout(const QString& version, const QString& obf
         ui->password_l->setVisible(true);
         ui->obfuscation_type->setVisible(true);
         ui->obfuscation_type_l->setVisible(true);
+        ui->hop_interval_max->setVisible(true);
+        ui->hop_interval_max_l->setVisible(true);
+        ui->bbr_profile->setVisible(true);
+        ui->bbr_profile_l->setVisible(true);
         if (obfs_type == "gecko") {
             ui->min_packet_size->setVisible(true);
             ui->min_packet_size_l->setVisible(true);

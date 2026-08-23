@@ -1,6 +1,7 @@
 #include "include/ui/profile/edit_custom.h"
 
-#include "3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.hpp"
+#include "include/ui/widget/json/JsonEditorDialog.h"
+#include "include/ui/widget/json/SchemaStore.h"
 
 #include <QMessageBox>
 #include <QClipboard>
@@ -87,9 +88,15 @@ bool EditCustom::onEnd() {
 }
 
 void EditCustom::on_as_json_clicked() {
-    auto editor = new JsonEditor(QString2QJsonObject(ui->config_simple->toPlainText()), this);
+    auto editor = new JsonEdit::JsonEditorDialog(QString2QJsonObject(ui->config_simple->toPlainText()), this);
+    if (preset_core == Configs::Custom::CustomOutbound) {
+        editor->SetValidator(JsonEdit::SingBoxValidator({JsonEdit::SingBox::Outbound, JsonEdit::SingBox::Endpoint}));
+    } else if (preset_core == Configs::Custom::CustomFullConfig) {
+        editor->SetValidator(JsonEdit::SingBoxValidator(JsonEdit::SingBox::Config));
+    }
     auto result = editor->OpenEditor();
     if (!result.isEmpty()) {
         ui->config_simple->setPlainText(QJsonObject2QString(result, false));
     }
+    editor->deleteLater();
 }

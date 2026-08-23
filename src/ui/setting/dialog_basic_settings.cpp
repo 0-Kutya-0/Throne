@@ -1,6 +1,7 @@
 #include "include/ui/setting/dialog_basic_settings.h"
 
-#include "3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.hpp"
+#include "include/ui/widget/json/JsonEditorDialog.h"
+#include "include/ui/widget/json/SchemaStore.h"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/setting/Icon.hpp"
 #include "include/global/GuiUtils.hpp"
@@ -68,7 +69,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     D_LOAD_STRING(inbound_pass)
 
     connect(ui->custom_inbound_edit, &QPushButton::clicked, this, [=,this] {
-        C_EDIT_JSON_ALLOW_EMPTY(custom_inbound)
+        C_EDIT_JSON_ALLOW_EMPTY(custom_inbound, JsonEdit::SingBox::Config)
     });
     connect(ui->disable_tray, &QCheckBox::stateChanged, this, [=,this](const bool &) {
         CACHE.updateDisableTray = true;

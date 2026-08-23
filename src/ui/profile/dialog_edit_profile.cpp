@@ -17,7 +17,7 @@
 #include "include/ui/profile/edit_custom.h"
 #include "include/ui/profile/edit_extra_core.h"
 
-#include "3rdparty/qv2ray/v2/ui/widgets/editors/w_JsonEditor.hpp"
+#include "include/ui/widget/json/JsonEditorDialog.h"
 #include "include/global/GuiUtils.hpp"
 #include "include/global/Utils.hpp"
 
@@ -948,7 +948,7 @@ void DialogEditProfile::on_certificate_edit_clicked() {
 }
 
 void DialogEditProfile::on_xray_downloadsettings_edit_clicked() {
-    auto editor = new JsonEditor(QString2QJsonObject(CACHE.XrayDownloadSettings), this);
+    auto editor = new JsonEdit::JsonEditorDialog(QString2QJsonObject(CACHE.XrayDownloadSettings), this);
     auto result = editor->OpenEditor();
     if (!result.isEmpty()) CACHE.XrayDownloadSettings = QJsonObject2QString(result, true);
     else CACHE.XrayDownloadSettings.clear();
