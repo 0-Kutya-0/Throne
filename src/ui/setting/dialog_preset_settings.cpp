@@ -50,6 +50,19 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     syncFragParams(ui->fragment_implementation->currentText());
     ui->utlsFingerprint->addItems(Configs::tlsFingerprints);
     ui->utlsFingerprint->setCurrentText(Configs::dataManager->settingsRepo->utlsFingerprint);
+    // a non-editable combo drops setCurrentText while it holds no items
+    ui->tls_spoof_method->addItems(Configs::tlsSpoofMethods);
+    D_LOAD_STRING(tls_spoof)
+    D_LOAD_COMBO_STRING(tls_spoof_method)
+    D_LOAD_BOOL(tls_spoof_default_on)
+    // with no SNI to forge there is nothing to enable, so the dependants follow it
+    auto syncSpoofFields = [this](const QString &sni) {
+        ui->tls_spoof_method->setEnabled(!sni.isEmpty());
+        ui->tls_spoof_method_l->setEnabled(!sni.isEmpty());
+        ui->tls_spoof_default_on->setEnabled(!sni.isEmpty());
+    };
+    connect(ui->tls_spoof, &QLineEdit::textChanged, this, syncSpoofFields);
+    syncSpoofFields(ui->tls_spoof->text());
 
     // HTTP/2 & QUIC
     D_LOAD_STRING(h2_idle_timeout)
@@ -88,6 +101,9 @@ void DialogPresetSettings::accept() {
     D_SAVE_BOOL(fragment_default_on)
     D_SAVE_BOOL(tls_tricks_default_on)
     Configs::dataManager->settingsRepo->utlsFingerprint = ui->utlsFingerprint->currentText();
+    D_SAVE_STRING(tls_spoof)
+    D_SAVE_COMBO_STRING(tls_spoof_method)
+    D_SAVE_BOOL(tls_spoof_default_on)
 
     // HTTP/2 & QUIC
     D_SAVE_STRING(h2_idle_timeout)

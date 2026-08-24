@@ -64,6 +64,21 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         ui->disable_sni->setChecked(tlsObj->disable_sni);
         ui->min_version->setText(tlsObj->min_version);
         ui->max_version->setText(tlsObj->max_version);
+        ui->tls_spoof_state->setCurrentIndex(tlsObj->getSpoofState());
+        ui->tls_spoof->setText(tlsObj->spoof);
+        // a non-editable combo drops setCurrentText while it holds no items
+        ui->tls_spoof_method->addItems(Configs::tlsSpoofMethods);
+        ui->tls_spoof_method->setCurrentText(tlsObj->spoof_method);
+        auto syncSpoofFields = [this] {
+            const bool on = ui->tls_spoof_state->currentIndex() != 2;
+            ui->tls_spoof->setEnabled(on);
+            ui->tls_spoof_l->setEnabled(on);
+            ui->tls_spoof_method->setEnabled(on && !ui->tls_spoof->text().isEmpty());
+            ui->tls_spoof_method_l->setEnabled(on && !ui->tls_spoof->text().isEmpty());
+        };
+        connect(ui->tls_spoof, &QLineEdit::textChanged, this, syncSpoofFields);
+        connect(ui->tls_spoof_state, &QComboBox::currentIndexChanged, this, syncSpoofFields);
+        syncSpoofFields();
         ui->enable_ech->setChecked(tlsObj->ech->enabled);
         ui->ech_server_name->setText(tlsObj->ech->serverName);
 
@@ -151,6 +166,9 @@ void EditAdvanced::accept() {
         tlsObj->disable_sni = ui->disable_sni->isChecked();
         tlsObj->min_version = ui->min_version->text();
         tlsObj->max_version = ui->max_version->text();
+        tlsObj->saveSpoofState(ui->tls_spoof_state->currentIndex());
+        tlsObj->spoof = ui->tls_spoof->text();
+        tlsObj->spoof_method = ui->tls_spoof_method->currentText();
         tlsObj->ech->enabled = ui->enable_ech->isChecked();
         tlsObj->ech->serverName = ui->ech_server_name->text();
         tlsObj->ech->config = CACHE.echConfig;

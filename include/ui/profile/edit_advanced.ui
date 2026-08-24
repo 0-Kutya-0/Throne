@@ -207,63 +207,63 @@
       <string>TLS</string>
      </property>
      <layout class="QFormLayout" name="formLayout">
-      <item row="3" column="0">
+      <item row="6" column="0">
        <widget class="QCheckBox" name="enable_ech">
         <property name="text">
          <string>Enable ECH</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="8" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
          <string>ECH Config</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="8" column="1">
        <widget class="QPushButton" name="ech_config">
         <property name="text">
          <string>Not Set</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="0">
+      <item row="9" column="0">
        <widget class="QLabel" name="label_3">
         <property name="text">
          <string>Certificate SHA256</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="9" column="1">
        <widget class="QPushButton" name="cert_sha256">
         <property name="text">
          <string>Not Set</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="0">
+      <item row="10" column="0">
        <widget class="QLabel" name="label_4">
         <property name="text">
          <string>Client Certificate</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="10" column="1">
        <widget class="QPushButton" name="client_cert">
         <property name="text">
          <string>Not Set</string>
         </property>
        </widget>
       </item>
-      <item row="8" column="0">
+      <item row="11" column="0">
        <widget class="QLabel" name="label_5">
         <property name="text">
          <string>Client Key</string>
         </property>
        </widget>
       </item>
-      <item row="8" column="1">
+      <item row="11" column="1">
        <widget class="QPushButton" name="client_key">
         <property name="text">
          <string>Not Set</string>
@@ -297,7 +297,69 @@
       <item row="2" column="1">
        <widget class="QLineEdit" name="max_version"/>
       </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="tls_spoof_state_l">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Whether this profile injects a forged ClientHello. &amp;quot;Keep Default&amp;quot; follows Preset Settings, unless a Spoof SNI is set below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>TLS Spoof</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QComboBox" name="tls_spoof_state">
+        <item>
+         <property name="text">
+          <string>Keep Default</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>On</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Off</string>
+         </property>
+        </item>
+       </widget>
+      </item>
       <item row="4" column="0">
+       <widget class="QLabel" name="tls_spoof_l">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Inject a forged TLS ClientHello carrying this SNI before the real one, to pass SNI filtering that allows specific hostnames.&lt;/p&gt;&lt;p&gt;Client only. Requires elevated privileges (root / Administrator). Not supported on Windows ARM64. &amp;quot;wrong-timestamp&amp;quot; is not supported on macOS.&lt;/p&gt;&lt;p&gt;Leave empty to inherit the global value from Preset Settings.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Spoof SNI</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLineEdit" name="tls_spoof">
+        <property name="maximumSize">
+         <size>
+          <width>160</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="placeholderText">
+         <string>Allowed SNI to forge</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="tls_spoof_method_l">
+        <property name="text">
+         <string>Method</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QComboBox" name="tls_spoof_method"/>
+      </item>
+      <item row="7" column="0">
        <widget class="QLabel" name="label_8">
         <property name="toolTip">
          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;h4 style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a name=&quot;query_server_name&quot;/&gt;&lt;span style=&quot; font-size:medium; font-weight:700;&quot;&gt;q&lt;/span&gt;&lt;span style=&quot; font-size:medium; font-weight:700;&quot;&gt;uery_server_name in sing-box&lt;/span&gt;&lt;/h4&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -307,7 +369,7 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="7" column="1">
        <widget class="QLineEdit" name="ech_server_name"/>
       </item>
      </layout>
@@ -486,6 +548,9 @@
   <tabstop>disable_sni</tabstop>
   <tabstop>min_version</tabstop>
   <tabstop>max_version</tabstop>
+  <tabstop>tls_spoof_state</tabstop>
+  <tabstop>tls_spoof</tabstop>
+  <tabstop>tls_spoof_method</tabstop>
   <tabstop>enable_ech</tabstop>
   <tabstop>ech_server_name</tabstop>
   <tabstop>ech_config</tabstop>

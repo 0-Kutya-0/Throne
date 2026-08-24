@@ -139,6 +139,9 @@ namespace Configs {
         // route options
         QString override_address;
         QString override_port;
+        // since sing-box 1.14.0
+        QString tls_spoof;
+        QString tls_spoof_method;
         // TODO maybe add some of dial fields?
 
         // sniff options

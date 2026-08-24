@@ -93,6 +93,12 @@ namespace Configs {
         QString fragment_sleep = "2-5";
         // TLS tricks (mixed-case SNI): default for profiles left on "Keep Default".
         bool tls_tricks_default_on = false;
+        // TLS spoof: the whitelisted SNI to forge, and how the real server rejects the
+        // forged segment. Profiles that leave their own field empty inherit these, and
+        // those left on "Keep Default" are spoofed only when tls_spoof_default_on.
+        QString tls_spoof = "";
+        QString tls_spoof_method = "";
+        bool tls_spoof_default_on = false;
 
         // Preset: HTTP/2 parameters (sing-box 1.14 shared fields). QUIC-based outbounds
         // embed the same five fields, so these feed hysteria/hysteria2/tuic as well.

@@ -6,6 +6,8 @@ namespace Configs
 
     inline QStringList tlsFingerprints = {"", "chrome", "firefox", "edge", "safari", "360", "qq", "ios", "android", "random", "randomized"};
 
+    inline QStringList tlsSpoofMethods = {"", "wrong-sequence", "wrong-checksum", "wrong-ack", "wrong-md5", "wrong-timestamp"};
+
     class uTLS : public baseConfig
     {
         public:
@@ -82,6 +84,12 @@ namespace Configs
         bool fragment_unspecified = true;
         QString fragment_fallback_delay;
         bool record_fragment = false;
+        // spoof is a tri-state like fragment/tls_tricks; spoof / spoof_method are the
+        // values it forges with, each falling back to the global preset when empty.
+        QString spoof;
+        QString spoof_method;
+        bool spoof_enabled = false;
+        bool spoof_unspecified = true;
         bool tls_tricks = false;
         bool tls_tricks_unspecified = true;
         std::shared_ptr<ECH> ech = std::make_shared<ECH>();
@@ -98,6 +106,15 @@ namespace Configs
             fragment = state == 1;
             fragment_unspecified = state == 0;
         }
+        int getSpoofState() {
+            if (spoof_enabled) return 1;
+            if (spoof_unspecified) return 0;
+            return 2;
+        }
+        void saveSpoofState(const int state) {
+            spoof_enabled = state == 1;
+            spoof_unspecified = state == 0;
+        }
         int getTlsTricksState() {
             if (tls_tricks) return 1;
             if (tls_tricks_unspecified) return 0;
@@ -110,6 +127,7 @@ namespace Configs
         // Resolve the tri-states against the global defaults (see SettingsRepo).
         bool FragmentEffectivelyOn();
         bool TlsTricksEffectivelyOn();
+        bool SpoofEffectivelyOn();
 
         // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
