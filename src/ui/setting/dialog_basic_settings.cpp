@@ -45,8 +45,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     ui->inbound_socks_port_l->setText(ui->inbound_socks_port_l->text().replace("Socks", "Mixed (SOCKS+HTTP)"));
     ui->log_level->addItems(QString("trace debug info warn error fatal panic").split(" "));
     ui->xray_loglevel->addItems(Configs::Xray::XrayLogLevels);
-    ui->mux_protocol->addItems({"h2mux", "smux", "yamux"});
-    ui->fragment_implementation->addItems({"built-in", "custom"});
     ui->disable_stats->setChecked(Configs::dataManager->settingsRepo->disable_traffic_stats);
     ui->proxy_scheme->setCurrentText(Configs::dataManager->settingsRepo->proxy_scheme);
 
@@ -212,28 +210,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
                 details.osVersion.isEmpty() ? "N/A" : details.osVersion,
                 details.model.isEmpty() ? "N/A" : details.model));
 
-    // Mux
-    D_LOAD_INT(mux_concurrency)
-    D_LOAD_COMBO_STRING(mux_protocol)
-    D_LOAD_BOOL(mux_padding)
-    D_LOAD_BOOL(mux_default_on)
-    D_LOAD_COMBO_STRING(fragment_implementation)
-    D_LOAD_BOOL(fragment_default_on)
-    D_LOAD_BOOL(tls_tricks_default_on)
-    D_LOAD_STRING(fragment_size)
-    D_LOAD_STRING(fragment_sleep)
-    ui->fragment_size->setValidator(new QRegularExpressionValidator(QRegularExpression("^[0-9]+(-[0-9]+)?$"), this));
-    ui->fragment_sleep->setValidator(new QRegularExpressionValidator(QRegularExpression("^[0-9]+(-[0-9]+)?$"), this));
-    // size/sleep only affect the custom implementation, so enable them only for it
-    auto syncFragParams = [this](const QString &impl) {
-        bool custom = impl == "custom";
-        ui->fragment_size->setEnabled(custom);
-        ui->fragment_sleep->setEnabled(custom);
-        ui->fragment_size_l->setEnabled(custom);
-        ui->fragment_sleep_l->setEnabled(custom);
-    };
-    connect(ui->fragment_implementation, &QComboBox::currentTextChanged, this, syncFragParams);
-    syncFragParams(ui->fragment_implementation->currentText());
     ui->dns_in_port->setValidator(new QIntValidator(1, 65535, ui->dns_in_port));
     ui->dns_in_port->setText(Int2String(Configs::dataManager->settingsRepo->core_dns_in_port));
 
@@ -256,8 +232,6 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     });
 
     // Xray
-    ui->xray_mux_concurrency->setText(Int2String(Configs::dataManager->settingsRepo->xray_mux_concurrency));
-    ui->xray_default_mux->setChecked(Configs::dataManager->settingsRepo->xray_mux_default_on);
     ui->vless_xray_pref->addItems(Configs::Xray::XrayVlessPreferenceString);
     ui->vless_xray_pref->setCurrentIndex(Configs::dataManager->settingsRepo->xray_vless_preference);
     D_LOAD_STRING(xray_geoip_url)
@@ -284,13 +258,11 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
 
     // Security
 
-    ui->utlsFingerprint->addItems(Configs::tlsFingerprints);
     ui->disable_priv_req->setChecked(Configs::dataManager->settingsRepo->disable_privilege_req);
     ui->windows_no_admin->setChecked(Configs::dataManager->settingsRepo->disable_run_admin);
     ui->mozilla_cert->setChecked(Configs::dataManager->settingsRepo->use_mozilla_certs);
 
     D_LOAD_BOOL(skip_cert)
-    ui->utlsFingerprint->setCurrentText(Configs::dataManager->settingsRepo->utlsFingerprint);
 
     // The .ui geometry is a design-time hint only: the size the content actually
     // needs depends on the platform's font metrics and on the active translation,
@@ -433,22 +405,9 @@ void DialogBasicSettings::accept() {
         Configs::dataManager->settingsRepo->core_box_api_secret = secret;
 
     // Xray
-    Configs::dataManager->settingsRepo->xray_mux_concurrency = ui->xray_mux_concurrency->text().toInt();
-    Configs::dataManager->settingsRepo->xray_mux_default_on = ui->xray_default_mux->isChecked();
     Configs::dataManager->settingsRepo->xray_vless_preference = static_cast<Configs::Xray::XrayVlessPreference>(ui->vless_xray_pref->currentIndex());
     D_SAVE_STRING(xray_geoip_url)
     D_SAVE_STRING(xray_geosite_url)
-
-    // Mux
-    D_SAVE_INT(mux_concurrency)
-    D_SAVE_COMBO_STRING(mux_protocol)
-    D_SAVE_BOOL(mux_padding)
-    D_SAVE_BOOL(mux_default_on)
-    D_SAVE_COMBO_STRING(fragment_implementation)
-    D_SAVE_BOOL(fragment_default_on)
-    D_SAVE_BOOL(tls_tricks_default_on)
-    D_SAVE_STRING(fragment_size)
-    D_SAVE_STRING(fragment_sleep)
 
     // NTP
     Configs::dataManager->settingsRepo->enable_ntp = ui->ntp_enable->isChecked();
@@ -460,7 +419,6 @@ void DialogBasicSettings::accept() {
     // Security
 
     D_SAVE_BOOL(skip_cert)
-    Configs::dataManager->settingsRepo->utlsFingerprint = ui->utlsFingerprint->currentText();
     Configs::dataManager->settingsRepo->disable_privilege_req = ui->disable_priv_req->isChecked();
     if (Configs::dataManager->settingsRepo->disable_run_admin != ui->windows_no_admin->isChecked()) CACHE.updateDisableAdmin = true;
     Configs::dataManager->settingsRepo->disable_run_admin = ui->windows_no_admin->isChecked();

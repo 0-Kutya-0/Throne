@@ -103,7 +103,7 @@
      </layout>
     </widget>
    </item>
-   <item row="2" column="0">
+   <item row="3" column="0">
     <widget class="QGroupBox" name="interface_box">
      <property name="title">
       <string>Interface</string>
@@ -191,7 +191,7 @@
      </layout>
     </widget>
    </item>
-   <item row="3" column="0">
+   <item row="4" column="0">
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>
@@ -313,6 +313,165 @@
      </layout>
     </widget>
    </item>
+   <item row="2" column="0">
+    <widget class="QGroupBox" name="quic_box">
+     <property name="title">
+      <string>QUIC Parameters</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_quic">
+      <item row="0" column="0" colspan="4">
+       <widget class="QLabel" name="quic_note">
+        <property name="text">
+         <string>Empty fields fall back to the global values in Preset Settings.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="quic_idle_timeout_l">
+        <property name="text">
+         <string>Idle Timeout</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="quic_idle_timeout">
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="placeholderText">
+         <string notr="true">30s</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="quic_keep_alive_period_l">
+        <property name="text">
+         <string>Keep Alive Period</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QLineEdit" name="quic_keep_alive_period">
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="placeholderText">
+         <string notr="true">15s</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="quic_stream_receive_window_l">
+        <property name="text">
+         <string>Stream Receive Window</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="quic_stream_receive_window">
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="placeholderText">
+         <string notr="true">8 MB</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QLabel" name="quic_connection_receive_window_l">
+        <property name="text">
+         <string>Connection Receive Window</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="3">
+       <widget class="QLineEdit" name="quic_connection_receive_window">
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="placeholderText">
+         <string notr="true">64 MB</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="quic_max_concurrent_streams_l">
+        <property name="text">
+         <string>Max Concurrent Streams</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLineEdit" name="quic_max_concurrent_streams">
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>16777215</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QLabel" name="quic_initial_packet_size_l">
+        <property name="text">
+         <string>Initial Packet Size</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="3">
+       <widget class="QLineEdit" name="quic_initial_packet_size">
+        <property name="maximumSize">
+         <size>
+          <width>120</width>
+          <height>16777215</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="quic_disable_path_mtu_discovery_l">
+        <property name="text">
+         <string>Disable Path MTU Discovery</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="quic_disable_path_mtu_discovery">
+        <item>
+         <property name="text">
+          <string>Keep Default</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>On</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Off</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
   </layout>
  </widget>
  <tabstops>
@@ -333,6 +492,13 @@
   <tabstop>cert_sha256</tabstop>
   <tabstop>client_cert</tabstop>
   <tabstop>client_key</tabstop>
+  <tabstop>quic_idle_timeout</tabstop>
+  <tabstop>quic_keep_alive_period</tabstop>
+  <tabstop>quic_stream_receive_window</tabstop>
+  <tabstop>quic_connection_receive_window</tabstop>
+  <tabstop>quic_max_concurrent_streams</tabstop>
+  <tabstop>quic_initial_packet_size</tabstop>
+  <tabstop>quic_disable_path_mtu_discovery</tabstop>
   <tabstop>system</tabstop>
   <tabstop>interface_name</tabstop>
   <tabstop>udp_timeout</tabstop>

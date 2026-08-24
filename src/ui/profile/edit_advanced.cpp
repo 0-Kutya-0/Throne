@@ -87,6 +87,19 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
         ui->tls_box->hide();
     }
 
+    if (ent->outbound->HasQUIC()) {
+        auto quicObj = ent->outbound->GetQUIC();
+        ui->quic_idle_timeout->setText(quicObj->idle_timeout);
+        ui->quic_keep_alive_period->setText(quicObj->keep_alive_period);
+        ui->quic_stream_receive_window->setText(quicObj->stream_receive_window);
+        ui->quic_connection_receive_window->setText(quicObj->connection_receive_window);
+        ui->quic_max_concurrent_streams->setText(EditorNumText(quicObj->max_concurrent_streams));
+        ui->quic_initial_packet_size->setText(EditorNumText(quicObj->initial_packet_size));
+        ui->quic_disable_path_mtu_discovery->setCurrentIndex(quicObj->getPathMtuState());
+    } else {
+        ui->quic_box->hide();
+    }
+
     if (auto fields = GetInterfaceFields(); fields.system != nullptr) {
         ui->udp_mapping->addItems({"", "endpoint_independent", "address_dependent", "address_and_port_dependent"});
         ui->udp_filtering->addItems({"", "endpoint_independent", "address_dependent", "address_and_port_dependent"});
@@ -144,6 +157,17 @@ void EditAdvanced::accept() {
         tlsObj->client_certificate = CACHE.clientCert;
         tlsObj->client_key = CACHE.clientKey;
         tlsObj->certificate_public_key_sha256 = CACHE.certSha256;
+    }
+
+    if (ent->outbound->HasQUIC()) {
+        auto quicObj = ent->outbound->GetQUIC();
+        quicObj->idle_timeout = ui->quic_idle_timeout->text();
+        quicObj->keep_alive_period = ui->quic_keep_alive_period->text();
+        quicObj->stream_receive_window = ui->quic_stream_receive_window->text();
+        quicObj->connection_receive_window = ui->quic_connection_receive_window->text();
+        quicObj->max_concurrent_streams = ui->quic_max_concurrent_streams->text().toInt();
+        quicObj->initial_packet_size = ui->quic_initial_packet_size->text().toInt();
+        quicObj->savePathMtuState(ui->quic_disable_path_mtu_discovery->currentIndex());
     }
 
     if (auto fields = GetInterfaceFields(); fields.system != nullptr) {

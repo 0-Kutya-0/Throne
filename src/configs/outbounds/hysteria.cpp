@@ -85,7 +85,8 @@ namespace Configs {
         
         tls->ParseFromLink(link);
         tls->enabled = true; // Hysteria always uses tls
-        
+        quic->ParseFromLink(link);
+
         if (server_port == 0 && server_ports.isEmpty()) server_port = 443;
 
         return true;
@@ -136,6 +137,7 @@ namespace Configs {
             if (object.contains("bbr_profile")) bbr_profile = object["bbr_profile"].toString();
         }
         if (object.contains("tls")) tls->ParseFromJson(object["tls"].toObject());
+        quic->ParseFromJson(object);
         return true;
     }
 
@@ -252,6 +254,7 @@ namespace Configs {
         if (!hop_interval.isEmpty()) query.addQueryItem("hop_interval", hop_interval);
         
         mergeUrlQuery(query, tls->ExportToLink());
+        mergeUrlQuery(query, quic->ExportToLink());
         mergeUrlQuery(query, outbound::ExportToLink());
         
         if (!query.isEmpty()) url.setQuery(query);
@@ -308,6 +311,7 @@ namespace Configs {
             if (!bbr_profile.isEmpty()) object["bbr_profile"] = bbr_profile;
         }
         object["tls"] = tls->ExportToJson();
+        mergeJsonObjects(object, quic->ExportToJson());
         return object;
     }
 
@@ -368,6 +372,7 @@ namespace Configs {
             if (hysteriaBBRProfiles.contains(bbr_profile)) object["bbr_profile"] = bbr_profile;
         }
         object["tls"] = tls->Build().object;
+        mergeJsonObjects(object, quic->Build().object);
         return {object, ""};
     }
 

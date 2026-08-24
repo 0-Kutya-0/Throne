@@ -38,7 +38,7 @@ namespace JsonEdit {
     }
 
     namespace {
-        constexpr int kMaxDepth = 96;
+        constexpr int kMaxParseDepth = 96;
 
         class Parser {
         public:
@@ -123,7 +123,7 @@ namespace JsonEdit {
             }
 
             bool parseValue(const int depth, Value* out) {
-                if (depth > kMaxDepth) return fail(QObject::tr("The document is nested too deeply"), m_pos);
+                if (depth > kMaxParseDepth) return fail(QObject::tr("The document is nested too deeply"), m_pos);
                 skipTrivia();
                 if (atEnd()) return fail(QObject::tr("Unexpected end of document"), m_pos, 0);
 

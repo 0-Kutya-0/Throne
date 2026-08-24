@@ -378,6 +378,7 @@ set(PROJECT_SOURCES
         include/sys/windows/eventHandler.h
         include/configs/baseConfig.h
         include/configs/common/DialFields.h
+        include/configs/common/QUICFields.h
         include/configs/common/TLS.h
         include/configs/common/multiplex.h
         include/configs/common/transport.h
@@ -386,6 +387,7 @@ set(PROJECT_SOURCES
 
         # common impl
         src/configs/common/DialFields.cpp
+        src/configs/common/QUICFields.cpp
         src/configs/common/TLS.cpp
         src/configs/common/multiplex.cpp
         src/configs/common/transport.cpp
@@ -554,8 +556,12 @@ set_target_properties(Throne PROPERTIES
         MACOSX_BUNDLE_GUI_IDENTIFIER moe.Throne.macosx
         MACOSX_BUNDLE TRUE
         WIN32_EXECUTABLE TRUE
-        UNITY_BUILD ON
 )
+# Only MSVC gains enough from jumbo builds to be worth the ODR hazard between
+# same-named symbols in different files' anonymous namespaces.
+if (WIN32 AND MSVC)
+    set_target_properties(Throne PROPERTIES UNITY_BUILD ON)
+endif ()
 set_property(SOURCE "3rdparty/SQLiteCpp/src/sqlite3.c" PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
 
 # Verified to link. OMIT_VIRTUALTABLE/VIEW/ANALYZE/CTE/WINDOWFUNC/DECLTYPE all break this build.

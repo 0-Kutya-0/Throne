@@ -19,6 +19,7 @@ namespace Configs
         bool zero_rtt_handshake = false;
         QString heartbeat;
         std::shared_ptr<TLS> tls = std::make_shared<TLS>();
+        std::shared_ptr<QUICFields> quic = std::make_shared<QUICFields>();
 
         tuic()
         {
@@ -33,8 +34,16 @@ namespace Configs
             return true;
         }
 
+        bool HasQUIC() override {
+            return true;
+        }
+
         std::shared_ptr<TLS> GetTLS() override {
             return tls;
+        }
+
+        std::shared_ptr<QUICFields> GetQUIC() override {
+            return quic;
         }
 
         // baseConfig overrides

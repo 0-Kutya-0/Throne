@@ -8,7 +8,7 @@
 
 namespace JsonEdit {
     namespace {
-        constexpr int kMaxDepth = 64;
+        constexpr int kMaxSchemaDepth = 64;
         constexpr int kMaxIssues = 200;
         constexpr int kMaxListed = 10;
         constexpr int kMaxUnionIssues = 6;
@@ -185,7 +185,7 @@ namespace JsonEdit {
 
     void SchemaValidator::validate(const QJsonObject& schema, const Value& value, const QString& pointer,
                                    const int depth, QList<Issue>& issues, QSet<QString>* evaluated) const {
-        if (depth > kMaxDepth || issues.size() >= kMaxIssues) return;
+        if (depth > kMaxSchemaDepth || issues.size() >= kMaxIssues) return;
 
         QSet<QString> local;
         const auto propagate = [&] {

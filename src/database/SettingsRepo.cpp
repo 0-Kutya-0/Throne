@@ -27,6 +27,7 @@ namespace Configs {
             {"mux_default_on",                &mux_default_on},
             {"fragment_default_on",           &fragment_default_on},
             {"tls_tricks_default_on",         &tls_tricks_default_on},
+            {"quic_disable_path_mtu_discovery", &quic_disable_path_mtu_discovery},
             {"net_use_proxy",                 &net_use_proxy},
             {"remember_enable",               &remember_enable},
             {"skip_cert",                     &skip_cert},
@@ -109,6 +110,8 @@ namespace Configs {
             {"ruleset_mirror",         &ruleset_mirror},
             {"core_dns_in_port",       &core_dns_in_port},
             {"dns_cache_capacity", &dns_cache_capacity},
+            {"h2_max_concurrent_streams", &h2_max_concurrent_streams},
+            {"quic_initial_packet_size", &quic_initial_packet_size},
         };
 
         stringMap = {
@@ -121,6 +124,10 @@ namespace Configs {
             {"fragment_implementation",    &fragment_implementation},
             {"fragment_size",              &fragment_size},
             {"fragment_sleep",             &fragment_sleep},
+            {"h2_idle_timeout",            &h2_idle_timeout},
+            {"h2_keep_alive_period",       &h2_keep_alive_period},
+            {"h2_stream_receive_window",   &h2_stream_receive_window},
+            {"h2_connection_receive_window", &h2_connection_receive_window},
             {"theme",                      &theme},
             {"custom_inbound",             &custom_inbound},
             {"custom_route",               &custom_route_global},

@@ -93,6 +93,18 @@ namespace Configs {
         QString fragment_sleep = "2-5";
         // TLS tricks (mixed-case SNI): default for profiles left on "Keep Default".
         bool tls_tricks_default_on = false;
+
+        // Preset: HTTP/2 parameters (sing-box 1.14 shared fields). QUIC-based outbounds
+        // embed the same five fields, so these feed hysteria/hysteria2/tuic as well.
+        // Empty / 0 means "leave the core's default" and is omitted from the config.
+        QString h2_idle_timeout = "";
+        QString h2_keep_alive_period = "";
+        QString h2_stream_receive_window = "";
+        QString h2_connection_receive_window = "";
+        int h2_max_concurrent_streams = 0;
+        // Preset: QUIC-only parameters, on top of the HTTP/2 five above.
+        int quic_initial_packet_size = 0;
+        bool quic_disable_path_mtu_discovery = false;
         QString theme = "0";
         int language = 0;
         QString font = "";

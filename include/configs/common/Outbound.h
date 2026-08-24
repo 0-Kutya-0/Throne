@@ -2,6 +2,7 @@
 #include <QHostInfo>
 #include <utility>
 #include "DialFields.h"
+#include "QUICFields.h"
 #include "multiplex.h"
 #include "TLS.h"
 #include "transport.h"
@@ -123,7 +124,11 @@ namespace Configs
 
         virtual bool MustTLS() { return false; }
 
+        virtual bool HasQUIC() { return false; }
+
         virtual std::shared_ptr<TLS> GetTLS() { return std::make_shared<TLS>(); }
+
+        virtual std::shared_ptr<QUICFields> GetQUIC() { return std::make_shared<QUICFields>(); }
 
         virtual std::shared_ptr<Transport> GetTransport() { return std::make_shared<Transport>(); }
 
