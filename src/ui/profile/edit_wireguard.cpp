@@ -94,6 +94,8 @@ void EditWireguard::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->reject_after_time->setText(outbound->reject_after_time);
     ui->keepalive_timeout->setText(outbound->keepalive_timeout);
     ui->max_handshake_attempts->setText(outbound->max_handshake_attempts);
+    ui->random_trailers->setChecked(outbound->random_trailers);
+    ui->disable_cookies->setChecked(outbound->disable_cookies);
 }
 
 bool EditWireguard::onEnd() {
@@ -138,6 +140,8 @@ bool EditWireguard::onEnd() {
     outbound->reject_after_time = ui->reject_after_time->text().trimmed();
     outbound->keepalive_timeout = ui->keepalive_timeout->text().trimmed();
     outbound->max_handshake_attempts = ui->max_handshake_attempts->text().trimmed();
+    outbound->random_trailers = ui->random_trailers->isChecked();
+    outbound->disable_cookies = ui->disable_cookies->isChecked();
 
     return true;
 }

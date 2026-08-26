@@ -63,6 +63,10 @@ namespace Configs
         QString keepalive_timeout;
         QString max_handshake_attempts;
 
+        // AmneziaWG 3.1
+        bool random_trailers = false;
+        bool disable_cookies = false;
+
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         QString ExportToLink() override;
