@@ -23,6 +23,39 @@ namespace Configs {
         return result;
     }
 
+    // server_url, realm_id and stun_servers are required by the core, but only when it first
+    // dials — a config missing one still passes validation. Emit them unconditionally so the
+    // gap shows up as that error rather than as a profile quietly reverting to no endpoint.
+    static QJsonObject buildRealmObject(const hysteria &out)
+    {
+        QJsonObject realm;
+        realm["server_url"] = out.realm_server_url;
+        if (!out.realm_token.isEmpty()) realm["token"] = out.realm_token;
+        realm["realm_id"] = out.realm_id;
+        if (!out.realm_stun_servers.isEmpty()) realm["stun_servers"] = QListStr2QJsonArray(out.realm_stun_servers);
+        if (out.realm_ip_version == 4 || out.realm_ip_version == 6) realm["ip_version"] = out.realm_ip_version;
+        // Hole punching over IPv6 has no gateway mapping to make; the core rejects the pair.
+        if (out.realm_port_mapping && out.realm_ip_version != 6) {
+            QJsonObject portMapping{{"enabled", true}};
+            if (!out.realm_port_mapping_timeout.isEmpty()) portMapping["timeout"] = out.realm_port_mapping_timeout;
+            if (!out.realm_port_mapping_lifetime.isEmpty()) portMapping["lifetime"] = out.realm_port_mapping_lifetime;
+            realm["port_mapping"] = portMapping;
+        }
+        if (!out.realm_http_client.isEmpty()) realm["http_client"] = out.realm_http_client;
+        return realm;
+    }
+
+    // realm replaces the server address entirely; the core refuses a config carrying both.
+    // hop_interval is left alone: it is accepted next to realm, and ExportToJson() is also
+    // the stored form, so dropping it would lose the setting behind the user's back.
+    static void applyRealmObject(QJsonObject &object, const hysteria &out)
+    {
+        object.remove("server");
+        object.remove("server_port");
+        object.remove("server_ports");
+        object["realm"] = buildRealmObject(out);
+    }
+
     bool hysteria::ParseFromLink(const QString& link)
     {
         auto url = QUrl(link);
@@ -74,6 +107,7 @@ namespace Configs {
             if (query.hasQueryItem("max_packet_size")) max_packet_size = query.queryItemValue("max_packet_size").toInt();
             if (query.hasQueryItem("hop_interval_max")) hop_interval_max = query.queryItemValue("hop_interval_max");
             if (query.hasQueryItem("bbr_profile")) bbr_profile = query.queryItemValue("bbr_profile");
+            if (query.hasQueryItem("disable_chrome_parrot")) disable_chrome_parrot = query.queryItemValue("disable_chrome_parrot") == "true";
         }
         
         if (query.hasQueryItem("upmbps")) up_mbps = query.queryItemValue("upmbps").toInt();
@@ -135,6 +169,23 @@ namespace Configs {
             if (object.contains("password")) password = object["password"].toString();
             if (object.contains("hop_interval_max")) hop_interval_max = object["hop_interval_max"].toString();
             if (object.contains("bbr_profile")) bbr_profile = object["bbr_profile"].toString();
+            if (object.contains("disable_chrome_parrot")) disable_chrome_parrot = object["disable_chrome_parrot"].toBool();
+            if (object["realm"].isObject()) {
+                auto realmObj = object["realm"].toObject();
+                realm_enabled = true;
+                realm_server_url = realmObj["server_url"].toString();
+                realm_token = realmObj["token"].toString();
+                realm_id = realmObj["realm_id"].toString();
+                // Listable: the core accepts a bare string as well as an array.
+                if (realmObj["stun_servers"].isArray()) realm_stun_servers = QJsonArray2QListString(realmObj["stun_servers"].toArray());
+                else if (realmObj.contains("stun_servers")) realm_stun_servers = {realmObj["stun_servers"].toString()};
+                realm_ip_version = realmObj["ip_version"].toInt();
+                auto portMapping = realmObj["port_mapping"].toObject();
+                realm_port_mapping = portMapping["enabled"].toBool();
+                realm_port_mapping_timeout = portMapping["timeout"].toString();
+                realm_port_mapping_lifetime = portMapping["lifetime"].toString();
+                realm_http_client = realmObj["http_client"].toObject();
+            }
         }
         if (object.contains("tls")) tls->ParseFromJson(object["tls"].toObject());
         quic->ParseFromJson(object);
@@ -216,6 +267,10 @@ namespace Configs {
 
     QString hysteria::ExportToLink()
     {
+        // A realm profile has no host:port to put in the authority, and no hysteria2:// form
+        // carries realm; callers fall back to the throne:// JSON link.
+        if (RealmActive()) return {};
+
         QUrl url;
         QUrlQuery query;
         url.setScheme(protocol_version == "1" ? "hysteria" : "hysteria2");
@@ -246,6 +301,7 @@ namespace Configs {
             }
             if (!hop_interval_max.isEmpty()) query.addQueryItem("hop_interval_max", hop_interval_max);
             if (!bbr_profile.isEmpty()) query.addQueryItem("bbr_profile", bbr_profile);
+            if (disable_chrome_parrot) query.addQueryItem("disable_chrome_parrot", "true");
         }
         
         if (up_mbps > 0) query.addQueryItem("upmbps", QString::number(up_mbps));
@@ -309,6 +365,8 @@ namespace Configs {
             if (!password.isEmpty()) object["password"] = password;
             if (!hop_interval_max.isEmpty()) object["hop_interval_max"] = hop_interval_max;
             if (!bbr_profile.isEmpty()) object["bbr_profile"] = bbr_profile;
+            if (disable_chrome_parrot) object["disable_chrome_parrot"] = true;
+            if (RealmActive()) applyRealmObject(object, *this);
         }
         object["tls"] = tls->ExportToJson();
         mergeJsonObjects(object, quic->ExportToJson());
@@ -317,6 +375,18 @@ namespace Configs {
 
     QJsonObject hysteria::ExportIdentity()
     {
+        if (RealmActive()) {
+            // outbound::ExportIdentity() falls back to the whole config, tag included, when
+            // there is no server; for realm the rendezvous slot is what identifies the peer.
+            QJsonObject object{
+                {"protocol_version", protocol_version},
+                {"realm_server_url", realm_server_url},
+                {"realm_id", realm_id},
+            };
+            if (auto t = tls->ExportIdentity(); !t.isEmpty()) object["tls"] = t;
+            return object;
+        }
+
         auto object = outbound::ExportIdentity();
         object["protocol_version"] = protocol_version;
         if (!server_ports.isEmpty()) object["server_ports"] = server_ports.join(",");
@@ -370,10 +440,34 @@ namespace Configs {
             if (!hop_interval_max.isEmpty() && !hop_interval.isEmpty()) object["hop_interval_max"] = hop_interval_max;
             // An unknown profile makes sing-box refuse to start, so drop anything a subscription made up.
             if (hysteriaBBRProfiles.contains(bbr_profile)) object["bbr_profile"] = bbr_profile;
+            if (disable_chrome_parrot) object["disable_chrome_parrot"] = true;
+            if (RealmActive()) applyRealmObject(object, *this);
         }
         object["tls"] = tls->Build().object;
         mergeJsonObjects(object, quic->Build().object);
         return {object, ""};
+    }
+
+    QStringList hysteria::RealmDirectDomains() const
+    {
+        if (!RealmActive()) return {};
+        QStringList domains{QUrl(realm_server_url).host()};
+        for (const auto &stun : realm_stun_servers) {
+            auto host = stun.trimmed();
+            // "host:port" and "[v6]:port" carry a port; a bare IPv6 literal has several colons.
+            if (host.startsWith('[')) host = SubStrBefore(host, "]").mid(1);
+            else if (host.count(QLatin1Char(':')) == 1) host = SubStrBefore(host, ":");
+            domains << host;
+        }
+        return domains;
+    }
+
+    QString hysteria::DisplayAddress()
+    {
+        if (!RealmActive()) return outbound::DisplayAddress();
+        auto host = QUrl(realm_server_url).host();
+        if (host.isEmpty()) host = realm_server_url;
+        return realm_id.isEmpty() ? host : realm_id + "@" + host;
     }
 
     QString hysteria::DisplayType()

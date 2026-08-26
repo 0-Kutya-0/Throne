@@ -30,6 +30,21 @@ namespace Configs
         QString obfs_type = "salamander";
         QString hop_interval_max;
         QString bbr_profile;
+        // The core parrots Chrome's QUIC handshake unless this is set.
+        bool disable_chrome_parrot = false;
+
+        // Hysteria2 realm (NAT traversal rendezvous); replaces server/server_port/server_ports.
+        bool realm_enabled = false;
+        QString realm_server_url;
+        QString realm_token;
+        QString realm_id;
+        QStringList realm_stun_servers;
+        int realm_ip_version = 0;
+        bool realm_port_mapping = false;
+        QString realm_port_mapping_timeout;
+        QString realm_port_mapping_lifetime;
+        // Carried over from imported configs; the editor has no form for it.
+        QJsonObject realm_http_client;
 
         std::shared_ptr<TLS> tls = std::make_shared<TLS>();
         std::shared_ptr<QUICFields> quic = std::make_shared<QUICFields>();
@@ -38,6 +53,14 @@ namespace Configs
         {
             tls->utls->supported = false;
         }
+
+        bool RealmActive() const {
+            return realm_enabled && protocol_version == "2";
+        }
+
+        // Hosts the realm client reaches outside the tunnel, so they need the same
+        // direct-resolve carve-out a plain server address gets.
+        QStringList RealmDirectDomains() const;
 
         bool HasTLS() override {
             return true;
@@ -68,6 +91,7 @@ namespace Configs
         QJsonObject ExportIdentity() override;
         BuildResult Build() override;
 
+        QString DisplayAddress() override;
         QString DisplayType() override;
         SecurityInfo GetSecurity() override;
     };

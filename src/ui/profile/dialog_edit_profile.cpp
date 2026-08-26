@@ -431,6 +431,13 @@ void DialogEditProfile::typeSelected(const QString &newType) {
                 _innerWidget->_protocol_version->currentText(),
                 _innerWidget->_obfuscation_type->currentText()
             );
+            // A realm profile is reached through the rendezvous service, not an address of its own.
+            const auto realm = _innerWidget->_realm_enabled->isChecked()
+                               && _innerWidget->_protocol_version->currentText() == "2";
+            ui->address->setVisible(!realm);
+            ui->address_l->setVisible(!realm);
+            ui->port->setVisible(!realm);
+            ui->port_l->setVisible(!realm);
             queueRefreshDialogLayout();
         };
 
@@ -439,6 +446,18 @@ void DialogEditProfile::typeSelected(const QString &newType) {
             updateLayout();
         });
         connect(_innerWidget->_obfuscation_type, &QComboBox::currentTextChanged, _innerWidget, [=](const QString &)
+        {
+            updateLayout();
+        });
+        connect(_innerWidget->_realm_ip_version, &QComboBox::currentTextChanged, _innerWidget, [=](const QString &)
+        {
+            updateLayout();
+        });
+        connect(_innerWidget->_realm_enabled, &QCheckBox::toggled, _innerWidget, [=](bool)
+        {
+            updateLayout();
+        });
+        connect(_innerWidget->_realm_port_mapping, &QCheckBox::toggled, _innerWidget, [=](bool)
         {
             updateLayout();
         });
@@ -535,6 +554,8 @@ void DialogEditProfile::typeSelected(const QString &newType) {
                            && customType != Configs::Custom::CustomXrayOutbound
                            && customType != Configs::Custom::CustomXrayFullConfig
                            && type != "extracore" && type != "tailscale";
+    // Hysteria2 over a realm has no server address; the editor keeps this in sync afterwards.
+    if (auto hysteria = ent->Hysteria(); hysteria != nullptr && hysteria->RealmActive()) showAddressPort = false;
     ui->address->setVisible(showAddressPort);
     ui->address_l->setVisible(showAddressPort);
     ui->port->setVisible(showAddressPort);

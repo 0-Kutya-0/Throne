@@ -428,6 +428,12 @@ namespace Configs {
                 return domains;
             }
             if (auto addr = ent->outbound->GetAddress(); !addr.isEmpty() && !IsIpAddress(addr)) domains << addr;
+            // A realm profile has no server address of its own; the rendezvous service and the
+            // STUN servers are what it dials before the tunnel exists.
+            if (auto hysteria = ent->Hysteria(); hysteria != nullptr) {
+                for (const auto &host : hysteria->RealmDirectDomains())
+                    if (!host.isEmpty() && !IsIpAddress(host)) domains << host;
+            }
             return domains;
         }
 

@@ -247,6 +247,141 @@
    <item row="16" column="1">
     <widget class="QLineEdit" name="password"/>
    </item>
+   <item row="17" column="1">
+    <widget class="QCheckBox" name="disable_chrome_parrot">
+     <property name="toolTip">
+      <string>By default the QUIC handshake parrots Chrome's, making Hysteria2 harder to fingerprint. Parroting pins idle timeout to 30s and replaces max concurrent streams, initial packet size and the initial receive windows with Chrome's values; disable it to have the QUIC settings under Advanced applied as entered.</string>
+     </property>
+     <property name="text">
+      <string>Disable Chrome Parrot</string>
+     </property>
+    </widget>
+   </item>
+   <item row="18" column="1">
+    <widget class="QCheckBox" name="realm_enabled">
+     <property name="toolTip">
+      <string>Reach a Hysteria2 server behind NAT through a Hysteria Realm rendezvous service. Replaces the server address and port.</string>
+     </property>
+     <property name="text">
+      <string>Realm (NAT Traversal)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="19" column="0">
+    <widget class="QLabel" name="realm_server_url_l">
+     <property name="text">
+      <string>Realm URL</string>
+     </property>
+    </widget>
+   </item>
+   <item row="19" column="1">
+    <widget class="QLineEdit" name="realm_server_url">
+     <property name="placeholderText">
+      <string notr="true">https://realm.example.com</string>
+     </property>
+    </widget>
+   </item>
+   <item row="20" column="0">
+    <widget class="QLabel" name="realm_id_l">
+     <property name="text">
+      <string>Realm ID</string>
+     </property>
+    </widget>
+   </item>
+   <item row="20" column="1">
+    <widget class="QLineEdit" name="realm_id"/>
+   </item>
+   <item row="21" column="0">
+    <widget class="QLabel" name="realm_token_l">
+     <property name="text">
+      <string>Realm Token</string>
+     </property>
+    </widget>
+   </item>
+   <item row="21" column="1">
+    <widget class="QLineEdit" name="realm_token"/>
+   </item>
+   <item row="22" column="0">
+    <widget class="QLabel" name="realm_stun_servers_l">
+     <property name="text">
+      <string>STUN Servers</string>
+     </property>
+    </widget>
+   </item>
+   <item row="22" column="1">
+    <widget class="QLineEdit" name="realm_stun_servers">
+     <property name="toolTip">
+      <string>Comma separated host or host:port entries used to discover this client's public addresses.</string>
+     </property>
+     <property name="placeholderText">
+      <string notr="true">stun.example.com:3478,...</string>
+     </property>
+    </widget>
+   </item>
+   <item row="23" column="0">
+    <widget class="QLabel" name="realm_ip_version_l">
+     <property name="text">
+      <string>Realm IP Version</string>
+     </property>
+    </widget>
+   </item>
+   <item row="23" column="1">
+    <widget class="QComboBox" name="realm_ip_version">
+     <item>
+      <property name="text">
+       <string notr="true"/>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string notr="true">4</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string notr="true">6</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="24" column="1">
+    <widget class="QCheckBox" name="realm_port_mapping">
+     <property name="toolTip">
+      <string>Maintain a UDP port mapping on the local gateway via UPnP or NAT-PMP. Requires IPv4.</string>
+     </property>
+     <property name="text">
+      <string>Port Mapping</string>
+     </property>
+    </widget>
+   </item>
+   <item row="25" column="0">
+    <widget class="QLabel" name="realm_port_mapping_timeout_l">
+     <property name="text">
+      <string>Mapping Timeout</string>
+     </property>
+    </widget>
+   </item>
+   <item row="25" column="1">
+    <widget class="QLineEdit" name="realm_port_mapping_timeout">
+     <property name="placeholderText">
+      <string notr="true">10s</string>
+     </property>
+    </widget>
+   </item>
+   <item row="26" column="0">
+    <widget class="QLabel" name="realm_port_mapping_lifetime_l">
+     <property name="text">
+      <string>Mapping Lifetime</string>
+     </property>
+    </widget>
+   </item>
+   <item row="26" column="1">
+    <widget class="QLineEdit" name="realm_port_mapping_lifetime">
+     <property name="placeholderText">
+      <string notr="true">10m</string>
+     </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <tabstops>
@@ -267,6 +402,16 @@
   <tabstop>recv_window</tabstop>
   <tabstop>disable_mtu_discovery</tabstop>
   <tabstop>password</tabstop>
+  <tabstop>disable_chrome_parrot</tabstop>
+  <tabstop>realm_enabled</tabstop>
+  <tabstop>realm_server_url</tabstop>
+  <tabstop>realm_id</tabstop>
+  <tabstop>realm_token</tabstop>
+  <tabstop>realm_stun_servers</tabstop>
+  <tabstop>realm_ip_version</tabstop>
+  <tabstop>realm_port_mapping</tabstop>
+  <tabstop>realm_port_mapping_timeout</tabstop>
+  <tabstop>realm_port_mapping_lifetime</tabstop>
  </tabstops>
  <resources/>
  <connections/>
