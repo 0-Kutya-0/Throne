@@ -249,6 +249,9 @@ set(PROJECT_SOURCES
         include/ui/profile/edit_hysteria.h
         src/ui/profile/edit_hysteria.cpp
         include/ui/profile/edit_hysteria.ui
+        include/ui/profile/edit_hysteria_realm.h
+        src/ui/profile/edit_hysteria_realm.cpp
+        include/ui/profile/edit_hysteria_realm.ui
         include/ui/profile/edit_tuic.h
         src/ui/profile/edit_tuic.cpp
         include/ui/profile/edit_tuic.ui

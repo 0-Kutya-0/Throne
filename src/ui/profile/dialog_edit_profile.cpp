@@ -434,10 +434,10 @@ void DialogEditProfile::typeSelected(const QString &newType) {
             // A realm profile is reached through the rendezvous service, not an address of its own.
             const auto realm = _innerWidget->_realm_enabled->isChecked()
                                && _innerWidget->_protocol_version->currentText() == "2";
-            ui->address->setVisible(!realm);
-            ui->address_l->setVisible(!realm);
-            ui->port->setVisible(!realm);
-            ui->port_l->setVisible(!realm);
+            ui->address->setEnabled(!realm);
+            ui->address_l->setEnabled(!realm);
+            ui->port->setEnabled(!realm);
+            ui->port_l->setEnabled(!realm);
             queueRefreshDialogLayout();
         };
 
@@ -449,15 +449,7 @@ void DialogEditProfile::typeSelected(const QString &newType) {
         {
             updateLayout();
         });
-        connect(_innerWidget->_realm_ip_version, &QComboBox::currentTextChanged, _innerWidget, [=](const QString &)
-        {
-            updateLayout();
-        });
         connect(_innerWidget->_realm_enabled, &QCheckBox::toggled, _innerWidget, [=](bool)
-        {
-            updateLayout();
-        });
-        connect(_innerWidget->_realm_port_mapping, &QCheckBox::toggled, _innerWidget, [=](bool)
         {
             updateLayout();
         });
@@ -554,12 +546,20 @@ void DialogEditProfile::typeSelected(const QString &newType) {
                            && customType != Configs::Custom::CustomXrayOutbound
                            && customType != Configs::Custom::CustomXrayFullConfig
                            && type != "extracore" && type != "tailscale";
-    // Hysteria2 over a realm has no server address; the editor keeps this in sync afterwards.
-    if (auto hysteria = ent->Hysteria(); hysteria != nullptr && hysteria->RealmActive()) showAddressPort = false;
     ui->address->setVisible(showAddressPort);
     ui->address_l->setVisible(showAddressPort);
     ui->port->setVisible(showAddressPort);
     ui->port_l->setVisible(showAddressPort);
+
+    // Hysteria2 over a realm has no server address of its own. Greyed out rather than hidden
+    // so ticking the box does not resize the dialog; updateLayout() keeps it in sync after.
+    // Set unconditionally: switching away from a realm profile has to re-enable them.
+    auto hysteria = ent->Hysteria();
+    const bool realmAddress = hysteria != nullptr && hysteria->RealmActive();
+    ui->address->setEnabled(!realmAddress);
+    ui->address_l->setEnabled(!realmAddress);
+    ui->port->setEnabled(!realmAddress);
+    ui->port_l->setEnabled(!realmAddress);
 
     auto showAdvancedDialOption = type != "chain"
     && type != "autoselector"

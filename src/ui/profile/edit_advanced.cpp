@@ -2,8 +2,10 @@
 
 #include "include/global/GuiUtils.hpp"
 
+#include <QGuiApplication>
 #include <QInputDialog>
 #include <QNetworkInterface>
+#include <QScreen>
 #include <QAbstractSocket>
 #include "include/database/DatabaseManager.h"
 #include "include/ui/profile/editor_table_utils.h"
@@ -129,7 +131,10 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
     }
 
     ADD_ASTERISK(this)
-    adjustSize();
+
+    // adjustSize() clamps to 2/3 of the screen, which cut the wide four-column form short.
+    const auto *scr = screen() != nullptr ? screen() : QGuiApplication::primaryScreen();
+    if (scr != nullptr) resize(sizeHint().boundedTo(scr->availableGeometry().size()));
 }
 
 EditAdvanced::~EditAdvanced()

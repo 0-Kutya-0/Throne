@@ -1,5 +1,7 @@
 #include "include/ui/profile/edit_hysteria.h"
+
 #include "include/global/Utils.hpp"
+#include "include/ui/profile/edit_hysteria_realm.h"
 
 EditHysteria::EditHysteria(QWidget *parent)
     : QWidget(parent),
@@ -8,9 +10,14 @@ EditHysteria::EditHysteria(QWidget *parent)
 
     _protocol_version = ui->protocol_version;
     _obfuscation_type = ui->obfuscation_type;
-    _realm_ip_version = ui->realm_ip_version;
     _realm_enabled = ui->realm_enabled;
-    _realm_port_mapping = ui->realm_port_mapping;
+
+    connect(ui->realm_options, &QPushButton::clicked, this, [this] {
+        if (ent == nullptr) return;
+        auto realm = new EditHysteriaRealm(this, ent);
+        realm->exec();
+        realm->deleteLater();
+    });
 }
 
 EditHysteria::~EditHysteria() {
@@ -41,28 +48,21 @@ void EditHysteria::onStart(std::shared_ptr<Configs::Profile> _ent) {
     ui->password->setText(outbound->password);
     ui->disable_chrome_parrot->setChecked(outbound->disable_chrome_parrot);
     ui->realm_enabled->setChecked(outbound->realm_enabled);
-    ui->realm_server_url->setText(outbound->realm_server_url);
-    ui->realm_id->setText(outbound->realm_id);
-    ui->realm_token->setText(outbound->realm_token);
-    ui->realm_stun_servers->setText(outbound->realm_stun_servers.join(","));
-    ui->realm_ip_version->setCurrentText(outbound->realm_ip_version > 0 ? Int2String(outbound->realm_ip_version) : QString());
-    ui->realm_port_mapping->setChecked(outbound->realm_port_mapping);
-    ui->realm_port_mapping_timeout->setText(outbound->realm_port_mapping_timeout);
-    ui->realm_port_mapping_lifetime->setText(outbound->realm_port_mapping_lifetime);
     editHysteriaLayout(outbound->protocol_version, outbound->obfs_type);
 }
 
 bool EditHysteria::onEnd() {
-    // The core only checks realm's required fields when it first dials, so a profile missing
-    // one would pass config validation and then fail every connection.
+    auto outbound = ent->Hysteria();
+    // The realm fields live in the Realm Options dialog, which writes them straight to the
+    // bean. The core only checks them when it first dials, so a profile missing one would
+    // pass config validation and then fail every connection.
     if (ui->realm_enabled->isChecked() && ui->protocol_version->currentText() == "2" &&
-        (ui->realm_server_url->text().trimmed().isEmpty() || ui->realm_id->text().trimmed().isEmpty() ||
-         SplitAndTrim(ui->realm_stun_servers->text(), ",", false).isEmpty())) {
+        (outbound->realm_server_url.isEmpty() || outbound->realm_id.isEmpty() ||
+         outbound->realm_stun_servers.isEmpty())) {
         MessageBoxWarning(software_name, tr("Realm needs a URL, an ID and at least one STUN server."));
         return false;
     }
 
-    auto outbound = ent->Hysteria();
     outbound->protocol_version = ui->protocol_version->currentText();
     outbound->server_ports = SplitAndTrim(ui->server_ports->text(), ",", false);
     outbound->hop_interval = ui->hop_interval->text();
@@ -82,14 +82,6 @@ bool EditHysteria::onEnd() {
     outbound->bbr_profile = ui->bbr_profile->currentText();
     outbound->disable_chrome_parrot = ui->disable_chrome_parrot->isChecked();
     outbound->realm_enabled = ui->realm_enabled->isChecked();
-    outbound->realm_server_url = ui->realm_server_url->text().trimmed();
-    outbound->realm_id = ui->realm_id->text().trimmed();
-    outbound->realm_token = ui->realm_token->text();
-    outbound->realm_stun_servers = SplitAndTrim(ui->realm_stun_servers->text(), ",", false);
-    outbound->realm_ip_version = ui->realm_ip_version->currentText().toInt();
-    outbound->realm_port_mapping = ui->realm_port_mapping->isChecked();
-    outbound->realm_port_mapping_timeout = ui->realm_port_mapping_timeout->text().trimmed();
-    outbound->realm_port_mapping_lifetime = ui->realm_port_mapping_lifetime->text().trimmed();
     if (outbound->RealmActive()) {
         // The parent dialog copies its (hidden) address/port fields over ours right after
         // this returns, and the core refuses a realm outbound that also carries a server.
@@ -160,32 +152,15 @@ void EditHysteria::editHysteriaLayout(const QString& version, const QString& obf
     const auto realm = version == "2" && ui->realm_enabled->isChecked();
     ui->disable_chrome_parrot->setVisible(version == "2");
     ui->realm_enabled->setVisible(version == "2");
-    ui->realm_server_url->setVisible(realm);
-    ui->realm_server_url_l->setVisible(realm);
-    ui->realm_id->setVisible(realm);
-    ui->realm_id_l->setVisible(realm);
-    ui->realm_token->setVisible(realm);
-    ui->realm_token_l->setVisible(realm);
-    ui->realm_stun_servers->setVisible(realm);
-    ui->realm_stun_servers_l->setVisible(realm);
-    ui->realm_ip_version->setVisible(realm);
-    ui->realm_ip_version_l->setVisible(realm);
-    // Gateway mappings are IPv4-only, so the core rejects them alongside "ip_version": 6.
-    const auto portMapping = realm && ui->realm_ip_version->currentText() != "6";
-    ui->realm_port_mapping->setVisible(portMapping);
-    const auto portMappingTiming = portMapping && ui->realm_port_mapping->isChecked();
-    ui->realm_port_mapping_timeout->setVisible(portMappingTiming);
-    ui->realm_port_mapping_timeout_l->setVisible(portMappingTiming);
-    ui->realm_port_mapping_lifetime->setVisible(portMappingTiming);
-    ui->realm_port_mapping_lifetime_l->setVisible(portMappingTiming);
+    // Always clickable: the realm settings stay editable whether or not realm is switched on.
+    ui->realm_options->setVisible(version == "2");
 
     // realm carries the endpoint itself; port hopping needs a server port range it forbids.
-    ui->server_ports->setVisible(!realm);
-    ui->label->setVisible(!realm);
-    ui->hop_interval->setVisible(!realm);
-    ui->label_2->setVisible(!realm);
-    if (realm) {
-        ui->hop_interval_max->setVisible(false);
-        ui->hop_interval_max_l->setVisible(false);
-    }
+    // Greyed out rather than hidden, so ticking the box does not resize the form mid-edit.
+    ui->server_ports->setEnabled(!realm);
+    ui->label->setEnabled(!realm);
+    ui->hop_interval->setEnabled(!realm);
+    ui->label_2->setEnabled(!realm);
+    ui->hop_interval_max->setEnabled(!realm);
+    ui->hop_interval_max_l->setEnabled(!realm);
 }
