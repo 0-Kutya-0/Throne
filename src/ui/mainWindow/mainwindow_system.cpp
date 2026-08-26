@@ -104,8 +104,7 @@ void MainWindow::on_commitDataRequest() {
     }
     settings->splitter_state = ui->splitter->saveState().toBase64();
 
-    // Backstop for the eager writes in set_spmode_*/UpdateStartedId: this only runs on a
-    // graceful exit, so it must never be the sole place the remembered state is recorded.
+    // Backstop only: this runs on a graceful exit, so it must never be the sole write.
     if (settings->remember_enable && settings->started_id >= 0) settings->remember_id = settings->started_id;
     settings->remember_system_proxy = settings->spmode_system_proxy;
     settings->remember_tun = settings->spmode_vpn;
@@ -126,14 +125,11 @@ void MainWindow::prepare_exit()
     }
     Configs::dataManager->settingsRepo->prepare_exit = true;
     LOG_INFO("prepare_exit started, tearing down proxy/tun/core");
-    //
     if (Configs::dataManager->settingsRepo->spmode_system_proxy) set_system_proxy(false);
     if (Configs::dataManager->settingsRepo->system_dns_set) set_system_dns(false, false);
     RegisterHiddenMenuShortcuts(true);
     RegisterHotkey(true);
-    //
     on_commitDataRequest();
-    //
     Configs::dataManager->settingsRepo->noSave = true; // don't change Configs::dataManager->settingsRepo after this line
     profile_stop(false, true);
 
@@ -150,7 +146,6 @@ void MainWindow::prepare_exit()
 
 void MainWindow::on_menu_exit_triggered() {
     prepare_exit();
-    //
     if (exit_reason == ExitReason::RunUpdater) {
         QDir::setCurrent(QApplication::applicationDirPath());
 #ifdef Q_OS_WIN
@@ -332,8 +327,8 @@ bool isNewer(QString assetName) {
     assetName = assetName.mid(7); // take out Throne-
     QString version;
     auto spl = assetName.split('-');
-    version += spl[0]; // version: 1.2.3
-    if (spl[1].contains("beta") || spl[1].contains("alpha") || spl[1].contains("rc")) version += "."+spl[1]; // .beta.13
+    version += spl[0];
+    if (spl[1].contains("beta") || spl[1].contains("alpha") || spl[1].contains("rc")) version += "."+spl[1];
     auto parts = version.split("."); // [1,2,3,beta,13]
     auto currentParts = QString(NKR_VERSION).replace("-", ".").split('.');
     if (parts.size() < 3 || currentParts.size() < 3)
@@ -343,7 +338,6 @@ bool isNewer(QString assetName) {
     }
     std::vector<int> verNums;
     std::vector<int> currNums;
-    // add base version first
     verNums.push_back(parts[0].toInt());
     verNums.push_back(parts[1].toInt());
     verNums.push_back(parts[2].toInt());
@@ -378,7 +372,6 @@ bool isNewer(QString assetName) {
         if (verNums[i] < currNums[i]) return false;
     }
 
-    // equal base version, check beta-ness
     if (verNums.size() == 5 && currNums.size() == 3) return false;
     if (verNums.size() == 3 && currNums.size() == 5) return true;
     if (verNums.size() == 5 && currNums.size() == 5)
@@ -574,7 +567,6 @@ void MainWindow::CheckUpdate() {
         auto allow_updater = !Configs::dataManager->settingsRepo->flag_use_appdata;
         QMessageBox box(QMessageBox::Question, QObject::tr("Update") + note_pre_release,
                         QObject::tr("Update found: %1\nRelease note:\n%2").arg(assets_name, release_note));
-        //
         QAbstractButton *btn1 = nullptr;
         if (allow_updater) {
             btn1 = box.addButton(QObject::tr("Update"), QMessageBox::AcceptRole);
@@ -582,9 +574,7 @@ void MainWindow::CheckUpdate() {
         QAbstractButton *btn2 = box.addButton(QObject::tr("Open in browser"), QMessageBox::AcceptRole);
         box.addButton(QObject::tr("Close"), QMessageBox::RejectRole);
         box.exec();
-        //
         if (btn1 == box.clickedButton() && allow_updater) {
-            // Download Update
             runOnNewThread([=,this] {
                 if (!mu_download_update.tryLock()) {
                     runOnUiThread([=,this](){

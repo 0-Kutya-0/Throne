@@ -23,9 +23,7 @@ namespace Configs {
         return result;
     }
 
-    // server_url, realm_id and stun_servers are required by the core, but only when it first
-    // dials — a config missing one still passes validation. Emit them unconditionally so the
-    // gap shows up as that error rather than as a profile quietly reverting to no endpoint.
+    // The core only checks realm's required fields when it first dials, so emit them unconditionally.
     static QJsonObject buildRealmObject(const hysteria &out)
     {
         QJsonObject realm;
@@ -45,9 +43,7 @@ namespace Configs {
         return realm;
     }
 
-    // realm replaces the server address entirely; the core refuses a config carrying both.
-    // hop_interval is left alone: it is accepted next to realm, and ExportToJson() is also
-    // the stored form, so dropping it would lose the setting behind the user's back.
+    // realm replaces the server address; the core refuses a config carrying both (hop_interval is fine).
     static void applyRealmObject(QJsonObject &object, const hysteria &out)
     {
         object.remove("server");
@@ -267,8 +263,7 @@ namespace Configs {
 
     QString hysteria::ExportToLink()
     {
-        // A realm profile has no host:port to put in the authority, and no hysteria2:// form
-        // carries realm; callers fall back to the throne:// JSON link.
+        // No hysteria2:// form carries realm, so callers fall back to the throne:// JSON link.
         if (RealmActive()) return {};
 
         QUrl url;
@@ -376,8 +371,7 @@ namespace Configs {
     QJsonObject hysteria::ExportIdentity()
     {
         if (RealmActive()) {
-            // outbound::ExportIdentity() falls back to the whole config, tag included, when
-            // there is no server; for realm the rendezvous slot is what identifies the peer.
+            // outbound::ExportIdentity() falls back to the whole config when there is no server.
             QJsonObject object{
                 {"protocol_version", protocol_version},
                 {"realm_server_url", realm_server_url},

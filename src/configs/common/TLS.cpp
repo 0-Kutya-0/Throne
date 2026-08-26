@@ -14,7 +14,6 @@ namespace Configs {
         if (!url.isValid() && !url.errorString().startsWith("Invalid port")) return false;
         auto query = QUrlQuery(url.query());
 
-        // handle the common format
         if (query.hasQueryItem("fp")) fingerPrint = query.queryItemValue("fp");
         if (!fingerPrint.isEmpty()) enabled = true;
         return true;
@@ -127,7 +126,6 @@ namespace Configs {
         if (!url.isValid() && !url.errorString().startsWith("Invalid port")) return false;
         auto query = QUrlQuery(url.query());
 
-        // handle the common format
         if (query.hasQueryItem("pbk"))
         {
             enabled = true;
@@ -369,13 +367,11 @@ namespace Configs {
             object["client_key"] = QListStr2QJsonArray(client_key);
         }
         if (!client_key_path.isEmpty()) object["client_key_path"] = client_key_path;
-        // persist the tri-state explicitly so an Off choice survives a round-trip:
-        // true = On, false = Off; the key is omitted only for "Keep Default".
+        // Tri-state: true = On, false = Off, key absent = Keep Default.
         if (!fragment_unspecified) object["fragment"] = fragment;
         if (!fragment_fallback_delay.isEmpty()) object["fragment_fallback_delay"] = fragment_fallback_delay;
         if (record_fragment) object["record_fragment"] = record_fragment;
-        // spoof_enabled is ours, not sing-box's: Build() resolves it away. ExportToJson is
-        // the app's own persistence/share format, so the tri-state has to survive here.
+        // spoof_enabled is ours, not sing-box's: Build() resolves it away, but ExportToJson is the stored form.
         if (!spoof_unspecified) object["spoof_enabled"] = spoof_enabled;
         // spoof_method only means anything alongside a spoof SNI.
         if (!spoof.isEmpty()) {
@@ -432,9 +428,7 @@ namespace Configs {
             object["client_key"] = QListStr2QJsonArray(client_key);
         }
         if (!client_key_path.isEmpty()) object["client_key_path"] = client_key_path;
-        // hiddify: the built-in fragment implementation emits sing-box's native
-        // tls.fragment here. The custom implementation is emitted at the dialer level
-        // in outbound::Build(), so skip it here when "custom" is selected.
+        // The "custom" fragment implementation is emitted at the dialer level in outbound::Build() instead.
         if (FragmentEffectivelyOn() && Configs::dataManager->settingsRepo->fragment_implementation != "custom") {
             object["fragment"] = true;
             if (!fragment_fallback_delay.isEmpty()) object["fragment_fallback_delay"] = fragment_fallback_delay;

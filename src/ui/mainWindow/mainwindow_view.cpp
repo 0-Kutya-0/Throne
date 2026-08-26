@@ -20,18 +20,14 @@
 #include "include/ui/widget/StartStopButton.hpp"
 
 void MainWindow::applyTopBarMetrics() {
-    // Give the menu toolButtons a uniform width (the widest one's) so the top
-    // bar reads as an even row. The start/stop button keeps its own square size.
     const QList<QToolButton*> menuButtons = {
         ui->toolButton_program, ui->toolButton_preferences, ui->toolButton_testing,
         ui->toolButton_routing, ui->toolButton_tools,
     };
-    // Drop the previous run's floor first: a stale minimum would otherwise be
-    // baked into minimumSizeHint() below and never shrink back.
+    // Drop the previous run's floor: a stale minimum gets baked into minimumSizeHint() below.
     for (auto* b : menuButtons) b->setMinimumWidth(0);
 
-    // Content width only: the chevron already clears the label via ::menu-indicator, so
-    // reserving arrow padding would widen all five for a gap only the widest needs.
+    // Content width only: ::menu-indicator already clears the label, so no arrow padding.
     int uniformButtonWidth = 0;
     for (auto* b : menuButtons) {
         b->ensurePolished();
@@ -39,8 +35,7 @@ void MainWindow::applyTopBarMetrics() {
     }
     for (auto* b : menuButtons) b->setMinimumWidth(uniformButtonWidth);
 
-    // Translated labels (RU runs ~2x English) outgrow the designed 800x600 floor and
-    // clip the widgets after it, so follow what the layout actually needs (#1665).
+    // Translated labels outgrow the designed 800x600 floor, so follow what the layout needs (#1665).
     const QSize contentMin = minimumSizeHint();
     setMinimumSize(qMax(designMinimumSize.width(), contentMin.width()),
                    qMax(designMinimumSize.height(), contentMin.height()));
@@ -70,7 +65,6 @@ void MainWindow::refresh_auto_selector_view()
     const auto view = Stats::autoSelectorMonitor->Snapshot();
     dataViewHtmlGenerator_.setAutoSelectorStatus(view.valid ? view.summary() : QString(),
                                                  view.valid ? view.detail() : QString());
-    // The Tools entry only makes sense while a selector is actually running.
     ui->actionAuto_Selector->setVisible(view.valid);
     UpdateDataView();
     if (m_autoSelectorDialog != nullptr) m_autoSelectorDialog->refresh();
@@ -109,7 +103,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         }
     };
 
-    // From TrafficLooper
     if (!traffic_update.isEmpty() && !settings->disable_traffic_stats) {
         traffic_update_cache = traffic_update;
         if (traffic_update == "STOP") {
@@ -122,7 +115,6 @@ void MainWindow::refresh_status(const QString &traffic_update) {
 
     refresh_speed_label();
 
-    // From UI
     QString group_name;
     if (running != nullptr) {
         auto group = Configs::dataManager->groupsRepo->GetGroup(running->gid);
@@ -146,12 +138,10 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         }
         ui->label_running->setText(runningLabelText);
     }
-    //
     const auto display_socks = DisplayAddress(settings->inbound_address, settings->inbound_socks_port);
     const auto inbound_disabled = settings->disable_mixed_inbound;
     const auto inbound_txt = QString("Mixed: %1").arg(inbound_disabled ? "Disabled" : display_socks);
     ui->label_inbound->setText(inbound_txt);
-    //
     ui->checkBox_VPN->setChecked(settings->spmode_vpn);
     ui->checkBox_SystemProxy->setChecked(settings->spmode_system_proxy);
     if (select_mode) {
@@ -202,11 +192,9 @@ void MainWindow::refresh_status(const QString &traffic_update) {
         }
     }
 
-    // refresh title & window icon
     setWindowTitle(make_title(false));
     if (icon_status_new != icon_status) QApplication::setWindowIcon(GetTrayIcon(icon_status_new));
 
-    // refresh tray
     if (tray != nullptr) {
         tray->setToolTip(make_title(true));
         if (icon_status_new != icon_status) tray->setIcon(Icon::GetTrayIcon(icon_status_new));
@@ -223,8 +211,6 @@ void MainWindow::refresh_startstop_button() {
 
     const auto &settings = Configs::dataManager->settingsRepo;
 
-    // Ring colour reflects the active proxy mode (mirrors the tray-icon logic
-    // above); it only shows while running.
     auto mode = StartStopButton::Mode::Off;
     if (running != nullptr) {
         if (settings->spmode_vpn) mode = StartStopButton::Mode::Tun;
@@ -263,16 +249,14 @@ void MainWindow::refresh_proxy_list_column_size() {
 
     auto *hHeader = dynamic_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader());
     QTimer::singleShot(0, ui->profilesTableView, [=, this]() {
-        // Stop the resizeSection / scrollbar-policy changes below from re-entering
-        // this routine via the vertical scrollbar's valueChanged signal.
+        // The resizeSection / scrollbar-policy changes below re-enter here via valueChanged.
         if (m_adjustingColumns) return;
         m_adjustingColumns = true;
         QScrollBar *vBar = ui->profilesTableView->verticalScrollBar();
         const bool vBarBlocked = vBar->blockSignals(true);
         hHeader->blockSignals(true);
         constexpr int columnCount = ProfilesTableModel::ColumnCount;
-        // Widths saved before the column set last changed no longer line up with
-        // the header, so fall back to auto-sizing instead of indexing past the end.
+        // Widths saved before the column set changed no longer line up with the header.
         if (!group->column_width.isEmpty() && group->column_width.size() != columnCount) {
             group->column_width.clear();
         }
@@ -282,8 +266,7 @@ void MainWindow::refresh_proxy_list_column_size() {
             hHeader->setSectionResizeMode(ProfilesTableModel::ColName, QHeaderView::Stretch);
             hHeader->setSectionResizeMode(ProfilesTableModel::ColTestResult, QHeaderView::ResizeToContents);
             hHeader->setSectionResizeMode(ProfilesTableModel::ColTraffic, QHeaderView::ResizeToContents);
-            // ResizeToContents only measures on-screen rows, so pin these columns to the
-            // widest seen for this group or they jitter while scrolling.
+            // ResizeToContents only measures on-screen rows, so pin these or they jitter while scrolling.
             for (int col : {ProfilesTableModel::ColType,
                             ProfilesTableModel::ColTestResult, ProfilesTableModel::ColTraffic}) {
                 if (group->calculated_column_width.size() > col &&
@@ -328,16 +311,13 @@ void MainWindow::refresh_proxy_list_impl(const QList<int>& ids, bool mayNeedRese
         MW_show_log("Could not find current group!");
         return;
     }
-    // refresh data
     refresh_proxy_list_impl_refresh_data(ids, mayNeedReset);
-    // now refresh column sizes
     refresh_proxy_list_column_size();
 }
 
 void MainWindow::refresh_proxy_list_impl_refresh_data(const QList<int>& ids, bool mayNeedReset) {
     const auto currentGroup = Configs::dataManager->groupsRepo->CurrentGroup();
     if (currentGroup == nullptr) return;
-    // The model holds the group in full; the proxy decides what is on screen.
     if (!ids.isEmpty()) {
         for (auto id:ids) profilesTableModel->refreshProfileId(id);
     } else {
@@ -390,7 +370,6 @@ QString MainWindow::liveVpnConnectOkText() {
     return connected ? text : QString();
 }
 
-// Owns no test session, so unlike the group sweeps it stays out of TestRunner.
 void MainWindow::url_test_current() {
     last_test_time = QDateTime::currentSecsSinceEpoch();
     ui->label_running->setText(tr("Testing"));

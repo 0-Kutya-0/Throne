@@ -91,10 +91,7 @@ namespace Configs {
         return {object, ""};
     }
 
-    // A plain interval stays a JSON number so configs remain readable by
-    // standard WireGuard clients; only an AmneziaWG range needs a string.
-    // Anything that is neither is dropped rather than passed to the core, which
-    // would refuse to start the endpoint.
+    // A range must be a string and a plain interval a number; anything else makes the core refuse to start.
     void Peer::WriteKeepalive(QJsonObject& object) const
     {
         if (persistent_keepalive.isEmpty()) return;
@@ -112,7 +109,6 @@ namespace Configs {
 
     bool wireguard::ParseFromLink(const QString& link)
     {
-        // Try WireGuard config file format first
         if (link.contains("[Interface]") && link.contains("[Peer]")) {
             auto lines = link.split("\n");
             for (const auto& line : lines) {
@@ -168,7 +164,6 @@ namespace Configs {
             return !private_key.isEmpty() && !peer->public_key.isEmpty();
         }
         
-        // Standard wg:// URL format
         auto url = QUrl(link);
         if (!url.isValid()) return false;
         auto query = QUrlQuery(url.query());

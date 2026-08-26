@@ -8,10 +8,7 @@
 #include "include/ui/widget/json/JsonValidator.h"
 
 namespace JsonEdit {
-    // The subset of JSON Schema 2020-12 that sing-box emits: type, $ref, const, enum, pattern,
-    // minimum, maximum, items, properties, required, propertyNames, additionalProperties,
-    // unevaluatedProperties, allOf, anyOf, oneOf, deprecated. oneOf is resolved through the
-    // discriminating constant (type/action) so errors name the variant instead of the whole union.
+    // oneOf is resolved through the discriminating constant (type/action), so errors name the variant.
     class SchemaValidator final : public Validator {
     public:
         // rootRef is a JSON pointer into the schema document ("#/$defs/RouteOptions"); empty is the document root.
@@ -20,8 +17,6 @@ namespace JsonEdit {
                                                        QString* error = nullptr);
         static std::shared_ptr<SchemaValidator> CreateForNode(const QJsonObject& document, const QJsonObject& root);
 
-        // Escape hatch for host dialects: accept this type wherever a property of this name appears,
-        // without checking it further.
         void AllowExtraType(const QString& propertyName, ValueType type);
 
         QList<Issue> Validate(const Value& root) const override;

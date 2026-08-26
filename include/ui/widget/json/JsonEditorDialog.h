@@ -12,8 +12,7 @@ namespace JsonEdit {
     class JsonCodeEdit;
     class JsonIssueList;
 
-    // Shared modal JSON editor. OpenEditor() returns the edited object, an empty object when the
-    // document was cleared, and the original object when the dialog is cancelled.
+    // OpenEditor() returns an empty object when the document was cleared, the original one when cancelled.
     class JsonEditorDialog : public QDialog {
         Q_OBJECT
 

@@ -15,7 +15,6 @@ namespace Configs
         bool enabled = false;
         QString fingerPrint;
 
-        // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         bool ParseFromClash(const clash::Proxies& object) override;
@@ -33,7 +32,6 @@ namespace Configs
         QString config_path;
         QString serverName;
 
-        // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         QString ExportToLink() override;
@@ -49,7 +47,6 @@ namespace Configs
         QString public_key;
         QString short_id;
 
-        // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         bool ParseFromClash(const clash::Proxies& object) override;
@@ -78,14 +75,12 @@ namespace Configs
         QString client_certificate_path;
         QStringList client_key;
         QString client_key_path;
-        // fragment / tls_tricks are tri-states (default/on/off), like Multiplex.
-        // unspecified == "Keep Default" (resolved against the global setting at Build).
+        // Tri-state: unspecified == "Keep Default", resolved against the global setting at Build.
         bool fragment = false;
         bool fragment_unspecified = true;
         QString fragment_fallback_delay;
         bool record_fragment = false;
-        // spoof is a tri-state like fragment/tls_tricks; spoof / spoof_method are the
-        // values it forges with, each falling back to the global preset when empty.
+        // Tri-state too; spoof / spoof_method fall back to the global preset when empty.
         QString spoof;
         QString spoof_method;
         bool spoof_enabled = false;
@@ -124,12 +119,10 @@ namespace Configs
             tls_tricks = state == 1;
             tls_tricks_unspecified = state == 0;
         }
-        // Resolve the tri-states against the global defaults (see SettingsRepo).
         bool FragmentEffectivelyOn();
         bool TlsTricksEffectivelyOn();
         bool SpoofEffectivelyOn();
 
-        // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         bool ParseFromClash(const clash::Proxies& object) override;

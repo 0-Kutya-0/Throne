@@ -9,9 +9,7 @@ EditWireguard::EditWireguard(QWidget *parent) : QWidget(parent), ui(new Ui::Edit
 
     connect(ui->warp_autogen, &QPushButton::clicked, this, [=, this] {
         auto originalText = ui->warp_autogen->text();
-        // genWarpConfig blocks on a nested event loop, so the button stays
-        // clickable while the request is in flight; disable it to avoid firing
-        // a second request on a double click.
+        // genWarpConfig spins a nested event loop, so the button stays clickable through the request.
         ui->warp_autogen->setEnabled(false);
         ui->warp_autogen->setText(tr("Getting keypair..."));
         bool ok;
@@ -36,8 +34,7 @@ EditWireguard::EditWireguard(QWidget *parent) : QWidget(parent), ui(new Ui::Edit
         ui->local_addr->setText(conf->ipv4Address + "/32," + conf->ipv6Address + "/128");
         ui->mtu->setText("1280");
         ui->persistent_keepalive->setText("30");
-        // The endpoint (host:port) lives in the outer profile dialog's
-        // address/port fields, reached through the editor hooks.
+        // The endpoint lives in the outer profile dialog's address/port fields.
         if (auto sep = conf->endpoint.lastIndexOf(':'); sep > 0) {
             if (set_edit_text_serverAddress) set_edit_text_serverAddress(conf->endpoint.left(sep));
             if (set_edit_text_serverPort) set_edit_text_serverPort(conf->endpoint.mid(sep + 1));

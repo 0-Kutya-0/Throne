@@ -53,9 +53,7 @@ void EditHysteria::onStart(std::shared_ptr<Configs::Profile> _ent) {
 
 bool EditHysteria::onEnd() {
     auto outbound = ent->Hysteria();
-    // The realm fields live in the Realm Options dialog, which writes them straight to the
-    // bean. The core only checks them when it first dials, so a profile missing one would
-    // pass config validation and then fail every connection.
+    // The core only checks realm fields when it first dials, so a bad one passes validation and fails every connection.
     if (ui->realm_enabled->isChecked() && ui->protocol_version->currentText() == "2" &&
         (outbound->realm_server_url.isEmpty() || outbound->realm_id.isEmpty() ||
          outbound->realm_stun_servers.isEmpty())) {
@@ -83,8 +81,7 @@ bool EditHysteria::onEnd() {
     outbound->disable_chrome_parrot = ui->disable_chrome_parrot->isChecked();
     outbound->realm_enabled = ui->realm_enabled->isChecked();
     if (outbound->RealmActive()) {
-        // The parent dialog copies its (hidden) address/port fields over ours right after
-        // this returns, and the core refuses a realm outbound that also carries a server.
+        // The parent dialog copies its address/port over ours next, and the core refuses a realm outbound with a server.
         outbound->server_ports.clear();
         if (set_edit_text_serverAddress) set_edit_text_serverAddress("");
         if (set_edit_text_serverPort) set_edit_text_serverPort("");
@@ -152,11 +149,10 @@ void EditHysteria::editHysteriaLayout(const QString& version, const QString& obf
     const auto realm = version == "2" && ui->realm_enabled->isChecked();
     ui->disable_chrome_parrot->setVisible(version == "2");
     ui->realm_enabled->setVisible(version == "2");
-    // Always clickable: the realm settings stay editable whether or not realm is switched on.
+    // Not gated on `realm`: the realm settings stay editable whether or not realm is switched on.
     ui->realm_options->setVisible(version == "2");
 
     // realm carries the endpoint itself; port hopping needs a server port range it forbids.
-    // Greyed out rather than hidden, so ticking the box does not resize the form mid-edit.
     ui->server_ports->setEnabled(!realm);
     ui->label->setEnabled(!realm);
     ui->hop_interval->setEnabled(!realm);

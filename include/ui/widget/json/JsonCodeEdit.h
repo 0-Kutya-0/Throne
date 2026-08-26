@@ -10,8 +10,6 @@ class QSyntaxHighlighter;
 class QTimer;
 
 namespace JsonEdit {
-    // Reusable JSON editor: highlighting, a line-number gutter with problem markers, bracket and
-    // quote auto-editing, and live problems from an injected validator (null validator = syntax only).
     class JsonCodeEdit : public QPlainTextEdit {
         Q_OBJECT
 

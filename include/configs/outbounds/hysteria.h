@@ -58,8 +58,7 @@ namespace Configs
             return realm_enabled && protocol_version == "2";
         }
 
-        // Hosts the realm client reaches outside the tunnel, so they need the same
-        // direct-resolve carve-out a plain server address gets.
+        // Hosts the realm client reaches outside the tunnel; they need the direct-resolve carve-out.
         QStringList RealmDirectDomains() const;
 
         bool HasTLS() override {
@@ -82,7 +81,6 @@ namespace Configs
             return quic;
         }
 
-        // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         bool ParseFromClash(const clash::Proxies& object) override;

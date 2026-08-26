@@ -56,10 +56,8 @@ void EditCustom::onStart(std::shared_ptr<Configs::Profile> _ent) {
             "}");
     }
 
-    // load core ui
     ui->config_simple->setPlainText(outbound->config);
 
-    // custom internal
     if (preset_core == Configs::Custom::CustomOutbound) {
         ui->core_l->setText(tr("Outbound JSON, please read the documentation."));
     } else if (preset_core == Configs::Custom::CustomXrayOutbound) {

@@ -23,8 +23,6 @@
 #include <QStringListModel>
 #include <QTextBlock>
 
-// ---------------------------------------------------------------- RawRouteEdit
-
 RawRouteEdit::RawRouteEdit(QWidget* parent) : JsonCodeEdit(parent) {
     completer = new QCompleter(this);
     completer->setModel(new QStringListModel(completer));
@@ -92,7 +90,7 @@ void RawRouteEdit::keyPressEvent(QKeyEvent* e) {
             case Qt::Key_Tab:
             case Qt::Key_Backtab:
                 e->ignore();
-                return; // let the popup handle it
+                return;
             default:
                 break;
         }
@@ -101,8 +99,6 @@ void RawRouteEdit::keyPressEvent(QKeyEvent* e) {
     JsonCodeEdit::keyPressEvent(e);
     updateCompleter();
 }
-
-// ---------------------------------------------------------------- RawRouteItem
 
 RawRouteItem::RawRouteItem(QWidget* parent, const std::shared_ptr<Configs::RouteProfile>& routeChain) : QDialog(parent) {
     setWindowTitle(tr("Raw routing profile"));
@@ -143,8 +139,6 @@ RawRouteItem::RawRouteItem(QWidget* parent, const std::shared_ptr<Configs::Route
         : chain->rawRoute);
     layout->addWidget(jsonEdit, 1);
 
-    // outbound suggestions: same display as the structured route editor's outbound selector —
-    // plain proxy/direct/warp-bypass, then "[Group] Name" in group order. Only the id is inserted.
     QList<QPair<QString, QString>> items;
     items.append({QStringLiteral("proxy"), QString::number(-1)});
     items.append({QStringLiteral("direct"), QString::number(-2)});

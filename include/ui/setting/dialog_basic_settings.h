@@ -26,8 +26,6 @@ private:
 
     void applyRegexHighlighting();
 
-    // Downloads an Xray geo asset (`fileName`, e.g. "geoip.dat") from `url` into the
-    // asset dir, off the UI thread. Used by the per-URL Download buttons.
     void downloadXrayGeoAsset(const QString &url, const QString &fileName);
 
     struct {

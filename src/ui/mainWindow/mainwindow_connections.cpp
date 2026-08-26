@@ -40,8 +40,6 @@ void MainWindow::setupConnectionList()
     });
 }
 
-// Right-click the Traffic / Speed headers to pick the sub-field they sort by;
-// left-clicking still sorts by total.
 void MainWindow::setupConnectionSortMenu()
 {
     auto* header = ui->connections->horizontalHeader();
@@ -100,24 +98,18 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         }
 
         const auto conn = toUpdate[key];
-        // C0: Dest (Domain)
         ui->connections->item(row, 0)->setText(DisplayDest(conn.dest, conn.domain));
 
-        // C1: Process
         ui->connections->item(row, 1)->setText(conn.process);
 
-        // C2: Protocol
         auto prot = conn.network;
         if (!conn.protocol.isEmpty()) prot += " ("+conn.protocol+")";
         ui->connections->item(row, 2)->setText(prot);
 
-        // C3: Outbound
         ui->connections->item(row, 3)->setText(conn.outbound);
 
-        // C4: Traffic
         ui->connections->item(row, 4)->setText(ReadableSize(conn.upload) + "↑" + " " + ReadableSize(conn.download) + "↓");
 
-        // C5: Speed
         ui->connections->item(row, 5)->setText(ReadableSize(conn.uploadSpeed) + "/s↑" + " " + ReadableSize(conn.downloadSpeed) + "/s↓");
     }
     int row = ui->connections->rowCount();
@@ -127,34 +119,28 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         auto f0 = std::make_unique<QTableWidgetItem>();
         f0->setData(Stats::IDKEY, conn.id);
 
-        // C0: Dest (Domain)
         auto f = f0->clone();
         f->setText(DisplayDest(conn.dest, conn.domain));
         ui->connections->setItem(row, 0, f);
 
-        // C1: Process
         f = f0->clone();
         f->setText(conn.process);
         ui->connections->setItem(row, 1, f);
 
-        // C2: Protocol
         f = f0->clone();
         auto prot = conn.network;
         if (!conn.protocol.isEmpty()) prot += " ("+conn.protocol+")";
         f->setText(prot);
         ui->connections->setItem(row, 2, f);
 
-        // C3: Outbound
         f = f0->clone();
         f->setText(conn.outbound);
         ui->connections->setItem(row, 3, f);
 
-        // C4: Traffic
         f = f0->clone();
         f->setText(ReadableSize(conn.upload) + "↑" + " " + ReadableSize(conn.download) + "↓");
         ui->connections->setItem(row, 4, f);
 
-        // C5: Speed
         f = f0->clone();
         f->setText(ReadableSize(conn.uploadSpeed) + "/s↑" + " " + ReadableSize(conn.downloadSpeed) + "/s↓");
         ui->connections->setItem(row, 5, f);
@@ -177,34 +163,28 @@ void MainWindow::UpdateConnectionListWithRecreate(const QList<Stats::ConnectionM
         auto f0 = std::make_unique<QTableWidgetItem>();
         f0->setData(Stats::IDKEY, conn.id);
 
-        // C0: Dest (Domain)
         auto f = f0->clone();
         f->setText(DisplayDest(conn.dest, conn.domain));
         ui->connections->setItem(row, 0, f);
 
-        // C1: Process
         f = f0->clone();
         f->setText(conn.process);
         ui->connections->setItem(row, 1, f);
 
-        // C2: Protocol
         f = f0->clone();
         auto prot = conn.network;
         if (!conn.protocol.isEmpty()) prot += " ("+conn.protocol+")";
         f->setText(prot);
         ui->connections->setItem(row, 2, f);
 
-        // C3: Outbound
         f = f0->clone();
         f->setText(conn.outbound);
         ui->connections->setItem(row, 3, f);
 
-        // C4: Traffic
         f = f0->clone();
         f->setText(ReadableSize(conn.upload) + "↑" + " " + ReadableSize(conn.download) + "↓");
         ui->connections->setItem(row, 4, f);
 
-        // C5: Speed
         f = f0->clone();
         f->setText(ReadableSize(conn.uploadSpeed) + "/s↑" + " " + ReadableSize(conn.downloadSpeed) + "/s↓");
         ui->connections->setItem(row, 5, f);

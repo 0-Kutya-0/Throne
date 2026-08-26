@@ -33,7 +33,7 @@ void DialogManageRoutes::reloadProfileItems() {
         return;
     }
 
-    QSignalBlocker blocker = QSignalBlocker(ui->route_prof); // apparently the currentIndexChanged will make us crash if we clear the QComboBox
+    QSignalBlocker blocker = QSignalBlocker(ui->route_prof); // currentIndexChanged during clear() crashes us
     ui->route_prof->clear();
 
     ui->route_profiles->clear();
@@ -255,8 +255,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
     currentRoute = Configs::dataManager->routesRepo->GetRouteProfile(Configs::dataManager->settingsRepo->current_route_id);
     if (currentRoute == nullptr) currentRoute = chainList[0];
 
-    // All four strategy pickers share one order; they used to disagree, so the same
-    // position meant "prefer_ipv4" in one and "ipv4_only" in the next.
+    // All four strategy pickers must stay on one shared item order.
     ui->default_domain_strategy->addItems(Configs::DomainStrategy::DomainStrategy);
     ui->domainStrategyCombo->addItems(Configs::DomainStrategy::DomainStrategy);
 
@@ -284,7 +283,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
         ui->dns_advanced->setDisabled(useDNSObject);
         ui->dns_object_edit->setDisabled(!useDNSObject);
     });
-    ui->use_dns_object->stateChanged(Qt::Unchecked); // uncheck to uncheck
+    ui->use_dns_object->stateChanged(Qt::Unchecked);
     ui->ruleset_mirror->setCurrentIndex(Configs::dataManager->settingsRepo->ruleset_mirror);
     ui->default_domain_strategy->setCurrentText(Configs::dataManager->settingsRepo->default_domain_strategy);
     ui->domainStrategyCombo->setCurrentText(Configs::dataManager->settingsRepo->resolve_domain_strategy);
@@ -313,8 +312,7 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
         on_delete_route_clicked();
     });
 
-    // Ctrl+C / Ctrl+V on the profile list act as Export / Import. Scoped to the list so
-    // they don't hijack normal copy/paste in the dialog's many text fields.
+    // Scoped to the list, or these would hijack copy/paste in the dialog's text fields.
     auto exportShortcut = new QShortcut(QKeySequence::Copy, ui->route_profiles);
     exportShortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(exportShortcut, &QShortcut::activated, this, [=,this]{
@@ -327,7 +325,6 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
         on_import_route_clicked();
     });
 
-    // hijack
     ui->dnshijack_enable->setChecked(Configs::dataManager->settingsRepo->enable_dns_server);
     set_dns_hijack_enability(Configs::dataManager->settingsRepo->enable_dns_server);
     ui->dnshijack_allow_lan->setChecked(Configs::dataManager->settingsRepo->dns_server_listen_lan);
@@ -367,7 +364,6 @@ DialogManageRoutes::DialogManageRoutes(QWidget *parent) : QDialog(parent), ui(ne
         ui->redirect_listenport->setEnabled(state);
     });
 
-    // warp
     ui->enable_warp->setChecked(Configs::dataManager->settingsRepo->enable_warp);
     ui->warp_private_key->setText(Configs::dataManager->settingsRepo->warp_private_key);
     ui->warp_public_key->setText(Configs::dataManager->settingsRepo->warp_public_key);
@@ -474,7 +470,6 @@ void DialogManageRoutes::accept() {
     Configs::dataManager->settingsRepo->redirect_listen_address = ui->redirect_listenaddr->text();
     Configs::dataManager->settingsRepo->redirect_listen_port = ui->redirect_listenport->text().toInt();
 
-    // warp
     Configs::dataManager->settingsRepo->enable_warp = ui->enable_warp->isChecked();
     Configs::dataManager->settingsRepo->warp_ep = ui->warp_ep->text();
     Configs::dataManager->settingsRepo->warp_ifc_addrs = SplitAndTrim(ui->warp_ifc_addrs->text(), ",", false);
@@ -482,7 +477,6 @@ void DialogManageRoutes::accept() {
     Configs::dataManager->settingsRepo->warp_public_key = ui->warp_public_key->text();
     Configs::dataManager->settingsRepo->warp_reserved = SplitAndTrim(ui->warp_reserved->text(), ",", false);
 
-    //
     MW_dialog_message(MwMessage::UpdateSettings, {MwArg::Route});
 
     QDialog::accept();
@@ -508,8 +502,7 @@ void DialogManageRoutes::on_new_route_clicked() {
         rawWidget->show();
         connect(rawWidget, &RawRouteItem::settingsChanged, this, onCreated);
     } else {
-        // Remote profiles are structured underneath: reuse the structured editor, which shows
-        // the extra "Remote source" section (URL / auto-update / preview) when isRemote is set.
+        // Remote profiles are structured underneath; RouteItem grows a "Remote source" section when isRemote.
         if (chosen == remoteAct) newProfile->isRemote = true;
         routeChainWidget = new RouteItem(this, newProfile);
         routeChainWidget->setWindowModality(Qt::ApplicationModal);
@@ -538,8 +531,7 @@ void DialogManageRoutes::on_export_route_clicked()
 void DialogManageRoutes::applyImportedProfile(const std::shared_ptr<Configs::RouteProfile>& profile, bool wasOldArray)
 {
     if (wasOldArray) {
-        // A legacy rule array carries no name / default outbound: open the editor
-        // pre-filled with the rules so the user can complete it before saving.
+        // A legacy rule array carries no name / default outbound, so it cannot be saved unedited.
         auto shell = Configs::dataManager->routesRepo->NewRouteProfile();
         shell->Rules = profile->Rules;
         routeChainWidget = new RouteItem(this, shell);
@@ -550,7 +542,6 @@ void DialogManageRoutes::applyImportedProfile(const std::shared_ptr<Configs::Rou
             reloadProfileItems();
         });
     } else {
-        // A complete profile: add it directly, no editor.
         chainList << profile;
         currentRoute = profile;
         reloadProfileItems();
@@ -562,7 +553,7 @@ bool DialogManageRoutes::tryImportRemoteRoutesLink(const QString& text)
     bool wasRemoteRouteLink = false;
     QString error;
     auto profiles = Configs::RouteProfile::FromRemoteRoutesLink(text, &wasRemoteRouteLink, &error);
-    if (!wasRemoteRouteLink) return false; // not a remoteRoute link; let the caller try other formats
+    if (!wasRemoteRouteLink) return false;
 
     if (profiles.isEmpty()) {
         MessageBoxWarning(tr("Add remote routing profiles"),
@@ -582,17 +573,13 @@ bool DialogManageRoutes::tryImportRemoteRoutesLink(const QString& text)
 
     for (const auto& p : profiles) chainList << p;
     reloadProfileItems();
-    // Fetch the newly added profiles with the Update-button progress UI; persisted on accept().
     updateRemoteProfiles(profiles);
     return true;
 }
 
 void DialogManageRoutes::on_import_route_clicked()
 {
-    // Fast path: if the clipboard already holds a usable candidate, just confirm and
-    // import it — no need to make the user paste back what they already copied.
     const QString clip = QApplication::clipboard()->text().trimmed();
-    // A throne://remoteRoute deep link adds one or more remote profiles at once.
     if (tryImportRemoteRoutesLink(clip)) return;
     if (!clip.isEmpty()) {
         QString fatal, warnings;
@@ -608,11 +595,9 @@ void DialogManageRoutes::on_import_route_clicked()
                 applyImportedProfile(profile, wasOldArray);
                 return;
             }
-            // Declined: fall through to the manual paste dialog below.
         }
     }
 
-    // Manual path: let the user paste; the placeholder explains the accepted formats.
     auto w = new QDialog(this);
     w->setWindowTitle(tr("Import routing profile"));
     w->setWindowModality(Qt::ApplicationModal);
@@ -626,7 +611,6 @@ void DialogManageRoutes::on_import_route_clicked()
     layout->addWidget(buttons, 1, 0);
 
     connect(buttons, &QDialogButtonBox::accepted, w, [=, this] {
-        // remoteRoute deep link: add remote profiles and close.
         if (tryImportRemoteRoutesLink(tEdit->toPlainText())) { w->accept(); return; }
         QString fatal, warnings;
         bool wasOldArray = false;
@@ -696,7 +680,6 @@ void DialogManageRoutes::on_delete_route_clicked() {
 }
 
 void DialogManageRoutes::on_update_route_clicked() {
-    // While a batch is running the button shows progress; clicking it offers only Cancel.
     if (routeUpdateRunning) {
         QMenu menu(this);
         auto* cancelAct = menu.addAction(tr("Cancel"));
@@ -713,8 +696,6 @@ void DialogManageRoutes::on_update_route_clicked() {
     const bool selIsRemote = idx >= 0 && chainList[idx]->isRemote;
 
     QMenu menu(this);
-    // Only offer "Update selected" when the selection is actually a remote profile, so the
-    // menu never presents an action that would just error out.
     QAction* updateSelAct = selIsRemote ? menu.addAction(tr("Update selected")) : nullptr;
     auto* updateAllAct = menu.addAction(tr("Update all"));
     auto* chosen = menu.exec(ui->update_route->mapToGlobal(QPoint(0, ui->update_route->height())));
@@ -744,8 +725,7 @@ void DialogManageRoutes::updateRemoteProfiles(const QList<std::shared_ptr<Config
     routeUpdateCancel = false;
     const int total = profiles.size();
 
-    // "Updating..." for a single profile; a running "Updating (n / total)" for a batch. The
-    // button stays enabled during the run so its click can offer Cancel (see the slot above).
+    // The button stays enabled during the run so its click can offer Cancel (see the slot above).
     auto progressText = [total](int current) {
         return total <= 1 ? tr("Updating...") : tr("Updating (%1 / %2)").arg(current).arg(total);
     };

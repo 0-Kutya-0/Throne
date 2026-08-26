@@ -411,8 +411,7 @@ namespace JsonEdit {
         if (branches.isEmpty()) return;
 
         QList<QJsonObject> resolved;
-        // a branch that is itself a bare union contributes its own branches, so variants split by a
-        // second constant (snell by version) still take part in discrimination
+        // A branch that is itself a bare union contributes its own branches, so variants split by a second constant still discriminate.
         std::function<void(const QJsonObject&, int)> flatten = [&](const QJsonObject& node, const int level) {
             const QJsonObject branch = deref(node);
             if (level < 3 && branch.size() == 1) {
@@ -429,9 +428,7 @@ namespace JsonEdit {
         QList<int> candidates;
         for (int i = 0; i < resolved.size(); ++i) candidates.append(i);
 
-        // Narrow by the constants the branches pin their properties to, repeatedly: "type" picks the
-        // protocol, a second pass picks between variants of it. Excluding a branch this way is sound,
-        // the value provably cannot satisfy it.
+        // Narrow repeatedly by the constants branches pin their properties to: "type" first, then variants of it.
         if (value.type == ValueType::Object) {
             QSet<QString> tried;
             for (int round = 0; round < 4 && candidates.size() > 1; ++round) {

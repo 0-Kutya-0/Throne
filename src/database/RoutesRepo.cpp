@@ -11,7 +11,6 @@ namespace Configs {
     }
 
     void RoutesRepo::createTables() const {
-        // Create route_profiles table
         db.exec(R"(
             CREATE TABLE IF NOT EXISTS route_profiles (
                 id INTEGER PRIMARY KEY,
@@ -46,7 +45,6 @@ namespace Configs {
         if (!routeProfilesColumnExists("endpoint_profile_ids"))
             db.exec("ALTER TABLE route_profiles ADD COLUMN endpoint_profile_ids TEXT NOT NULL DEFAULT '[]'");
 
-        // Create route_rules table
         db.exec(R"(
             CREATE TABLE IF NOT EXISTS route_rules (
                 route_profile_id INTEGER NOT NULL,
@@ -249,7 +247,6 @@ namespace Configs {
             if (endpointValue.isDouble()) routeProfile->endpointProfileIDs.append(endpointValue.toInt());
         }
 
-        // Load rules
         if (json.contains("rules") && json["rules"].isArray()) {
             QJsonArray rulesArray = json["rules"].toArray();
             for (const auto& ruleValue : rulesArray) {
@@ -307,10 +304,8 @@ namespace Configs {
 
         db.execThrow("DELETE FROM route_rules WHERE route_profile_id = ?", id);
 
-        // Insert rules
         int ruleOrder = 0;
         for (const auto& rule : routeProfile->Rules) {
-            // Serialize QList<QString> fields to JSON
             QJsonArray inboundArray = QListStr2QJsonArray(rule->inbound);
             QJsonArray domainArray = QListStr2QJsonArray(rule->domain);
             QJsonArray domainSuffixArray = QListStr2QJsonArray(rule->domain_suffix);
@@ -651,13 +646,11 @@ namespace Configs {
     }
 
     int RoutesRepo::NewRouteProfileID() const {
-        // Atomically increment and get the new ID (DB atomic, no lock required)
         auto query = db.query("UPDATE entity_ids SET route_profile_last_id = route_profile_last_id + 1 RETURNING route_profile_last_id");
         if (query && query->executeStep()) {
             return query->getColumn(0).getInt();
         }
         
-        // Fallback if RETURNING is not supported (shouldn't happen with modern SQLite)
         return 0;
     }
 
@@ -667,7 +660,7 @@ namespace Configs {
         }
         
         if (routeProfile->id < 0) {
-            return false; // Route profile doesn't have an ID, use AddRouteProfile instead
+            return false;
         }
         
         QMutexLocker locker(&mutex);

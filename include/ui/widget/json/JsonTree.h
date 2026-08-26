@@ -3,9 +3,7 @@
 #include <QList>
 #include <QString>
 
-// A JSON parse tree that keeps the text span of every value and key, so a validator can
-// point at the exact characters that are wrong. Comments are accepted as whitespace,
-// matching what Qt's own parser tolerates in the configs users paste into Throne.
+// Comments are accepted as whitespace, matching what Qt's own parser tolerates.
 namespace JsonEdit {
     enum class ValueType { Null, Bool, Number, String, Array, Object };
 

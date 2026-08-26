@@ -22,6 +22,5 @@ namespace JsonEdit {
     // A fresh validator each call: relaxations are per-editor, so instances are never shared.
     std::shared_ptr<SchemaValidator> SingBoxValidator(const QString& rootRef = {});
 
-    // Validator for a value that may take any of several shapes, e.g. an outbound or an endpoint.
     std::shared_ptr<SchemaValidator> SingBoxValidator(const QStringList& rootRefs);
 }

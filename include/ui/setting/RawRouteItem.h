@@ -17,15 +17,11 @@ namespace JsonEdit {
     class JsonIssueList;
 }
 
-// JSON editor with a context-aware outbound completer: while the cursor is in the value of
-// an "outbound" or "final" key it suggests "[id] Name" entries and inserts just the id.
 class RawRouteEdit : public JsonEdit::JsonCodeEdit {
     Q_OBJECT
 
 public:
     explicit RawRouteEdit(QWidget* parent = nullptr);
-    // Each item is a (display, id) pair: the popup shows the display text (e.g. "[Group] Name")
-    // while only the id is inserted into the document.
     void setOutboundItems(const QList<QPair<QString, QString>>& items);
 
 protected:
@@ -41,7 +37,6 @@ private:
     QHash<QString, QString> outboundIdByDisplay; // popup display text -> id to insert
 };
 
-// Editor for a "raw" routing profile: a full sing-box route object as JSON.
 class RawRouteItem : public QDialog {
     Q_OBJECT
 

@@ -301,8 +301,7 @@ namespace Configs {
         addPair(QStringLiteral("xray_vless_preference"),
             std::to_string(static_cast<int>(xray_vless_preference)));
 
-        // qint64 last-run timestamps for the periodic auto-update jobs (out of range for
-        // the int map, so persisted here alongside the other special cases).
+        // qint64 timestamps: out of range for the int map, so persisted here.
         addPair(QStringLiteral("sub_auto_update_last"),
             std::to_string(sub_auto_update_last));
         addPair(QStringLiteral("route_auto_update_last"),

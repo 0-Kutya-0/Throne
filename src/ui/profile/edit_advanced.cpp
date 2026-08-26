@@ -35,7 +35,6 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
     ui->tcp_multipath->setChecked(dialFieldsObj->tcp_multi_path);
     ui->connect_timeout->setText(dialFieldsObj->connect_timeout);
 
-    // Collect system network interfaces and addresses
     for (const auto& ifc : QNetworkInterface::allInterfaces())
         m_systemInterfaces << ifc.humanReadableName();
     for (const auto& addr : QNetworkInterface::allAddresses()) {
@@ -132,7 +131,7 @@ EditAdvanced::EditAdvanced(QWidget *parent, const std::shared_ptr<Configs::Profi
 
     ADD_ASTERISK(this)
 
-    // adjustSize() clamps to 2/3 of the screen, which cut the wide four-column form short.
+    // adjustSize() clamps to 2/3 of the screen.
     const auto *scr = screen() != nullptr ? screen() : QGuiApplication::primaryScreen();
     if (scr != nullptr) resize(sizeHint().boundedTo(scr->availableGeometry().size()));
 }

@@ -356,7 +356,6 @@ namespace JsonEdit {
         const Qt::KeyboardModifiers modifiers = event->modifiers();
         const bool plainOrShift = (modifiers & ~Qt::ShiftModifier) == 0;
 
-        // Enter: keep the current line's indentation; open a block when between a pair.
         if ((key == Qt::Key_Return || key == Qt::Key_Enter) && plainOrShift) {
             QTextCursor cursor = textCursor();
             if (cursor.hasSelection()) return false;
@@ -385,7 +384,6 @@ namespace JsonEdit {
             return true;
         }
 
-        // Backspace inside an empty pair removes both halves.
         if (key == Qt::Key_Backspace && modifiers == Qt::NoModifier) {
             const QChar before = charBeforeCursor();
             const QChar after = charAfterCursor();
@@ -405,7 +403,6 @@ namespace JsonEdit {
         if (typedText.isEmpty()) return false;
         const QChar typed = typedText.at(0);
 
-        // Typing a closing bracket/quote right before its match just steps over it.
         if ((typed == QLatin1Char('}') || typed == QLatin1Char(']') || typed == QLatin1Char('"')) &&
             charAfterCursor() == typed) {
             QTextCursor cursor = textCursor();
@@ -414,7 +411,6 @@ namespace JsonEdit {
             return true;
         }
 
-        // Auto-close an opening bracket/quote and place the cursor inside.
         if (typed == QLatin1Char('{') || typed == QLatin1Char('[') || typed == QLatin1Char('"')) {
             if (textCursor().hasSelection()) return false;
             if (typed == QLatin1Char('"') && charAfterCursor().isLetterOrNumber()) return false;

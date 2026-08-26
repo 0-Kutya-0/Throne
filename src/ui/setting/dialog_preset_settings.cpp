@@ -20,7 +20,6 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     ui->setupUi(this);
     ADD_ASTERISK(this);
 
-    // Multiplex
     ui->mux_protocol->addItems({"h2mux", "smux", "yamux"});
     D_LOAD_COMBO_STRING(mux_protocol)
     D_LOAD_INT(mux_concurrency)
@@ -29,7 +28,6 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     ui->xray_mux_concurrency->setText(Int2String(Configs::dataManager->settingsRepo->xray_mux_concurrency));
     ui->xray_default_mux->setChecked(Configs::dataManager->settingsRepo->xray_mux_default_on);
 
-    // TLS
     ui->fragment_implementation->addItems({"built-in", "custom"});
     D_LOAD_COMBO_STRING(fragment_implementation)
     D_LOAD_STRING(fragment_size)
@@ -38,7 +36,6 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     D_LOAD_BOOL(tls_tricks_default_on)
     ui->fragment_size->setValidator(new QRegularExpressionValidator(QRegularExpression("^[0-9]+(-[0-9]+)?$"), this));
     ui->fragment_sleep->setValidator(new QRegularExpressionValidator(QRegularExpression("^[0-9]+(-[0-9]+)?$"), this));
-    // size/sleep only affect the custom implementation, so enable them only for it
     auto syncFragParams = [this](const QString &impl) {
         bool custom = impl == "custom";
         ui->fragment_size->setEnabled(custom);
@@ -55,7 +52,6 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     D_LOAD_STRING(tls_spoof)
     D_LOAD_COMBO_STRING(tls_spoof_method)
     D_LOAD_BOOL(tls_spoof_default_on)
-    // with no SNI to forge there is nothing to enable, so the dependants follow it
     auto syncSpoofFields = [this](const QString &sni) {
         ui->tls_spoof_method->setEnabled(!sni.isEmpty());
         ui->tls_spoof_method_l->setEnabled(!sni.isEmpty());
@@ -64,7 +60,6 @@ DialogPresetSettings::DialogPresetSettings(QWidget *parent) : QDialog(parent), u
     connect(ui->tls_spoof, &QLineEdit::textChanged, this, syncSpoofFields);
     syncSpoofFields(ui->tls_spoof->text());
 
-    // HTTP/2 & QUIC
     D_LOAD_STRING(h2_idle_timeout)
     D_LOAD_STRING(h2_keep_alive_period)
     D_LOAD_STRING(h2_stream_receive_window)
@@ -86,7 +81,6 @@ DialogPresetSettings::~DialogPresetSettings() {
 }
 
 void DialogPresetSettings::accept() {
-    // Multiplex
     D_SAVE_COMBO_STRING(mux_protocol)
     D_SAVE_INT(mux_concurrency)
     D_SAVE_BOOL(mux_padding)
@@ -94,7 +88,6 @@ void DialogPresetSettings::accept() {
     Configs::dataManager->settingsRepo->xray_mux_concurrency = ui->xray_mux_concurrency->text().toInt();
     Configs::dataManager->settingsRepo->xray_mux_default_on = ui->xray_default_mux->isChecked();
 
-    // TLS
     D_SAVE_COMBO_STRING(fragment_implementation)
     D_SAVE_STRING(fragment_size)
     D_SAVE_STRING(fragment_sleep)
@@ -105,7 +98,6 @@ void DialogPresetSettings::accept() {
     D_SAVE_COMBO_STRING(tls_spoof_method)
     D_SAVE_BOOL(tls_spoof_default_on)
 
-    // HTTP/2 & QUIC
     D_SAVE_STRING(h2_idle_timeout)
     D_SAVE_STRING(h2_keep_alive_period)
     D_SAVE_STRING(h2_stream_receive_window)

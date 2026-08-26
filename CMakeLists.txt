@@ -560,8 +560,7 @@ set_target_properties(Throne PROPERTIES
         MACOSX_BUNDLE TRUE
         WIN32_EXECUTABLE TRUE
 )
-# Only MSVC gains enough from jumbo builds to be worth the ODR hazard between
-# same-named symbols in different files' anonymous namespaces.
+
 if (WIN32 AND MSVC)
     set_target_properties(Throne PROPERTIES UNITY_BUILD ON)
 endif ()

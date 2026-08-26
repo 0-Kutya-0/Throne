@@ -13,8 +13,7 @@ namespace JsonEdit {
         QString message;
         QString pointer;
         Span span;
-        // set when a discriminated union rejected the value outright, so a caller weighing
-        // branches can tell "this is the wrong variant" from "this variant has a bad field"
+        // Set when a union rejected the value outright: the wrong variant, not a bad field.
         bool variantMismatch = false;
     };
 

@@ -3,9 +3,7 @@
 
 namespace Configs
 {
-    // sing-box embeds these flat into the hysteria/hysteria2/tuic outbounds, so they
-    // build as top-level keys rather than a nested object. Empty / 0 means "no override":
-    // Build() falls back to the matching global preset in SettingsRepo.
+    // Built flat into the hysteria/tuic outbounds, not as a nested object; empty / 0 means "no override".
     class QUICFields : public baseConfig
     {
         public:
@@ -29,7 +27,6 @@ namespace Configs
             disable_path_mtu_discovery_unspecified = state == 0;
         }
 
-        // baseConfig overrides
         bool ParseFromLink(const QString& link) override;
         bool ParseFromJson(const QJsonObject& object) override;
         QString ExportToLink() override;
