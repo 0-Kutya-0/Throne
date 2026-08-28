@@ -29,6 +29,8 @@
 #include <QKeySequence>
 #include <QSet>
 #include <QHash>
+#include <QIcon>
+#include <QToolButton>
 #include <QCheckBox>
 #include <QSemaphore>
 #include <QMutex>
@@ -254,6 +256,8 @@ private:
     QMutex connectionListMu;
     class ConnectionsFilterHeader *connectionFilterHeader = nullptr;
     QTimer *connectionFilterDebounce = nullptr;
+    QToolButton *connectionCloseAllButton = nullptr;
+    QIcon connectionCloseIcon;
     int toolTipID;
     SpeedWidget *speedChartWidget;
     std::atomic<qint64> lastUpdatedMs = QDateTime::currentMSecsSinceEpoch();
@@ -450,6 +454,19 @@ private:
     void applyConnectionSort(Stats::ConnectionSort sort);
 
     void applyConnectionFilters();
+
+    void buildConnectionRow(int row);
+
+    void fillConnectionRow(int row, const Stats::ConnectionMetadata &conn);
+
+    void resizeConnectionRows(int count);
+
+    // Rows are rewritten on every poll, so ids are read at click time, never captured.
+    void closeConnections(const QStringList &ids);
+
+    QStringList listedConnectionIds() const;
+
+    void refreshConnectionCloseIcons();
 
     friend class TestRunner;
 

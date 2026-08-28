@@ -665,6 +665,11 @@ QTabBar::tab:selected {
                    <string>Click to sort by speed; right-click to choose total/down/up</string>
                   </property>
                  </column>
+                 <column>
+                  <property name="text">
+                   <string notr="true"/>
+                  </property>
+                 </column>
                 </widget>
                </item>
               </layout>

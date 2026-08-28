@@ -16,6 +16,7 @@
 #include "include/sys/AutoRun.hpp"
 #include "include/sys/UrlScheme.hpp"
 
+#include "include/ui/utils/ConnectionsFilterHeader.h"
 #include "include/ui/setting/ThemeManager.hpp"
 #include "include/ui/setting/Icon.hpp"
 #include "include/ui/stats/dialog_traffic_stats.h"
@@ -367,6 +368,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     syncConnectionViewState();
     connect(ui->connections->horizontalHeader(), &QHeaderView::sectionClicked, this, [=,this](int index)
     {
+            // The close column has no sort of its own; without this it would fall through and reset sorting.
+            if (index == ConnectionsFilterHeader::ColClose) return;
+
             Stats::ConnectionSort sortType;
 
             switch (index)

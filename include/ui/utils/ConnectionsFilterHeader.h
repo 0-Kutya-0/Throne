@@ -10,7 +10,7 @@
 class ConnectionsFilterHeader : public QHeaderView {
     Q_OBJECT
 public:
-    enum Column { ColDest = 0, ColProcess = 1, ColProtocol = 2, ColOutbound = 3, ColumnCount = 6 };
+    enum Column { ColDest = 0, ColProcess = 1, ColProtocol = 2, ColOutbound = 3, ColClose = 6, ColumnCount = 7 };
 
     explicit ConnectionsFilterHeader(QWidget *parent = nullptr)
         : QHeaderView(Qt::Horizontal, parent) {
