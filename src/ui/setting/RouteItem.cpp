@@ -5,6 +5,7 @@
 #include "include/database/GroupsRepo.h"
 #include "include/global/Configs.hpp"
 #include "include/configs/sub/RouteUpdater.hpp"
+#include "include/ui/setting/ThemeManager.hpp"
 
 #include <srslist.h>
 
@@ -323,7 +324,7 @@ void RouteItem::fetchRemote(bool applyToChain) {
                 lay->addWidget(header);
                 if (!warnings.isEmpty()) {
                     auto* warn = new QLabel(warnings, dlg);
-                    warn->setStyleSheet(QStringLiteral("color: #c62828;"));
+                    warn->setStyleSheet(QStringLiteral("color: %1;").arg(themeManager->tokens.danger.name()));
                     warn->setWordWrap(true);
                     lay->addWidget(warn);
                 }

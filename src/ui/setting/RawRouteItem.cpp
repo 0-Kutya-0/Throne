@@ -5,6 +5,7 @@
 #include "include/database/GroupsRepo.h"
 #include "include/ui/widget/json/JsonIssueList.h"
 #include "include/ui/widget/json/SchemaStore.h"
+#include "include/ui/setting/ThemeManager.hpp"
 
 #include <QAbstractItemView>
 #include <QCheckBox>
@@ -164,8 +165,9 @@ RawRouteItem::RawRouteItem(QWidget* parent, const std::shared_ptr<Configs::Route
     layout->addWidget(validateLabel);
     const auto refreshStatus = [this] {
         validateLabel->setText(jsonEdit->statusText());
-        validateLabel->setStyleSheet(jsonEdit->hasErrors() ? QStringLiteral("color: #c62828;")
-                                                           : QStringLiteral("color: #2e7d32;"));
+        const auto &tk = themeManager->tokens;
+        validateLabel->setStyleSheet(QStringLiteral("color: %1;")
+                                         .arg((jsonEdit->hasErrors() ? tk.danger : tk.success).name()));
     };
     connect(jsonEdit, &JsonEdit::JsonCodeEdit::issuesChanged, this, refreshStatus);
     refreshStatus();
