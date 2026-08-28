@@ -176,7 +176,7 @@ private:
                               QKeySequence::MoveToStartOfLine, QKeySequence::MoveToEndOfLine,
                               QKeySequence::SelectStartOfLine, QKeySequence::SelectEndOfLine,
                               QKeySequence::DeleteStartOfWord, QKeySequence::DeleteEndOfWord}) {
-            if (key->matches(standard) == QKeySequence::ExactMatch) return true;
+            if (key->matches(standard)) return true;
         }
         return false;
     }

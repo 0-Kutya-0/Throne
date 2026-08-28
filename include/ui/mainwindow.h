@@ -252,6 +252,8 @@ private:
     QMutex mu_download_update;
     QMutex mu_download_dashboard;
     QMutex connectionListMu;
+    class ConnectionsFilterHeader *connectionFilterHeader = nullptr;
+    QTimer *connectionFilterDebounce = nullptr;
     int toolTipID;
     SpeedWidget *speedChartWidget;
     std::atomic<qint64> lastUpdatedMs = QDateTime::currentMSecsSinceEpoch();
@@ -440,6 +442,14 @@ private:
     void setupConnectionList();
 
     void setupConnectionSortMenu();
+
+    void setupConnectionFilter();
+
+    void restoreConnectionSort();
+
+    void applyConnectionSort(Stats::ConnectionSort sort);
+
+    void applyConnectionFilters();
 
     friend class TestRunner;
 

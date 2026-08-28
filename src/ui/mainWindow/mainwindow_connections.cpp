@@ -1,17 +1,32 @@
 #include "include/ui/mainwindow.h"
+#include "include/ui/utils/ConnectionsFilterHeader.h"
 
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QClipboard>
 #include <QHeaderView>
+#include <QIcon>
 #include <QMenu>
+#include <QTabWidget>
 #include <QTableWidget>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
 #include <memory>
 
+namespace
+{
+    QString ProtocolText(const Stats::ConnectionMetadata& conn)
+    {
+        return conn.protocol.isEmpty() ? conn.network : conn.network + " (" + conn.protocol + ")";
+    }
+}
+
 void MainWindow::setupConnectionList()
 {
+    connectionFilterHeader = new ConnectionsFilterHeader(ui->connections);
+    ui->connections->setHorizontalHeader(connectionFilterHeader);
+
     ui->connections->horizontalHeader()->setHighlightSections(false);
     ui->connections->setEditTriggers(QAbstractItemView::NoEditTriggers);
     ui->connections->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
@@ -21,7 +36,9 @@ void MainWindow::setupConnectionList()
     ui->connections->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     ui->connections->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
     ui->connections->verticalHeader()->hide();
+    restoreConnectionSort();
     setupConnectionSortMenu();
+    setupConnectionFilter();
     connect(ui->connections, &QTableWidget::cellClicked, this, [=,this](int row, int column)
     {
         auto selected = ui->connections->item(row, column);
@@ -38,6 +55,70 @@ void MainWindow::setupConnectionList()
             QToolTip::hideText();
         });
     });
+}
+
+void MainWindow::restoreConnectionSort()
+{
+    const auto* settings = Configs::dataManager->settingsRepo.get();
+    const int stored = settings->connection_sort;
+    if (stored < Stats::Default || stored > Stats::BySpeed) return;
+    // Runs before setup_rpc() spawns the lister thread, so writing the pair unguarded is safe.
+    Stats::connection_lister->restoreSort(static_cast<Stats::ConnectionSort>(stored), settings->connection_sort_asc);
+}
+
+void MainWindow::applyConnectionSort(Stats::ConnectionSort sort)
+{
+    Stats::connection_lister->setSort(sort);
+    auto* settings = Configs::dataManager->settingsRepo.get();
+    settings->connection_sort = Stats::connection_lister->getSort();
+    settings->connection_sort_asc = Stats::connection_lister->isSortAscending();
+    settings->Save();
+    Stats::connection_lister->ForceUpdate();
+}
+
+void MainWindow::setupConnectionFilter()
+{
+    auto* btnFilter = new QToolButton(this);
+    btnFilter->setIcon(QIcon(":/icon/filter.png"));
+    btnFilter->setToolTip(tr("Enable Filter"));
+    btnFilter->setCheckable(true);
+    connect(btnFilter, &QToolButton::toggled, connectionFilterHeader, &ConnectionsFilterHeader::setFiltersVisible);
+    connect(connectionFilterHeader, &ConnectionsFilterHeader::closeRequested, btnFilter, [btnFilter] { btnFilter->setChecked(false); });
+    ui->stats_widget->setCornerWidget(btnFilter, Qt::TopRightCorner);
+
+    // The corner widget spans the whole tab bar, so it stays put and only greys out away from the connections tab.
+    auto syncEnabled = [=,this] { btnFilter->setEnabled(ui->stats_widget->currentWidget() == ui->connections_tab); };
+    connect(ui->stats_widget, &QTabWidget::currentChanged, this, [syncEnabled](int) { syncEnabled(); });
+    syncEnabled();
+
+    connectionFilterDebounce = new QTimer(this);
+    connectionFilterDebounce->setSingleShot(true);
+    connectionFilterDebounce->setInterval(50);
+    connect(connectionFilterDebounce, &QTimer::timeout, this, [this] { applyConnectionFilters(); });
+    connect(connectionFilterHeader, &ConnectionsFilterHeader::filtersChanged, this, [this] { connectionFilterDebounce->start(); });
+}
+
+void MainWindow::applyConnectionFilters()
+{
+    connectionListMu.lock();
+    ui->connections->setUpdatesEnabled(false);
+    const bool active = connectionFilterHeader->hasActiveFilter();
+    for (int row = 0; row < ui->connections->rowCount(); row++)
+    {
+        bool hide = false;
+        if (active)
+        {
+            auto text = [this, row](int column)
+            {
+                const auto* item = ui->connections->item(row, column);
+                return item == nullptr ? QString() : item->text();
+            };
+            hide = !connectionFilterHeader->accepts(text(0), text(1), text(2), text(3));
+        }
+        ui->connections->setRowHidden(row, hide);
+    }
+    ui->connections->setUpdatesEnabled(true);
+    connectionListMu.unlock();
 }
 
 void MainWindow::setupConnectionSortMenu()
@@ -78,8 +159,7 @@ void MainWindow::setupConnectionSortMenu()
         auto* chosen = menu.exec(header->mapToGlobal(pos));
         if (chosen == nullptr || !chosen->data().isValid()) return;
 
-        Stats::connection_lister->setSort(static_cast<Stats::ConnectionSort>(chosen->data().toInt()));
-        Stats::connection_lister->ForceUpdate();
+        applyConnectionSort(static_cast<Stats::ConnectionSort>(chosen->data().toInt()));
     });
 }
 
@@ -98,12 +178,12 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         }
 
         const auto conn = toUpdate[key];
-        ui->connections->item(row, 0)->setText(DisplayDest(conn.dest, conn.domain));
+        const auto dest = DisplayDest(conn.dest, conn.domain);
+        const auto prot = ProtocolText(conn);
+        ui->connections->item(row, 0)->setText(dest);
 
         ui->connections->item(row, 1)->setText(conn.process);
 
-        auto prot = conn.network;
-        if (!conn.protocol.isEmpty()) prot += " ("+conn.protocol+")";
         ui->connections->item(row, 2)->setText(prot);
 
         ui->connections->item(row, 3)->setText(conn.outbound);
@@ -111,6 +191,8 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         ui->connections->item(row, 4)->setText(ReadableSize(conn.upload) + "↑" + " " + ReadableSize(conn.download) + "↓");
 
         ui->connections->item(row, 5)->setText(ReadableSize(conn.uploadSpeed) + "/s↑" + " " + ReadableSize(conn.downloadSpeed) + "/s↓");
+
+        ui->connections->setRowHidden(row, !connectionFilterHeader->accepts(dest, conn.process, prot, conn.outbound));
     }
     int row = ui->connections->rowCount();
     for (const auto& conn : toAdd)
@@ -119,8 +201,11 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         auto f0 = std::make_unique<QTableWidgetItem>();
         f0->setData(Stats::IDKEY, conn.id);
 
+        const auto dest = DisplayDest(conn.dest, conn.domain);
+        const auto prot = ProtocolText(conn);
+
         auto f = f0->clone();
-        f->setText(DisplayDest(conn.dest, conn.domain));
+        f->setText(dest);
         ui->connections->setItem(row, 0, f);
 
         f = f0->clone();
@@ -128,8 +213,6 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         ui->connections->setItem(row, 1, f);
 
         f = f0->clone();
-        auto prot = conn.network;
-        if (!conn.protocol.isEmpty()) prot += " ("+conn.protocol+")";
         f->setText(prot);
         ui->connections->setItem(row, 2, f);
 
@@ -144,6 +227,8 @@ void MainWindow::UpdateConnectionList(const QMap<QString, Stats::ConnectionMetad
         f = f0->clone();
         f->setText(ReadableSize(conn.uploadSpeed) + "/s↑" + " " + ReadableSize(conn.downloadSpeed) + "/s↓");
         ui->connections->setItem(row, 5, f);
+
+        ui->connections->setRowHidden(row, !connectionFilterHeader->accepts(dest, conn.process, prot, conn.outbound));
 
         row++;
     }
@@ -163,8 +248,11 @@ void MainWindow::UpdateConnectionListWithRecreate(const QList<Stats::ConnectionM
         auto f0 = std::make_unique<QTableWidgetItem>();
         f0->setData(Stats::IDKEY, conn.id);
 
+        const auto dest = DisplayDest(conn.dest, conn.domain);
+        const auto prot = ProtocolText(conn);
+
         auto f = f0->clone();
-        f->setText(DisplayDest(conn.dest, conn.domain));
+        f->setText(dest);
         ui->connections->setItem(row, 0, f);
 
         f = f0->clone();
@@ -172,8 +260,6 @@ void MainWindow::UpdateConnectionListWithRecreate(const QList<Stats::ConnectionM
         ui->connections->setItem(row, 1, f);
 
         f = f0->clone();
-        auto prot = conn.network;
-        if (!conn.protocol.isEmpty()) prot += " ("+conn.protocol+")";
         f->setText(prot);
         ui->connections->setItem(row, 2, f);
 
@@ -188,6 +274,8 @@ void MainWindow::UpdateConnectionListWithRecreate(const QList<Stats::ConnectionM
         f = f0->clone();
         f->setText(ReadableSize(conn.uploadSpeed) + "/s↑" + " " + ReadableSize(conn.downloadSpeed) + "/s↓");
         ui->connections->setItem(row, 5, f);
+
+        ui->connections->setRowHidden(row, !connectionFilterHeader->accepts(dest, conn.process, prot, conn.outbound));
 
         row++;
     }

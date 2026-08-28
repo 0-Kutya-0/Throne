@@ -379,8 +379,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             default: sortType = Stats::Default; break;
             }
 
-            Stats::connection_lister->setSort(sortType);
-            Stats::connection_lister->ForceUpdate();
+            applyConnectionSort(sortType);
     });
 
     speedChartWidget = new SpeedWidget(this);
