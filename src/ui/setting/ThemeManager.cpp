@@ -177,6 +177,14 @@ static QColor readableOn(const QColor &bg) {
     return contrastRatio(Qt::white, bg) >= contrastRatio(Qt::black, bg) ? QColor(Qt::white) : QColor(Qt::black);
 }
 
+static QColor paletteAccent(const QPalette &pal) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    return pal.color(QPalette::Active, QPalette::Accent);
+#else
+    return pal.color(QPalette::Active, QPalette::Highlight);
+#endif
+}
+
 // Prefers a surface the theme already defines, so the chip looks native to it; falls back to
 // stepping the window itself and mixing in a trace of accent.
 static QColor selectedFill(const QPalette &pal, const QColor &surface, const QColor &onSurface,
@@ -193,8 +201,7 @@ static ThemeTokens resolveTokens(const QPalette &pal) {
     t.surface   = pal.color(QPalette::Active, QPalette::Window);
     t.onSurface = pal.color(QPalette::Active, QPalette::WindowText);
 
-    // Accent falls back to Highlight when unset (qpalette.cpp qt_ensure_default_accent_color).
-    t.accent       = separate(pal.color(QPalette::Active, QPalette::Accent), t.surface, 3.0);
+    t.accent       = separate(paletteAccent(pal), t.surface, 3.0);
     t.onAccent     = readableOn(t.accent);
     t.selectedFill = selectedFill(pal, t.surface, t.onSurface, t.accent);
     t.hoverFill    = separate(blendToward(t.accent, t.surface, 0.10), t.surface, 1.10);
