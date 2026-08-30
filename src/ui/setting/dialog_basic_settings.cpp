@@ -145,6 +145,11 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     // Custom stylesheet themes, not QStyleFactory keys.
     ui->theme->addItems({"FlatGray", "LightBlue", "SoftPink", "BlackSoft"});
     ui->enable_custom_icon->setChecked(Configs::dataManager->settingsRepo->use_custom_icons);
+    ui->follow_status_in_taskbar->setChecked(Configs::dataManager->settingsRepo->follow_status_in_taskbar);
+    ui->follow_status_in_taskbar->setEnabled(ui->enable_custom_icon->isChecked());
+    connect(ui->enable_custom_icon, &QCheckBox::toggled, this, [this](bool enabled) {
+        ui->follow_status_in_taskbar->setEnabled(enabled);
+    });
     connect(ui->select_custom_icon, &QPushButton::clicked, this, [=, this] {
         auto n = QMessageBox::information(this, "Custom Icon Manual", tr(Configs::Information::CustomIconManual.toStdString().c_str()), QMessageBox::Open | QMessageBox::Cancel);
         if (n == QMessageBox::Open) {
@@ -341,6 +346,9 @@ void DialogBasicSettings::accept() {
     auto oldUseCustomIcon = Configs::dataManager->settingsRepo->use_custom_icons;
     Configs::dataManager->settingsRepo->use_custom_icons = ui->enable_custom_icon->isChecked();
     if (oldUseCustomIcon != Configs::dataManager->settingsRepo->use_custom_icons) CACHE.updateTrayIcon = true;
+    auto oldFollowStatusInTaskbar = Configs::dataManager->settingsRepo->follow_status_in_taskbar;
+    Configs::dataManager->settingsRepo->follow_status_in_taskbar = ui->follow_status_in_taskbar->isChecked();
+    if (oldFollowStatusInTaskbar != Configs::dataManager->settingsRepo->follow_status_in_taskbar) CACHE.updateTrayIcon = true;
     D_SAVE_BOOL(start_minimal)
     Configs::dataManager->settingsRepo->skip_delete_confirmation = ui->skip_delete_confirm->isChecked();
     bool profileListDisplayChanged =

@@ -674,7 +674,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     tray = new QSystemTrayIcon(nullptr);
     tray->setIcon(GetTrayIcon(Icon::NONE));
-    QApplication::setWindowIcon(Icon::GetTrayIcon(Icon::NONE));
+    QApplication::setWindowIcon(Icon::GetTaskbarIcon(Icon::NONE));
     trayMenu = new QMenu();
     trayMenu->addAction(ui->actionShow_window);
     trayMenu->addSeparator();
