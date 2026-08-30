@@ -156,7 +156,7 @@ jobs:
             common: linux-amd64
             launcher: ccache
           - platform: ubuntu-24.04-arm
-            qt_version: "6.11.2"
+            qt_version: "6.11.1"
             target: aarch64
             dest_suffix: linux-arm64
             common: linux-arm64
