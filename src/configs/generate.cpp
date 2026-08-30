@@ -359,26 +359,33 @@ namespace Configs {
             };
         }
 
+        // The guard answers empty instead of falling through, which would hand the query to another server.
+        void appendDnsRoute(QJsonArray &rules, const QJsonObject &conditions, const QString &server,
+                            bool disableIPv6) {
+            if (disableIPv6) {
+                auto guard = conditions;
+                guard["query_type"] = QJsonArray{"AAAA"};
+                guard["action"] = "predefined";
+                rules += guard;
+            }
+            auto route = conditions;
+            route["action"] = "route";
+            route["server"] = server;
+            rules += route;
+        }
+
         void appendDnsRoutingRules(QJsonArray &rules, const DomainSelectors &selectors,
-                                   const QString &strategy, const QString &server) {
+                                   const QString &server, bool disableIPv6) {
             if (!selectors.ruleSets.isEmpty()) {
-                rules += QJsonObject{
-                    {"rule_set", selectors.ruleSets},
-                    {"action", "route"},
-                    {"strategy", strategy},
-                    {"server", server},
-                };
+                appendDnsRoute(rules, QJsonObject{{"rule_set", selectors.ruleSets}}, server, disableIPv6);
             }
             if (selectors.hasInlineConditions()) {
-                rules += QJsonObject{
+                appendDnsRoute(rules, QJsonObject{
                     {"domain", selectors.domains},
                     {"domain_suffix", selectors.suffixes},
                     {"domain_keyword", selectors.keywords},
                     {"domain_regex", selectors.regexes},
-                    {"action", "route"},
-                    {"strategy", strategy},
-                    {"server", server},
-                };
+                }, server, disableIPv6);
             }
         }
 
@@ -404,76 +411,6 @@ namespace Configs {
         bool usesXrayCore(const std::shared_ptr<Profile> &profile) {
             return profile->outbound != nullptr &&
                    (profile->outbound->IsXray() || profile->outbound->IsXrayFullConfig());
-        }
-
-        QStringList outboundServerDomains(const std::shared_ptr<Profile> &ent)
-        {
-            QStringList domains;
-            if (ent == nullptr || ent->outbound == nullptr) return domains;
-            if (ent->outbound->IsXrayFullConfig()) {
-                if (auto custom = ent->Custom(); custom != nullptr) {
-                    for (const auto &addr : custom->GetXrayFullConfigServerDomains())
-                        if (!addr.isEmpty() && !IsIpAddress(addr)) domains << addr;
-                }
-                return domains;
-            }
-            if (auto addr = ent->outbound->GetAddress(); !addr.isEmpty() && !IsIpAddress(addr)) domains << addr;
-            // A realm profile dials the rendezvous service and the STUN servers before the tunnel exists.
-            if (auto hysteria = ent->Hysteria(); hysteria != nullptr) {
-                for (const auto &host : hysteria->RealmDirectDomains())
-                    if (!host.isEmpty() && !IsIpAddress(host)) domains << host;
-            }
-            return domains;
-        }
-
-        QStringList getChainDomains(const std::shared_ptr<Profile> &ent, QString &error)
-        {
-            QStringList domains;
-            auto chain = ent->Chain();
-            if (!chain)
-            {
-                error = "Ent is Nullptr after cast to chain in getChainDomains, data is corrupted";
-                return domains;
-            }
-            for (int id : chain->list)
-            {
-                if (auto subEnt = dataManager->profilesRepo->GetProfile(id); subEnt != nullptr)
-                {
-                    if (subEnt->outbound != nullptr && subEnt->outbound->IsExtraCore()) continue;
-                    domains << outboundServerDomains(subEnt);
-                }
-            }
-            return domains;
-        }
-
-        QStringList getAutoSelectorDomains(const std::shared_ptr<Profile> &ent)
-        {
-            QStringList domains;
-            const auto plan = PlanAutoSelector(ent);
-            if (!plan.error.isEmpty()) return domains;
-            for (int id : plan.build)
-            {
-                if (auto member = dataManager->profilesRepo->GetProfile(id); member != nullptr)
-                    domains << outboundServerDomains(member);
-            }
-            return domains;
-        }
-
-        QStringList getEntDomains(const QList<int> &entIDs, QString &error)
-        {
-            QStringList domains;
-            for (const auto &id: entIDs)
-            {
-                if (auto ent = dataManager->profilesRepo->GetProfile(id); ent != nullptr)
-                {
-                    if (ent->outbound != nullptr && ent->outbound->IsExtraCore()) continue;
-                    if (ent->type == "chain") domains << getChainDomains(ent, error);
-                    else if (ent->type == "autoselector") domains << getAutoSelectorDomains(ent);
-                    else domains << outboundServerDomains(ent);
-                }
-            }
-
-            return domains;
         }
 
         // Decided up front: the sidecar's DNS carve-outs must be in place before the first connection.
@@ -566,11 +503,6 @@ namespace Configs {
                 return;
             }
 
-            auto addDirectDomains = [&preReqs](const QStringList &addrs) {
-                for (const auto &addr : addrs) preReqs.dns.direct.domains << addr;
-                preReqs.dns.needDirectDnsRules = true;
-            };
-
             auto neededOutbounds = routeChain->get_used_outbounds();
             auto neededRuleSets = routeChain->get_used_rule_sets();
             preReqs.routing.outboundMap[-1] = tags::proxy;
@@ -606,10 +538,6 @@ namespace Configs {
                             return;
                         }
                         if (usesXrayCore(hopEnt)) ctx.proxyUsesXray = true;
-                        if (auto addrs = getEntDomains({hopID}, ctx.error); !addrs.empty()) {
-                            if (!ctx.error.isEmpty()) return;
-                            addDirectDomains(addrs);
-                        }
                     }
                     preReqs.routing.outboundMap[item] = hopTag(tags::routeChainPrefix, suffix);
                     // Reversed to match the main-chain build order: outer hop first.
@@ -617,11 +545,6 @@ namespace Configs {
                     suffix += static_cast<int>(chain->list.size());
                 } else {
                     if (usesXrayCore(neededEnt)) ctx.proxyUsesXray = true;
-                    if (auto entAddrs = getEntDomains({neededEnt->id}, ctx.error); !entAddrs.empty())
-                    {
-                        if (!ctx.error.isEmpty()) return;
-                        addDirectDomains(entAddrs);
-                    }
                     preReqs.routing.outboundMap[item] = hopTag(tags::routeChainPrefix, suffix++);
                     preReqs.routing.routeOutboundGroups << RoutingDeps::RouteOutboundGroup{QList<int>{item}, nullptr};
                 }
@@ -708,11 +631,6 @@ namespace Configs {
                 parseSelectorList(proxySets, sinkFor(preReqs.dns.proxy));
                 if (!proxySets.isEmpty()) preReqs.dns.needProxyDnsRules = true;
             }
-            if (auto entAddrs = getEntDomains({ctx.ent->id}, ctx.error); !entAddrs.isEmpty())
-            {
-                if (!ctx.error.isEmpty()) return;
-                addDirectDomains(entAddrs);
-            }
             if (auto group = dataManager->groupsRepo->GetGroup(ctx.ent->gid); group != nullptr)
             {
                 QList<int> groupEnts;
@@ -722,9 +640,6 @@ namespace Configs {
                 {
                     if (auto pe = dataManager->profilesRepo->GetProfile(id); pe != nullptr && usesXrayCore(pe)) ctx.proxyUsesXray = true;
                 }
-                auto addrs = getEntDomains(groupEnts, ctx.error);
-                if (!ctx.error.isEmpty()) return;
-                if (!addrs.isEmpty()) addDirectDomains(addrs);
             }
 
             if (settings.enable_dns_server) {
@@ -1025,23 +940,15 @@ namespace Configs {
             }
 
             // Xray bridge hops bootstrap through dns-in; routing those over the proxy deadlocks the chain.
-            if (!ctx.forTest && ctx.proxyUsesXray) {
-                rules += QJsonObject{
-                        {"inbound", QJsonArray{tags::dnsIn}},
-                        {"action", "route"},
-                        {"strategy", settings.direct_dns_strategy},
-                        {"server", tags::dnsDirect},
-                    };
+            if (ctx.forTest || ctx.proxyUsesXray) {
+                appendDnsRoute(rules, QJsonObject{{"inbound", QJsonArray{tags::dnsIn}}},
+                               tags::dnsDirect, settings.direct_dns_disable_ipv6);
             }
 
             if (!ctx.forTest && !ctx.result->extraCoreData->path.isEmpty())
             {
-                rules += QJsonObject{
-                    {"process_path", extraCoreProcessPaths(ctx.result->extraCoreData->path)},
-                    {"action", "route"},
-                    {"strategy", settings.direct_dns_strategy},
-                    {"server", tags::dnsDirect},
-                };
+                appendDnsRoute(rules, QJsonObject{{"process_path", extraCoreProcessPaths(ctx.result->extraCoreData->path)}},
+                               tags::dnsDirect, settings.direct_dns_disable_ipv6);
             }
 
             if (settings.enable_dns_server && !ctx.forTest)
@@ -1079,12 +986,14 @@ namespace Configs {
             }
 
             if (settings.fake_dns) {
-                servers += QJsonObject{
+                QJsonObject fakeServer{
                         {"tag", tags::dnsFake},
                         {"type", "fakeip"},
                         {"inet4_range", "198.18.0.0/15"},
-                        {"inet6_range", "fc00::/18"},
                     };
+                // No inet6_range makes the transport answer AAAA empty itself; the rule stays on both types.
+                if (!settings.fakeip_disable_ipv6) fakeServer["inet6_range"] = "fc00::/18";
+                servers += fakeServer;
                 rules += QJsonObject{
                         {"query_type", QJsonArray{
                             "A",
@@ -1097,23 +1006,23 @@ namespace Configs {
             }
 
             if (dns.needDirectDnsRules) {
-                appendDnsRoutingRules(rules, dns.direct, settings.direct_dns_strategy, tags::dnsDirect);
+                appendDnsRoutingRules(rules, dns.direct, tags::dnsDirect, settings.direct_dns_disable_ipv6);
             }
 
-            const bool useDirectFinalDNS = settings.dns_final_out == tags::direct;
+            // A test box builds no dns-remote server at all, so its fall-through goes out direct.
+            const bool useDirectFinalDNS = ctx.forTest || settings.dns_final_out == tags::direct;
 
-            if (dns.needProxyDnsRules && useDirectFinalDNS) {
-                appendDnsRoutingRules(rules, dns.proxy, settings.remote_dns_strategy, tags::dnsRemote);
+            if (!ctx.forTest && dns.needProxyDnsRules && useDirectFinalDNS) {
+                appendDnsRoutingRules(rules, dns.proxy, tags::dnsRemote, settings.remote_dns_disable_ipv6);
             }
 
-            rules += QJsonObject{
-                {"strategy", useDirectFinalDNS || vpnDirectFinalDns ? settings.direct_dns_strategy
-                                                                   : settings.remote_dns_strategy},
-                {"action", "route"},
-                {"server", !vpnFinalDnsTag.isEmpty() ? vpnFinalDnsTag
-                           : useDirectFinalDNS || vpnDirectFinalDns ? QString(tags::dnsDirect)
-                                                                    : QString(tags::dnsRemote)},
-            };
+            const bool finalIsDirect = useDirectFinalDNS || vpnDirectFinalDns;
+            appendDnsRoute(rules, QJsonObject{},
+                           !vpnFinalDnsTag.isEmpty() ? vpnFinalDnsTag
+                           : finalIsDirect ? QString(tags::dnsDirect)
+                                           : QString(tags::dnsRemote),
+                           vpnFinalDnsTag.isEmpty() && (finalIsDirect ? settings.direct_dns_disable_ipv6
+                                                                      : settings.remote_dns_disable_ipv6));
 
             auto dnsLocalAddress = settings.core_box_underlying_dns.isEmpty() ? "local" : settings.core_box_underlying_dns;
             auto dnsLocalObj = buildDnsObj(ctx, dnsLocalAddress);
@@ -1395,6 +1304,9 @@ namespace Configs {
                     return;
                 }
                 object["tag"] = tag;
+                // Realm reads its STUN resolver off this key only; without it the hosts go through DNS rules.
+                if (auto hy = ent->Hysteria(); hy != nullptr && hy->RealmActive())
+                    object["domain_resolver"] = QJsonObject{{"server", tags::dnsDirect}};
                 if (!nextTag.isEmpty() && opts.link) object["detour"] = nextTag;
                 if (opts.warpWrap && idx == 0) object["detour"] = tags::warpBypass;
                 if (ent->outbound->IsEndpoint())
@@ -2478,10 +2390,6 @@ namespace Configs {
         auto res = std::make_shared<BuildTestConfigResult>();
         BuildContext ctx;
         ctx.forTest = true;
-        QList<int> entIDs;
-        for (const auto& proxy : profiles) entIDs << proxy->id;
-        ctx.prerequisites.dns.direct.domains = QListStr2QJsonArray(getEntDomains(entIDs, ctx.error));
-        if (!ctx.prerequisites.dns.direct.domains.isEmpty()) ctx.prerequisites.dns.needDirectDnsRules = true;
         buildDNSSection(ctx, false);
         if (!ctx.error.isEmpty())
         {
@@ -2500,7 +2408,8 @@ namespace Configs {
             if (proxy->outbound->IsXray()) xrayCount++;
             if (proxy->type == "chain") chainCount++;
         }
-        auto xrayPorts = MkManyPorts(xrayCount + 2*chainCount); // assume all chains transition twice and allocate port for them
+        // assume all chains transition twice and allocate port for them; the trailing slot is the DNS bridge's.
+        auto xrayPorts = MkManyPorts(xrayCount + 2*chainCount + 1);
 
         for (const auto& item : profiles)
         {
@@ -2597,18 +2506,42 @@ namespace Configs {
         ctx.outbounds << QJsonObject{{"type", "direct"}, {"tag", tags::direct}};
         ctx.result->coreConfig["outbounds"] = ctx.outbounds;
         ctx.result->coreConfig["endpoints"] = ctx.endpoints;
-        ctx.result->coreConfig["route"] = QJsonObject{
+        QJsonArray inboundArr;
+        for (const auto &bridgeConf : ctx.xrayToSingBridges) {
+            inboundArr.append(socksBridgeInbound(
+                QString(tags::bridgePrefix) + "-" + Int2String(bridgeConf.port), bridgeConf));
+        }
+        QJsonArray routeRules;
+        // A running Tun owns the OS resolver, so its answers are only routable inside the tunnel.
+        if (ctx.result->isXrayNeeded || !res->xrayFullConfigs.isEmpty()) {
+            // Reserved alongside the bridge ports: a second probe could re-deal one of them.
+            const auto dnsPort = xrayPorts.last();
+            if (dnsPort <= 0) {
+                res->error = "Could not reserve a local port for the test DNS bridge";
+                return res;
+            }
+            inboundArr.append(QJsonObject{
+                {"tag", tags::dnsIn},
+                {"type", "direct"},
+                {"listen", "127.0.0.1"},
+                {"listen_port", dnsPort},
+            });
+            routeRules.append(QJsonObject{
+                {"inbound", QJsonArray{tags::dnsIn}},
+                {"action", "hijack-dns"},
+            });
+            res->xrayDnsAddress = "127.0.0.1:" + Int2String(dnsPort);
+            res->xrayDnsStrategy = getXrayOutboundDomainStrategy();
+        }
+        QJsonObject routeObj{
                 {"auto_detect_interface", true},
                 {"default_domain_resolver", QJsonObject{
                         {"server", tags::dnsDirect},
                         {"strategy", dataManager->settingsRepo->default_domain_strategy},
                    }}
         };
-        QJsonArray inboundArr;
-        for (const auto &bridgeConf : ctx.xrayToSingBridges) {
-            inboundArr.append(socksBridgeInbound(
-                QString(tags::bridgePrefix) + "-" + Int2String(bridgeConf.port), bridgeConf));
-        }
+        if (!routeRules.isEmpty()) routeObj["rules"] = routeRules;
+        ctx.result->coreConfig["route"] = routeObj;
         ctx.result->coreConfig["inbounds"] = inboundArr;
         res->coreConfig = ctx.result->coreConfig;
         res->xrayConfig = ctx.result->xrayConfig;

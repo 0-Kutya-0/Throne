@@ -33,6 +33,9 @@ namespace Configs {
             {"remember_enable",               &remember_enable},
             {"skip_cert",                     &skip_cert},
             {"fakedns",                       &fake_dns},
+            {"fakeip_disable_ipv6",           &fakeip_disable_ipv6},
+            {"direct_dns_disable_ipv6",       &direct_dns_disable_ipv6},
+            {"remote_dns_disable_ipv6",       &remote_dns_disable_ipv6},
             {"disable_traffic_stats",         &disable_traffic_stats},
             {"disable_traffic_aggregation",   &disable_traffic_aggregation},
             {"vpn_ipv6",                      &vpn_ipv6},
@@ -167,9 +170,7 @@ namespace Configs {
             {"xray_geoip_url",             &xray_geoip_url},
             {"xray_geosite_url",           &xray_geosite_url},
             {"remote_dns",                 &remote_dns},
-            {"remote_dns_strategy",        &remote_dns_strategy},
             {"direct_dns",                 &direct_dns},
-            {"direct_dns_strategy",        &direct_dns_strategy},
             {"dns_object",                 &dns_object},
             {"dns_optimistic_timeout",     &dns_optimistic_timeout},
             {"dns_query_timeout",          &dns_query_timeout},
@@ -235,6 +236,15 @@ namespace Configs {
                 xray_vless_preference = static_cast<Xray::XrayVlessPreference>(ok ? v : 0);
                 continue;
             }
+            // Pre-1.14 DNS rule strategies: only the v4-only case survives as a filter, the rest were no-ops.
+            if (key == "direct_dns_strategy") {
+                direct_dns_disable_ipv6 = str == "ipv4_only";
+                continue;
+            }
+            if (key == "remote_dns_strategy") {
+                remote_dns_disable_ipv6 = str == "ipv4_only";
+                continue;
+            }
             if (key == "sub_auto_update_last") {
                 sub_auto_update_last = str.toLongLong();
                 continue;
@@ -269,6 +279,8 @@ namespace Configs {
                 continue;
             }
         }
+        // Nothing writes these back, so drop them or they keep overriding the migrated flags on every load.
+        db.exec("DELETE FROM settings WHERE key IN ('direct_dns_strategy', 'remote_dns_strategy')");
     }
 
     void SettingsRepo::saveAllSettings() const {

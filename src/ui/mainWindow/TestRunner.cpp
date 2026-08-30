@@ -58,6 +58,8 @@ namespace {
         req.use_default_outbound = target.useDefaultOutbound;
         req.xray_config = target.xrayConfig.toStdString();
         req.need_xray = !target.xrayConfig.isEmpty();
+        req.xray_outbound_dns_address = target.xrayDnsAddress.toStdString();
+        req.xray_outbound_dns_strategy = target.xrayDnsStrategy.toStdString();
         for (const auto& xc : target.xrayFullConfigs) req.xray_full_configs.push_back(xc.toStdString());
     }
 
@@ -345,6 +347,8 @@ void TestRunner::runLatencyGroup(LatencyKind kind, const QList<int>& requestedID
                 target.xrayFullConfigs = buildObject->xrayFullConfigs;
                 target.outboundTags = buildObject->outboundTags;
                 target.tag2entID = buildObject->tag2entID;
+                target.xrayDnsAddress = buildObject->xrayDnsAddress;
+                target.xrayDnsStrategy = buildObject->xrayDnsStrategy;
                 probe(target);
             }
             batchDone.acquire(testCount);
@@ -427,6 +431,8 @@ void TestRunner::runSpeedTests(const QList<int>& requestedIDs, bool testCurrent)
                     target.xrayFullConfigs = buildObject->xrayFullConfigs;
                     target.outboundTags = buildObject->outboundTags;
                     target.tag2entID = buildObject->tag2entID;
+                    target.xrayDnsAddress = buildObject->xrayDnsAddress;
+                    target.xrayDnsStrategy = buildObject->xrayDnsStrategy;
                     runSpeedProbe(target);
                 }
             };

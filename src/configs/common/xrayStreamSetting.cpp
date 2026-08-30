@@ -882,7 +882,7 @@ namespace Configs {
 
 
     QString getXrayOutboundDomainStrategy() {
-        auto strategy = Configs::dataManager->settingsRepo->direct_dns_strategy;
+        auto strategy = Configs::dataManager->settingsRepo->default_domain_strategy;
         if (strategy == "prefer_ipv4") return "UseIPv4v6";
         if (strategy == "prefer_ipv6") return "UseIPv6v4";
         if (strategy == "ipv4_only") return "ForceIPv4";
