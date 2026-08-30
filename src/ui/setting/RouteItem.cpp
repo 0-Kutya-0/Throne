@@ -533,7 +533,7 @@ void RouteItem::reloadRuleViewsFromChain() {
 }
 
 void RouteItem::accept() {
-    chain->name = ui->route_name->text();
+    chain->name = ui->route_name->text().trimmed();
 
     if (chain->name == "") {
         MessageBoxWarning(tr("Invalid operation"), tr("Cannot create Route Profile with empty name"));

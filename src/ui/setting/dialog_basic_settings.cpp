@@ -181,7 +181,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     }
     connect(ui->theme, &QComboBox::currentIndexChanged, this, [=,this](int index) {
         themeManager->ApplyTheme(ui->theme->currentText());
-        Configs::dataManager->settingsRepo->theme = ui->theme->currentText();
+        Configs::dataManager->settingsRepo->theme = ui->theme->currentText().trimmed();
         Configs::dataManager->settingsRepo->Save();
     });
 
@@ -309,9 +309,9 @@ void DialogBasicSettings::accept() {
     D_SAVE_BOOL(disable_tray)
     Configs::dataManager->settingsRepo->proxy_scheme = ui->proxy_scheme->currentText().toLower();
     Configs::dataManager->settingsRepo->speed_test_mode = ui->speedtest_mode->currentIndex();
-    Configs::dataManager->settingsRepo->simple_dl_url = ui->simple_down_url->text();
-    Configs::dataManager->settingsRepo->url_test_timeout_ms = ui->url_timeout->text().toInt();
-    Configs::dataManager->settingsRepo->speed_test_timeout_ms = ui->test_timeout->text().toInt();
+    Configs::dataManager->settingsRepo->simple_dl_url = ui->simple_down_url->text().trimmed();
+    Configs::dataManager->settingsRepo->url_test_timeout_ms = ui->url_timeout->text().trimmed().toInt();
+    Configs::dataManager->settingsRepo->speed_test_timeout_ms = ui->test_timeout->text().trimmed().toInt();
     Configs::dataManager->settingsRepo->allow_beta_update = ui->allow_beta->isChecked();
     Configs::dataManager->settingsRepo->disable_mixed_inbound = ui->disable_mixed_inbound->isChecked();
     Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp = ui->reset_proxy_on_disable_sp->isChecked();
@@ -320,10 +320,10 @@ void DialogBasicSettings::accept() {
     D_SAVE_STRING(inbound_pass)
 
     auto oldMaxLogLines = Configs::dataManager->settingsRepo->max_log_line;
-    Configs::dataManager->settingsRepo->max_log_line = ui->max_log_line->text().toInt();
+    Configs::dataManager->settingsRepo->max_log_line = ui->max_log_line->text().trimmed().toInt();
     if (oldMaxLogLines != Configs::dataManager->settingsRepo->max_log_line) CACHE.updateMaxLogLines = true;
-    Configs::dataManager->settingsRepo->log_level = ui->log_level->currentText();
-    Configs::dataManager->settingsRepo->xray_log_level = ui->xray_loglevel->currentText();
+    Configs::dataManager->settingsRepo->log_level = ui->log_level->currentText().trimmed();
+    Configs::dataManager->settingsRepo->xray_log_level = ui->xray_loglevel->currentText().trimmed();
     Configs::dataManager->settingsRepo->log_enable_include = ui->enable_log_include->isChecked();
     Configs::dataManager->settingsRepo->log_enable_exclude = ui->enable_log_exclude->isChecked();
     D_SAVE_BOOL(log_auto_scroll)
@@ -362,7 +362,7 @@ void DialogBasicSettings::accept() {
 
     // The PeriodicRunner reads these intervals live; no timer needs restarting.
 
-    Configs::dataManager->settingsRepo->user_agent = ui->user_agent->text();
+    Configs::dataManager->settingsRepo->user_agent = ui->user_agent->text().trimmed();
     D_SAVE_BOOL(net_use_proxy)
     D_SAVE_BOOL(allow_stopping_active_profile)
     D_SAVE_BOOL(sub_clear)
@@ -374,13 +374,13 @@ void DialogBasicSettings::accept() {
     D_SAVE_INT_ENABLE(route_auto_update, route_auto_update_enable)
 
     Configs::dataManager->settingsRepo->disable_traffic_stats = ui->disable_stats->isChecked();
-    Configs::dataManager->settingsRepo->core_dns_in_port = ui->dns_in_port->text().toInt();
-    Configs::dataManager->settingsRepo->core_box_clash_listen_addr = ui->core_box_clash_listen_addr->text();
-    Configs::dataManager->settingsRepo->core_box_clash_api = ui->core_box_clash_api->text().toInt();
-    Configs::dataManager->settingsRepo->core_box_clash_api_secret = ui->core_box_clash_api_secret->text();
-    Configs::dataManager->settingsRepo->core_box_api_port = ui->core_box_api_port->text().toInt();
+    Configs::dataManager->settingsRepo->core_dns_in_port = ui->dns_in_port->text().trimmed().toInt();
+    Configs::dataManager->settingsRepo->core_box_clash_listen_addr = ui->core_box_clash_listen_addr->text().trimmed();
+    Configs::dataManager->settingsRepo->core_box_clash_api = ui->core_box_clash_api->text().trimmed().toInt();
+    Configs::dataManager->settingsRepo->core_box_clash_api_secret = ui->core_box_clash_api_secret->text().trimmed();
+    Configs::dataManager->settingsRepo->core_box_api_port = ui->core_box_api_port->text().trimmed().toInt();
     // Blank means "no authentication" to sing-box, so never let the field clear it.
-    if (const auto secret = ui->core_box_api_secret->text(); !secret.isEmpty())
+    if (const auto secret = ui->core_box_api_secret->text().trimmed(); !secret.isEmpty())
         Configs::dataManager->settingsRepo->core_box_api_secret = secret;
 
     Configs::dataManager->settingsRepo->xray_vless_preference = static_cast<Configs::Xray::XrayVlessPreference>(ui->vless_xray_pref->currentIndex());
@@ -388,10 +388,10 @@ void DialogBasicSettings::accept() {
     D_SAVE_STRING(xray_geosite_url)
 
     Configs::dataManager->settingsRepo->enable_ntp = ui->ntp_enable->isChecked();
-    Configs::dataManager->settingsRepo->ntp_server_address = ui->ntp_server->text();
-    Configs::dataManager->settingsRepo->ntp_server_port = ui->ntp_port->text().toInt();
-    Configs::dataManager->settingsRepo->ntp_interval = ui->ntp_interval->currentText();
-    Configs::dataManager->settingsRepo->ntp_outbound = ui->ntp_outbound->currentText();
+    Configs::dataManager->settingsRepo->ntp_server_address = ui->ntp_server->text().trimmed();
+    Configs::dataManager->settingsRepo->ntp_server_port = ui->ntp_port->text().trimmed().toInt();
+    Configs::dataManager->settingsRepo->ntp_interval = ui->ntp_interval->currentText().trimmed();
+    Configs::dataManager->settingsRepo->ntp_outbound = ui->ntp_outbound->currentText().trimmed();
 
     D_SAVE_BOOL(skip_cert)
     Configs::dataManager->settingsRepo->disable_privilege_req = ui->disable_priv_req->isChecked();
