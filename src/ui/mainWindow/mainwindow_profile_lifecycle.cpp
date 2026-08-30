@@ -286,15 +286,15 @@ void MainWindow::profile_start(int _id) {
                         QMessageBox::NoButton,
                         this
                     );
-                    msg.addButton(tr("Reset"), QMessageBox::ActionRole);
+                    auto reset = msg.addButton(tr("Reset"), QMessageBox::ActionRole);
                     auto cancel = msg.addButton(tr("Cancel"), QMessageBox::ActionRole);
 
                     msg.setDefaultButton(cancel);
                     msg.setEscapeButton(cancel);
 
-                    int r = msg.exec() - 2;
-                    if (r == 0) {
-                        StopVPNProcess();
+                    msg.exec();
+                    if (msg.clickedButton() == reset) {
+                        RestartCore();
                     }
                 });
                 return false;
