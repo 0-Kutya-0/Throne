@@ -50,7 +50,6 @@ private:
         QStringList xrayFullConfigs;
         QStringList outboundTags;
         QMap<QString, int> tag2entID;
-        QString xrayDnsAddress;
         QString xrayDnsStrategy;
         int entID = -1;
         // Not derivable from an empty outboundTags: a test-current run leaves both empty but wants "proxy".

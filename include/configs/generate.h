@@ -56,7 +56,6 @@ namespace Configs
         QJsonObject xrayConfig;
         bool isXrayNeeded = false;
         QStringList outboundTags;
-        QString xrayDnsAddress;
         QString xrayDnsStrategy;
     };
 

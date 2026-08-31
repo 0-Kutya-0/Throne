@@ -939,11 +939,7 @@ namespace Configs {
                 }
             }
 
-            // Xray bridge hops bootstrap through dns-in; routing those over the proxy deadlocks the chain.
-            if (ctx.forTest || ctx.proxyUsesXray) {
-                appendDnsRoute(rules, QJsonObject{{"inbound", QJsonArray{tags::dnsIn}}},
-                               tags::dnsDirect, settings.direct_dns_disable_ipv6);
-            }
+            // No dns-in carve-out: Xray resolves against dns-direct in-process now, so a query on that port is an ordinary local one.
 
             if (!ctx.forTest && !ctx.result->extraCoreData->path.isEmpty())
             {
@@ -2032,7 +2028,7 @@ namespace Configs {
             if (!route.contains("default_domain_resolver"))
                 route["default_domain_resolver"] = QJsonObject{
                                         {"server", tags::dnsDirect},
-                                        {"strategy", settings.default_domain_strategy}};
+                                        {"strategy", getDirectDomainStrategy()}};
             if (settings.spmode_vpn && !route.contains("auto_detect_interface")) route["auto_detect_interface"] = true;
 
             ctx.result->coreConfig["route"] = route;
@@ -2408,8 +2404,8 @@ namespace Configs {
             if (proxy->outbound->IsXray()) xrayCount++;
             if (proxy->type == "chain") chainCount++;
         }
-        // assume all chains transition twice and allocate port for them; the trailing slot is the DNS bridge's.
-        auto xrayPorts = MkManyPorts(xrayCount + 2*chainCount + 1);
+        // assume all chains transition twice and allocate port for them.
+        auto xrayPorts = MkManyPorts(xrayCount + 2*chainCount);
 
         for (const auto& item : profiles)
         {
@@ -2512,32 +2508,15 @@ namespace Configs {
                 QString(tags::bridgePrefix) + "-" + Int2String(bridgeConf.port), bridgeConf));
         }
         QJsonArray routeRules;
-        // A running Tun owns the OS resolver, so its answers are only routable inside the tunnel.
+        // A running Tun owns the OS resolver, so the sidecar resolves against the probe box's dns-direct instead.
         if (ctx.result->isXrayNeeded || !res->xrayFullConfigs.isEmpty()) {
-            // Reserved alongside the bridge ports: a second probe could re-deal one of them.
-            const auto dnsPort = xrayPorts.last();
-            if (dnsPort <= 0) {
-                res->error = "Could not reserve a local port for the test DNS bridge";
-                return res;
-            }
-            inboundArr.append(QJsonObject{
-                {"tag", tags::dnsIn},
-                {"type", "direct"},
-                {"listen", "127.0.0.1"},
-                {"listen_port", dnsPort},
-            });
-            routeRules.append(QJsonObject{
-                {"inbound", QJsonArray{tags::dnsIn}},
-                {"action", "hijack-dns"},
-            });
-            res->xrayDnsAddress = "127.0.0.1:" + Int2String(dnsPort);
             res->xrayDnsStrategy = getXrayOutboundDomainStrategy();
         }
         QJsonObject routeObj{
                 {"auto_detect_interface", true},
                 {"default_domain_resolver", QJsonObject{
                         {"server", tags::dnsDirect},
-                        {"strategy", dataManager->settingsRepo->default_domain_strategy},
+                        {"strategy", getDirectDomainStrategy()},
                    }}
         };
         if (!routeRules.isEmpty()) routeObj["rules"] = routeRules;

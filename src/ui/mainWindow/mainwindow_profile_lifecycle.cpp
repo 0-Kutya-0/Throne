@@ -237,8 +237,7 @@ void MainWindow::profile_start(int _id) {
         req.need_xray = !result->xrayConfig.isEmpty();
         for (const auto &full : result->xrayFullConfigs) req.xray_full_configs.push_back(full.toStdString());
         if (req.need_xray || !req.xray_full_configs.empty()) {
-            // Resolution is wired in the core, not the config: point Xray at sing-box's loopback DNS-in.
-            req.xray_outbound_dns_address = ("127.0.0.1:" + QString::number(Configs::dataManager->settingsRepo->core_dns_in_port)).toStdString();
+            // Wired in the core, not the config: Xray resolves in-process through the box's dns-direct.
             req.xray_outbound_dns_strategy = Configs::getXrayOutboundDomainStrategy().toStdString();
             if (auto selector = ent->AutoSelector(); selector != nullptr) {
                 // The idle window must outlast the probe interval or the sidecar restarts every round.
