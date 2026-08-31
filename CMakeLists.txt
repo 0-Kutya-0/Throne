@@ -281,6 +281,10 @@ set(PROJECT_SOURCES
         src/ui/profile/edit_wireguard.cpp
         include/ui/profile/edit_wireguard.ui
 
+        include/ui/profile/edit_wireguard_amnezia.h
+        src/ui/profile/edit_wireguard_amnezia.cpp
+        include/ui/profile/edit_wireguard_amnezia.ui
+
         include/ui/profile/editor_table_utils.h
 
         include/ui/profile/edit_openvpn.h
