@@ -18,8 +18,27 @@ static QString openCommand() {
     return "\"" + QDir::toNativeSeparators(QApplication::applicationFilePath()) + "\" \"%1\"";
 }
 
+// None of these is keyed by install path, so two portable copies write the same three keys and the last launched one wins.
+static QStringList commandKeys() {
+    const QString exeName = QFileInfo(QApplication::applicationFilePath()).fileName();
+    return {
+        kClasses + "\\throne",
+        kClasses + "\\" + kProgId,
+        kClasses + "\\Applications\\" + exeName,
+    };
+}
+
 QString UrlScheme_DesiredState() {
     return "v2|" + openCommand();
+}
+
+bool UrlScheme_IsCurrent() {
+    const QString command = openCommand();
+    for (const QString &key : commandKeys()) {
+        QSettings s(key, QSettings::NativeFormat);
+        if (s.value("shell/open/command/Default").toString() != command) return false;
+    }
+    return true;
 }
 
 void UrlScheme_Apply() {

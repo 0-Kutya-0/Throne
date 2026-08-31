@@ -36,6 +36,17 @@ QString UrlScheme_DesiredState() {
     return "v3|" + execTarget();
 }
 
+// iconTarget() has side effects, so match the Exec line rather than regenerating the entry to compare it.
+bool UrlScheme_IsCurrent() {
+    QFile f(desktopFilePath());
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return false;
+    const QString expected = "Exec=\"" + execTarget() + "\" %U";
+    while (!f.atEnd()) {
+        if (QString::fromUtf8(f.readLine()).trimmed() == expected) return true;
+    }
+    return false;
+}
+
 void UrlScheme_Apply() {
     const QString path = desktopFilePath();
     QDir().mkpath(QFileInfo(path).absolutePath());

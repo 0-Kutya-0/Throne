@@ -23,6 +23,11 @@ QString UrlScheme_DesiredState() {
     return bundle.isEmpty() ? QString() : "v2|" + bundle;
 }
 
+// LaunchServices keys handlers by bundle path, not by a shared name, so a second copy cannot take ours over.
+bool UrlScheme_IsCurrent() {
+    return true;
+}
+
 void UrlScheme_Apply() {
     const QString bundle = bundlePath();
     if (bundle.isEmpty()) return;
