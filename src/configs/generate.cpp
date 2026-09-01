@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QHostAddress>
 #include <QRegularExpression>
+#include <QScopeGuard>
 
 
 #include "include/database/GroupsRepo.h"
@@ -15,6 +16,7 @@
 
 
 #include "include/database/entities/Profile.h"
+#include "include/global/VpnCredentialOverride.hpp"
 #ifdef Q_OS_LINUX
 #include "include/sys/linux/systemChecks.h"
 #endif
@@ -2384,6 +2386,9 @@ namespace Configs {
     std::shared_ptr<BuildTestConfigResult> BuildTestConfig(const QList<std::shared_ptr<Profile> > &profiles)
     {
         auto res = std::make_shared<BuildTestConfigResult>();
+        // outbound::Build() cannot see BuildContext::forTest.
+        SetBuildingTestConfig(true);
+        const auto clearTestBuildFlag = qScopeGuard([] { SetBuildingTestConfig(false); });
         BuildContext ctx;
         ctx.forTest = true;
         buildDNSSection(ctx, false);

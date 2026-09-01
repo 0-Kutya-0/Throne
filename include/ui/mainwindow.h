@@ -57,6 +57,14 @@ class TestRunner;
 class DialogVpnAuth;
 struct VpnAuthChallenge;
 
+struct VpnEndpointState {
+    QString tag;
+    QString state;
+    QString error;
+    bool connected = false;
+    bool authFailed = false;
+};
+
 namespace Qv2ray::ui { class SyntaxHighlighter; }
 
 QT_BEGIN_NAMESPACE
@@ -424,7 +432,20 @@ private:
 
     void show_vpn_challenge(const VpnAuthChallenge &challenge);
 
+    // True once the challenge is either submitted or deliberately held back for a fresher code.
+    bool auto_answer_vpn_challenge(const VpnAuthChallenge &challenge);
+
+    void submit_vpn_challenge_answer(const VpnAuthChallenge &challenge, const QString &username,
+                                     const QString &password, const QString &secret,
+                                     const QMap<QString, QString> &formValues);
+
     void show_vpn_auth_failure(const QString &endpointTag, const QString &error);
+
+    bool auto_restart_for_vpn_auth(const QString &endpointTag, int profileID);
+
+    void update_vpn_endpoint_states(const QList<VpnEndpointState> &states);
+
+    void reset_vpn_endpoint_tracking();
 
     void clear_vpn_credential_overrides();
 
@@ -433,6 +454,15 @@ private:
     QSet<QString> m_vpnChallengeSeen;
     QPointer<DialogVpnAuth> m_vpnAuthDialog;
     QString m_vpnEndpointState;
+    QString m_vpnTroubleSummary;
+    QString m_vpnTroubleDetail;
+    QHash<QString, QString> m_vpnEndpointLastState;
+    QHash<QString, QString> m_vpnOtpLastCode;
+    QHash<QString, int> m_vpnOtpRejects;
+    QSet<QString> m_vpnChallengeAnswering;
+    // Like m_vpnAuthPrompted, these outlive the restart they count; nothing else would end it.
+    QHash<int, int> m_vpnAutoRestarts;
+    qint64 m_vpnAutoRestartAt = 0;
     // Survives the restart the recovery itself triggers, so a rejected retry cannot loop.
     QHash<int, int> m_vpnAuthPrompted;
     int m_vpnAuthRestartID = -1;
