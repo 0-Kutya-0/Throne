@@ -71,3 +71,67 @@ void UrlScheme_Apply() {
     QProcess::execute("update-desktop-database", {appsDir});
     QProcess::execute("xdg-mime", {"default", kDesktopId, "x-scheme-handler/throne"});
 }
+
+// xdg writes a desktop-prefixed list when XDG_CURRENT_DESKTOP is set, and the unprefixed one otherwise.
+static QStringList mimeappsLists() {
+    const QString cfgDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    const QString appsDir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
+
+    QStringList paths;
+    const auto desktops = QProcessEnvironment::systemEnvironment().value("XDG_CURRENT_DESKTOP").split(':', Qt::SkipEmptyParts);
+    for (const QString &de : desktops) {
+        paths << cfgDir + "/" + de.toLower() + "-mimeapps.list";
+        paths << appsDir + "/" + de.toLower() + "-mimeapps.list";
+    }
+    paths << cfgDir + "/mimeapps.list" << appsDir + "/mimeapps.list";
+    return paths;
+}
+
+// xdg-mime has no "unset", so the associations it wrote are stripped by hand; handlers sharing the line are kept.
+static void stripFromMimeapps(const QString &path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    const QStringList lines = QString::fromUtf8(f.readAll()).split('\n');
+    f.close();
+
+    QStringList out;
+    bool changed = false;
+    for (const QString &line : lines) {
+        const int eq = line.indexOf('=');
+        if (eq < 0 || line.trimmed().startsWith('[') || !line.contains(kDesktopId)) {
+            out << line;
+            continue;
+        }
+
+        QStringList kept;
+        bool hit = false;
+        for (const QString &app : line.mid(eq + 1).split(';', Qt::SkipEmptyParts)) {
+            if (app.trimmed() == kDesktopId) hit = true;
+            else kept << app;
+        }
+        if (!hit) {
+            out << line;
+            continue;
+        }
+        changed = true;
+        if (!kept.isEmpty()) out << line.left(eq + 1) + kept.join(';') + ";";
+    }
+    if (!changed) return;
+
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        f.write(out.join('\n').toUtf8());
+        f.close();
+    }
+}
+
+void UrlScheme_Remove() {
+    QFile::remove(desktopFilePath());
+
+    const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QFile::remove(dataDir + "/throne.png");
+    QDir().rmdir(dataDir);
+
+    for (const QString &path : mimeappsLists()) stripFromMimeapps(path);
+
+    QProcess::execute("update-desktop-database", {QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation)});
+}

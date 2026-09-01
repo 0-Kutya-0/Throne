@@ -33,3 +33,7 @@ void UrlScheme_Apply() {
     if (bundle.isEmpty()) return;
     QProcess::execute(kLsregister, {"-f", bundle});
 }
+
+// The scheme comes from the bundle's Info.plist, so there is nothing of ours to take back; unregistering only lasts until the next launch.
+void UrlScheme_Remove() {
+}
