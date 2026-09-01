@@ -33,7 +33,7 @@ static QString iconTarget() {
 }
 
 QString UrlScheme_DesiredState() {
-    return "v3|" + execTarget();
+    return "v4|" + execTarget();
 }
 
 // iconTarget() has side effects, so match the Exec line rather than regenerating the entry to compare it.
@@ -59,17 +59,17 @@ void UrlScheme_Apply() {
            << "Name=Throne\n"
            << "Icon=" << iconTarget() << "\n"
            << "Exec=\"" << execTarget() << "\" %U\n"
-           << "MimeType=x-scheme-handler/throne;application/json;application/yaml;text/yaml;text/plain;\n"
+           << "MimeType=x-scheme-handler/throne;application/json;application/yaml;text/yaml;\n"
            << "Terminal=false\n"
            << "NoDisplay=true\n";
         ts.flush();
         f.close();
     }
 
-    // Both tools may be absent on minimal systems; execute() just returns nonzero then.
+    // mimeinfo.cache alone makes the association resolve; `xdg-mime default` is deliberately not called, it only ever wrote us into the shared mimeapps.list.
+    // May be absent on minimal systems; execute() just returns nonzero then.
     const QString appsDir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
     QProcess::execute("update-desktop-database", {appsDir});
-    QProcess::execute("xdg-mime", {"default", kDesktopId, "x-scheme-handler/throne"});
 }
 
 // xdg writes a desktop-prefixed list when XDG_CURRENT_DESKTOP is set, and the unprefixed one otherwise.
