@@ -444,7 +444,8 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
         return;
     }
 
-    UpdateConnectionListWithRecreate({});
+    // profile_stop() is reached from a worker thread as well as the UI one.
+    runOnUiThread([this] { UpdateConnectionList({}); });
 
     runOnUiThread([this] {
         m_profileDisconnecting = true;

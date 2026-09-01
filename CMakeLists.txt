@@ -200,6 +200,12 @@ set(PROJECT_SOURCES
         src/ui/utils/ProfilesTableVerticalHeader.cpp
         include/ui/utils/ProfilesTableFilterHeader.h
         include/ui/utils/ConnectionsFilterHeader.h
+        include/ui/utils/ConnectionsTableModel.h
+        src/ui/utils/ConnectionsTableModel.cpp
+        include/ui/utils/ConnectionsFilterProxyModel.h
+        src/ui/utils/ConnectionsFilterProxyModel.cpp
+        include/ui/utils/ConnectionCloseDelegate.h
+        src/ui/utils/ConnectionCloseDelegate.cpp
         include/ui/utils/ScreenQrScanner.h
         src/ui/utils/ScreenQrScanner.cpp
 

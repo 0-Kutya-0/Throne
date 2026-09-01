@@ -139,9 +139,8 @@ public:
 
     void RestartCore();
 
-    void UpdateConnectionList(const QMap<QString, Stats::ConnectionMetadata>& toUpdate, const QMap<QString, Stats::ConnectionMetadata>& toAdd);
-
-    void UpdateConnectionListWithRecreate(const QList<Stats::ConnectionMetadata>& connections);
+    // Takes a whole poll snapshot in the lister's order; row N is always its Nth entry. UI thread only.
+    void UpdateConnectionList(const QList<Stats::ConnectionMetadata>& connections);
 
     void UpdateDataView(bool force = false);
 
@@ -265,7 +264,9 @@ private:
     ExitReason exit_reason = ExitReason::None;
     QMutex mu_download_update;
     QMutex mu_download_dashboard;
-    QMutex connectionListMu;
+    class ConnectionsTableModel *connectionsModel = nullptr;
+    class ConnectionsFilterProxyModel *connectionsFilterModel = nullptr;
+    class ConnectionCloseDelegate *connectionCloseDelegate = nullptr;
     class ConnectionsFilterHeader *connectionFilterHeader = nullptr;
     QTimer *connectionFilterDebounce = nullptr;
     QToolButton *connectionCloseAllButton = nullptr;
@@ -488,12 +489,6 @@ private:
     void applyConnectionSort(Stats::ConnectionSort sort);
 
     void applyConnectionFilters();
-
-    void buildConnectionRow(int row);
-
-    void fillConnectionRow(int row, const Stats::ConnectionMetadata &conn);
-
-    void resizeConnectionRows(int count);
 
     // Rows are rewritten on every poll, so ids are read at click time, never captured.
     void closeConnections(const QStringList &ids);
