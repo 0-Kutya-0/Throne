@@ -109,6 +109,8 @@ public:
 
     void show_group(int gid);
 
+    void show_group_tab_menu(const QPoint &tabBarPos);
+
     void refresh_groups();
 
     void refresh_status(const QString &traffic_update = "");

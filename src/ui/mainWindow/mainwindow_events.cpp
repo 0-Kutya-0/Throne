@@ -206,9 +206,6 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
         } else if (obj == ui->label_inbound && mouseEvent->button() == Qt::LeftButton) {
             on_menu_basic_settings_triggered();
             return true;
-        } else if (obj == ui->tabWidget && mouseEvent->button() == Qt::RightButton) {
-            on_tabWidget_customContextMenuRequested(mouseEvent->position().toPoint());
-            return true;
         }
     } else if (type == QEvent::MouseButtonDblClick) {
         if (obj == ui->splitter) {

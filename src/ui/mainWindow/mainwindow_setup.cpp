@@ -279,12 +279,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->label_running->installEventFilter(this);
     ui->label_inbound->installEventFilter(this);
     ui->splitter->installEventFilter(this);
-    ui->tabWidget->installEventFilter(this);
+    // Never from a mouse-press filter: off Windows Qt synthesizes the context-menu event after the press, landing it on whatever is under the cursor by then (#1642).
+    ui->tabWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    ui->tabWidget->tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->tabWidget->tabBar(), &QWidget::customContextMenuRequested, this,
+            [this](const QPoint& pos) { show_group_tab_menu(pos); });
     auto btnFilter = new QToolButton(this);
     btnFilter->setIcon(QIcon(":/icon/filter.png"));
     btnFilter->setToolTip(QString("%1\n%2").arg(tr("Enable Filter"), QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText)));
     btnFilter->setShortcut(QKeySequence::Find);
     btnFilter->setCheckable(true);
+    // Sits inside the tab strip: an ignored right-click here would propagate to the group menu.
+    btnFilter->setContextMenuPolicy(Qt::PreventContextMenu);
     connect(btnFilter, &QToolButton::toggled, static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::setFiltersVisible);
     connect(static_cast<ProfilesTableFilterHeader*>(ui->profilesTableView->horizontalHeader()), &ProfilesTableFilterHeader::closeRequested,
             btnFilter, [btnFilter] { btnFilter->setChecked(false); });
