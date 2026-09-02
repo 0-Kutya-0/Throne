@@ -74,7 +74,10 @@ private:
 
     QString contextName(int entID) const;
 
-    // `gen` is the sweep the poll belongs to, re-checked once the query returns.
+    // A poll's batch can end while its query is in flight, so `gen` is re-checked
+    // after every query and the result dropped if the batch it belongs to is gone.
+    bool staleGen(quint64 gen) const { return sessionGen_.load() != gen; }
+
     void pollSpeedTest(const QMap<QString, int>& tag2entID, bool testCurrent, quint64 gen);
 
     void pollCountryTest(const QMap<QString, int>& tag2entID, bool testCurrent, quint64 gen);
@@ -86,7 +89,7 @@ private:
 
     // Held for a whole sweep, so it must never double as a per-batch latch.
     QMutex session_;
-    // A poll thread is not joined, so a late tick must not drain the next sweep.
+    // A poll thread is not joined, so a late tick must not drain the next batch.
     std::atomic<quint64> sessionGen_ = 0;
     std::atomic<bool> stopRequested_ = false;
     std::atomic<bool> testingCurrent_ = false;

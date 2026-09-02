@@ -167,13 +167,12 @@ void TestRunner::runUrlProbe(const Target& target) {
     {
         // The core's buffer is global: a poll can take a sibling's results, reclaimed below.
         ResultPoller poller([this, gen = sessionGen_.load(), tag2entID = target.tag2entID] {
-            if (sessionGen_.load() != gen) return;
+            if (staleGen(gen)) return;
             bool ok = false;
             const auto resp = defaultClient->QueryURLTest(&ok);
-            // Re-checked: the tick's opening check is stale by now. A poll can sit in
-            // this RPC while its sweep ends and the next one zeroes the counter and
-            // reuses the positional outbound tags, so a late drain lands on the wrong run.
-            if (sessionGen_.load() != gen) return;
+            // Checked again: a poll can sit in this RPC while its batch ends and the next
+            // one zeroes the counter and reuses the positional tags.
+            if (staleGen(gen)) return;
             if (!ok || resp.results.empty()) return;
 
             QList<int> updated;
@@ -237,11 +236,10 @@ void TestRunner::runIpProbe(const Target& target) {
     libcore::IPTestResp result;
     {
         ResultPoller poller([this, gen = sessionGen_.load(), tag2entID = target.tag2entID] {
-            if (sessionGen_.load() != gen) return;
+            if (staleGen(gen)) return;
             bool ok = false;
             const auto resp = defaultClient->QueryIPTest(&ok);
-            // See runUrlProbe: the opening check cannot cover the query itself.
-            if (sessionGen_.load() != gen) return;
+            if (staleGen(gen)) return;
             if (!ok || resp.results.empty()) return;
 
             QList<int> updated;
@@ -419,8 +417,6 @@ void TestRunner::runSpeedTests(const QList<int>& requestedIDs, bool testCurrent)
             mw_->dataViewHtmlGenerator_.seedSpeedTest(profileIDs.size());
             mw_->UpdateDataView(true);
             auto runBatch = [this](const QList<std::shared_ptr<Configs::Profile>>& profileSlice) {
-                // See runLatencyGroup: one generation per batch.
-                sessionGen_.fetch_add(1);
                 auto buildObject = Configs::BuildTestConfig(profileSlice);
                 if (!buildObject->error.isEmpty()) {
                     MW_show_log(MainWindow::tr("Failed to build batch test config: ") + buildObject->error);
@@ -495,8 +491,7 @@ void TestRunner::pollSpeedTest(const QMap<QString, int>& tag2entID, bool testCur
 {
     bool ok = false;
     const auto res = defaultClient->QueryCurrentSpeedTests(&ok);
-    // See runUrlProbe: the opening check cannot cover the query itself.
-    if (sessionGen_.load() != gen) return;
+    if (staleGen(gen)) return;
     if (!ok || !res.is_running.value())
     {
         return;
@@ -531,8 +526,7 @@ void TestRunner::pollCountryTest(const QMap<QString, int>& tag2entID, bool testC
 {
     bool ok = false;
     const auto res = defaultClient->QueryCountryTestResults(&ok);
-    // See runUrlProbe: the opening check cannot cover the query itself.
-    if (sessionGen_.load() != gen) return;
+    if (staleGen(gen)) return;
     if (!ok || res.results.empty())
     {
         return;
@@ -568,6 +562,10 @@ void TestRunner::runSpeedProbe(const Target& target)
         return;
     }
 
+    // Per probe, unlike the latency path: speed probes never overlap, so none of them
+    // shares a result buffer with a sibling and each can retire its own late polls.
+    sessionGen_.fetch_add(1);
+
     const auto speedtestConf = Configs::dataManager->settingsRepo->speed_test_mode;
     libcore::SpeedTestRequest req;
     fillCommonTestReq(req, target);
@@ -593,7 +591,7 @@ void TestRunner::runSpeedProbe(const Target& target)
     libcore::SpeedTestResponse result;
     {
         ResultPoller poller([this, gen = sessionGen_.load(), tag2entID = target.tag2entID, testCurrent = target.testCurrent, speedtestConf] {
-            if (sessionGen_.load() != gen) return;
+            if (staleGen(gen)) return;
             if (speedtestConf == Configs::TestConfig::COUNTRY) pollCountryTest(tag2entID, testCurrent, gen);
             else pollSpeedTest(tag2entID, testCurrent, gen);
         }, kSpeedPollIntervalMs);
