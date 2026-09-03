@@ -172,7 +172,7 @@ void MainWindow::show_group_tab_menu(const QPoint &p) {
             if (group->url.isEmpty()) return;
             if (mw_sub_updating) return;
             mw_sub_updating = true;
-            Subscription::groupUpdater->AsyncUpdate(group->url, group->id, [&] { mw_sub_updating = false; }, true);
+            Subscription::updater()->RefreshGroup(group->id, [&] { mw_sub_updating = false; }, true);
         });
     }
     if (clickedGroup != nullptr) {

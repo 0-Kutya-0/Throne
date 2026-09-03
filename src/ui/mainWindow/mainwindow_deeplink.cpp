@@ -5,6 +5,7 @@
 #include <QBuffer>
 #include <QFileInfo>
 #include <QImageReader>
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QStringConverter>
 #include <QUrl>
@@ -101,12 +102,12 @@ void MainWindow::importFromFiles(const QStringList &paths)
     QStringList batch;
     for (const QString &payload : payloads) {
         if (payload.startsWith("http://") || payload.startsWith("https://")) {
-            Subscription::groupUpdater->AsyncUpdate(payload);
+            import_text(payload);
         } else {
             batch << payload;
         }
     }
-    if (!batch.isEmpty()) Subscription::groupUpdater->AsyncImportBatch(batch);
+    if (!batch.isEmpty()) Subscription::updater()->ImportBatch(batch);
 
     if (payloads.isEmpty() && !problems.isEmpty()) {
         MessageBoxWarning(software_name, tr("Nothing could be imported:") + "\n" + problems.join("\n"));
@@ -119,7 +120,7 @@ void MainWindow::handle_deeplink_impl(const QString &url) {
     const QString cmd = u.host();
 
     if (cmd.compare("add", Qt::CaseInsensitive) == 0) {
-        Subscription::groupUpdater->AsyncUpdate(url);
+        import_text(url);
         return;
     }
 
@@ -239,7 +240,7 @@ void MainWindow::handle_addsub(const QString &url, const QString &name) {
     group->skip_auto_update = !autoUpdate;
     Configs::dataManager->groupsRepo->AddGroup(group);
     refresh_groups();
-    Subscription::groupUpdater->AsyncUpdate(url, group->id);
+    Subscription::updater()->RefreshGroup(group->id);
 }
 
 void MainWindow::import_or_handle_deeplink(const QString &text) {
@@ -247,7 +248,33 @@ void MainWindow::import_or_handle_deeplink(const QString &text) {
         handle_deeplink_impl(trimmed);
         return;
     }
-    Subscription::groupUpdater->AsyncUpdate(text);
+    import_text(text);
+}
+
+void MainWindow::import_text(const QString &text) {
+    const auto content = text.trimmed();
+    if (content.startsWith("http://") || content.startsWith("https://")) {
+        const QStringList items{
+            QObject::tr("Add profiles to this group"),
+            QObject::tr("Create new subscription group"),
+            QObject::tr("Import HTTP proxy profile"),
+        };
+        bool ok = false;
+        const auto choice = QInputDialog::getItem(nullptr, QObject::tr("url detected"),
+                                                  QObject::tr("%1\nHow to update?").arg(content), items, 0, false, &ok);
+        if (!ok) return;
+        switch (items.indexOf(choice)) {
+            case 0:
+                Subscription::updater()->ImportUrl(content);
+                return;
+            case 1:
+                Subscription::updater()->SubscribeUrl(content);
+                return;
+            default:
+                break;
+        }
+    }
+    Subscription::updater()->ImportText(content);
 }
 
 void MainWindow::dialog_message_impl(MwMessage cmd, const QStringList &args) {

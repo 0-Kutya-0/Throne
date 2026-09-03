@@ -848,7 +848,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     connect(ui->actionUpdate_All_Subscriptions, &QAction::triggered, this, [=,this]{
         if (QMessageBox::question(this, tr("Confirmation"), tr("Update all subscriptions?")) == QMessageBox::StandardButton::Yes) {
-            UI_update_all_groups();
+            Subscription::updater()->RefreshAll();
         }
     });
 
@@ -1088,7 +1088,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
                 Configs::dataManager->settingsRepo->sub_auto_update_last = t;
                 Configs::dataManager->settingsRepo->Save();
             },
-            [] { UI_update_all_groups(true); },
+            [] { Subscription::updater()->RefreshAll(true); },
         });
         runner->Add({
             tr("routing profiles"),

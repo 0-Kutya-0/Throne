@@ -133,6 +133,11 @@ set(PROJECT_SOURCES
 
         include/configs/sub/GroupUpdater.hpp
         src/configs/sub/GroupUpdater.cpp
+        include/configs/sub/SubscriptionScan.hpp
+        include/configs/sub/SubscriptionParser.hpp
+        src/configs/sub/SubscriptionParser.cpp
+        include/configs/sub/SubscriptionReconcile.hpp
+        src/configs/sub/SubscriptionReconcile.cpp
         include/configs/sub/RouteUpdater.hpp
         src/configs/sub/RouteUpdater.cpp
         src/configs/sub/clash.cpp
