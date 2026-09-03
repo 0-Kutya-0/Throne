@@ -17,7 +17,6 @@ namespace Icon {
 
     QIcon GetTaskbarIcon(TrayIconStatus status);
 
-    // Drop cached icons so the next GetTrayIcon reloads from disk/resources.
-    // Call when custom-icon files are replaced or the custom-icon setting flips.
+    // Forces the next GetTrayIcon to re-read the icon files; a use_custom_icons flip is detected without it.
     void InvalidateTrayIconCache();
 } // namespace Icon

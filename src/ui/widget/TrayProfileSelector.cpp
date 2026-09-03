@@ -264,7 +264,7 @@ bool TrayProfileSelector::event(QEvent *e) {
     if (e->type() == QEvent::WindowDeactivate && m_armed) {
         close();
     }
-    return QFrame::event(e);
+    return TrayPopupFrame::event(e);
 }
 
 bool TrayProfileSelector::eventFilter(QObject *obj, QEvent *e) {

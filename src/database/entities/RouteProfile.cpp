@@ -3,7 +3,9 @@
 #include <QJsonDocument>
 #include <QUrlQuery>
 #include "include/database/entities/RouteProfile.h"
+#include <array>
 #include <iostream>
+#include <optional>
 
 #include "include/database/ProfilesRepo.h"
 
@@ -118,48 +120,37 @@ namespace Configs {
         struct RuleConfig {
             ruleType type;
             QStringView action;
-            std::optional<std::string_view> outboundType;
             std::optional<int> outboundID;
         };
 
         static constexpr std::array kConfigs = {
-            RuleConfig{simpleAddressProxy, u"route", "proxy", std::nullopt},
-            RuleConfig{simpleAddressBypass, u"route", "direct", std::nullopt},
-            RuleConfig{simpleAddressBlock, u"reject", std::nullopt, std::nullopt},
+            RuleConfig{simpleAddressProxy, u"route", proxyID},
+            RuleConfig{simpleAddressBypass, u"route", directID},
+            RuleConfig{simpleAddressBlock, u"reject", std::nullopt},
 
-            RuleConfig{simpleProcessNameProxy, u"route", "proxy", std::nullopt},
-            RuleConfig{simpleProcessNameBypass, u"route", "direct", std::nullopt},
-            RuleConfig{simpleProcessNameBlock, u"reject", std::nullopt, std::nullopt},
+            RuleConfig{simpleProcessNameProxy, u"route", proxyID},
+            RuleConfig{simpleProcessNameBypass, u"route", directID},
+            RuleConfig{simpleProcessNameBlock, u"reject", std::nullopt},
 
-            RuleConfig{simpleProcessPathProxy, u"route", "proxy", std::nullopt},
-            RuleConfig{simpleProcessPathBypass, u"route", "direct", std::nullopt},
-            RuleConfig{simpleProcessPathBlock, u"reject", std::nullopt, std::nullopt},
+            RuleConfig{simpleProcessPathProxy, u"route", proxyID},
+            RuleConfig{simpleProcessPathBypass, u"route", directID},
+            RuleConfig{simpleProcessPathBlock, u"reject", std::nullopt},
 
-            RuleConfig{simpleAddressWarpBypass, u"route", std::nullopt, warpBypassID},
-            RuleConfig{simpleProcessNameWarpBypass, u"route", std::nullopt, warpBypassID},
-            RuleConfig{simpleProcessPathWarpBypass, u"route", std::nullopt, warpBypassID}
+            RuleConfig{simpleAddressWarpBypass, u"route", warpBypassID},
+            RuleConfig{simpleProcessNameWarpBypass, u"route", warpBypassID},
+            RuleConfig{simpleProcessPathWarpBypass, u"route", warpBypassID},
         };
 
         QList<std::shared_ptr<RouteRule>> rules;
         rules.reserve(kConfigs.size());
-
-        for (const auto& config : kConfigs) {
+        for (const auto &config : kConfigs) {
             auto rule = std::make_shared<RouteRule>();
             rule->type = config.type;
             rule->action = config.action.toString();
-            rule->name = ruleTypeToString(static_cast<ruleType>(config.type));
-
-            if (config.outboundID) {
-                rule->outboundID = *config.outboundID;
-            } else if (config.outboundType) {
-                rule->outboundID = getOutboundID(QString::fromUtf8(
-                    config.outboundType->data(),
-                    static_cast<qsizetype>(config.outboundType->size())));
-            }
-
+            rule->name = ruleTypeToString(config.type);
+            if (config.outboundID) rule->outboundID = *config.outboundID;
             rules.append(std::move(rule));
         }
-
         return rules;
     }
 

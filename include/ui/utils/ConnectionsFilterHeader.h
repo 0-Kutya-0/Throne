@@ -1,10 +1,11 @@
 #pragma once
 
+#include <array>
+
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QToolButton>
-#include <QVector>
 
 #include "include/ui/utils/ConnectionsTableModel.h"
 
@@ -146,7 +147,7 @@ private:
         }
     }
 
-    QVector<QLineEdit*> filterEdits() const {
+    std::array<QLineEdit*, 4> filterEdits() const {
         return {dest_filter, process_filter, protocol_filter, outbound_filter};
     }
 

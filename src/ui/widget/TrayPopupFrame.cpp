@@ -11,8 +11,7 @@
 #include <QVBoxLayout>
 
 TrayPopupFrame::TrayPopupFrame(QWidget *parent) : QFrame(parent) {
-    // A transient, always-on-top tool window. Translucent so the inner rounded
-    // "card" shows anti-aliased corners (a bitmap mask would be jagged).
+    // Translucent so the card's rounded corners come out anti-aliased; a bitmap mask would be jagged.
     setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_DeleteOnClose);
     setAttribute(Qt::WA_TranslucentBackground);

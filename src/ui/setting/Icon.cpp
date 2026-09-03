@@ -2,33 +2,32 @@
 
 #include "include/global/Configs.hpp"
 
-#include <QFile>
 #include <QHash>
+#include <QPixmap>
+
+#include <optional>
 
 namespace {
     QHash<Icon::TrayIconStatus, QIcon> g_trayIcons;
-    bool g_trayIconsCustom = false;
-    bool g_trayIconsCustomKnown = false;
+    std::optional<bool> g_trayIconsCustom;
 
-    const QHash<Icon::TrayIconStatus, QString> &statusNames() {
-        static const QHash<Icon::TrayIconStatus, QString> names = {
-            {Icon::TrayIconStatus::None, QStringLiteral("Off")},
-            {Icon::TrayIconStatus::Running, QStringLiteral("Throne")},
-            {Icon::TrayIconStatus::SystemProxy, QStringLiteral("Proxy")},
-            {Icon::TrayIconStatus::Vpn, QStringLiteral("Tun")},
-            {Icon::TrayIconStatus::Dns, QStringLiteral("Dns")},
-            {Icon::TrayIconStatus::SystemProxyDns, QStringLiteral("Proxy-Dns")},
-        };
-        return names;
+    QString statusName(Icon::TrayIconStatus status) {
+        switch (status) {
+            case Icon::TrayIconStatus::None: return QStringLiteral("Off");
+            case Icon::TrayIconStatus::Running: return QStringLiteral("Throne");
+            case Icon::TrayIconStatus::SystemProxy: return QStringLiteral("Proxy");
+            case Icon::TrayIconStatus::Vpn: return QStringLiteral("Tun");
+            case Icon::TrayIconStatus::Dns: return QStringLiteral("Dns");
+            case Icon::TrayIconStatus::SystemProxyDns: return QStringLiteral("Proxy-Dns");
+        }
+        MW_show_log("Icon::GetTrayIcon: Unknown status");
+        return QStringLiteral("Off");
     }
 
     QIcon loadNamedIcon(const QString &name, bool useCustom) {
         if (useCustom) {
-            const QString customPath = QStringLiteral("icons/") + name + QStringLiteral(".png");
-            if (QFile::exists(customPath)) {
-                QIcon icon(customPath);
-                if (!icon.isNull()) return icon;
-            }
+            // QIcon(path).isNull() is not a decode check: a PNG with a valid signature and a corrupt body passes it.
+            if (const auto custom = QPixmap(QStringLiteral("icons/") + name + QStringLiteral(".png")); !custom.isNull()) return QIcon(custom);
         }
         return QIcon(QStringLiteral(":/Throne/") + name + QStringLiteral(".png"));
     }
@@ -40,24 +39,13 @@ void Icon::InvalidateTrayIconCache() {
 
 QIcon Icon::GetTrayIcon(TrayIconStatus status) {
     const bool useCustom = Configs::dataManager->settingsRepo->use_custom_icons;
-    if (!g_trayIconsCustomKnown || g_trayIconsCustom != useCustom) {
+    if (g_trayIconsCustom != useCustom) {
         g_trayIcons.clear();
         g_trayIconsCustom = useCustom;
-        g_trayIconsCustomKnown = true;
     }
+    if (const auto it = g_trayIcons.constFind(status); it != g_trayIcons.cend()) return it.value();
 
-    if (const auto it = g_trayIcons.constFind(status); it != g_trayIcons.cend()) {
-        return it.value();
-    }
-
-    const auto &names = statusNames();
-    QString name = names.value(status);
-    if (name.isEmpty()) {
-        MW_show_log("Icon::GetTrayIcon: Unknown status");
-        name = QStringLiteral("Off");
-    }
-
-    const QIcon icon = loadNamedIcon(name, useCustom);
+    const QIcon icon = loadNamedIcon(statusName(status), useCustom);
     g_trayIcons.insert(status, icon);
     return icon;
 }

@@ -7,21 +7,14 @@ class QLineEdit;
 class QListWidget;
 class QVBoxLayout;
 
-// Shared chrome for the system-tray popups (profile picker, OTP codes): a
-// frameless always-on-top tool window, a rounded card, a search row with a
-// close button, and screen-clamped positioning.
-//
-// Subclasses own the list (and any extra header/footer) and the data that
-// fills it. Search/list keyboard handling that is common (Esc, Down from the
-// search box) lives here; item activation stays in the subclass.
+// Shared chrome for the tray popups: frameless always-on-top card, search row with close button, screen-clamped placement; subclasses own the list and item activation.
 class TrayPopupFrame : public QFrame {
     Q_OBJECT
 
 public:
     explicit TrayPopupFrame(QWidget *parent = nullptr);
 
-    // Rebuild contents, size to fit, place near globalPos (kept fully on the
-    // containing screen), then show and focus the search box.
+    // preparePopup(), size to fit, clamp to the screen under globalPos, show, focus the search box, afterShow().
     void popupAt(const QPoint &globalPos);
 
 protected:
