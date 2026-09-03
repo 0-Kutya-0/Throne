@@ -186,7 +186,7 @@ namespace Configs {
 
         if (query.hasQueryItem("private_key")) private_key = query.queryItemValue("private_key");
         else if (query.hasQueryItem("privatekey")) private_key = query.queryItemValue("privatekey");
-        else if (!url.userName().isEmpty()) private_key = QUrl::fromPercentEncoding(url.userName().toUtf8());
+        else if (!url.userName().isEmpty()) private_key = url.userName();
 
         peer->ParseFromLink(link);
         server = peer->address;

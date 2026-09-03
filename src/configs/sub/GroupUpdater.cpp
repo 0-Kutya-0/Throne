@@ -9,6 +9,7 @@
 #include <QUrlQuery>
 #include <QJsonDocument>
 #include <QHash>
+#include <QtEndian>
 
 #include "include/configs/common/utils.h"
 #include "include/database/GroupsRepo.h"
@@ -181,6 +182,17 @@ namespace Subscription {
         return false;
     }
 
+    // qUncompress allocates whatever size the 4-byte header claims before inflating, so validate the zlib header and cap it first.
+    QByteArray uncompressVpnPayload(const QByteArray &data) {
+        constexpr quint32 maxSize = 16 * 1024 * 1024;
+        if (data.size() < 6) return {};
+        const auto bytes = reinterpret_cast<const uchar *>(data.constData());
+        const quint32 expected = qFromBigEndian<quint32>(bytes);
+        const uint cmf = bytes[4], flg = bytes[5];
+        if (expected == 0 || expected > maxSize || (cmf & 0x0F) != 8 || ((cmf << 8) | flg) % 31 != 0) return {};
+        return qUncompress(data);
+    }
+
     void RawUpdater::update(const QString &str, bool needParse, bool isBase64Decoded) {
         if (!isBase64Decoded) {
             if (auto str2 = DecodeB64IfValid(str); !str2.isEmpty()) {
@@ -317,41 +329,42 @@ namespace Subscription {
             auto raw = str.mid(6);
             if (auto frag = raw.indexOf('#'); frag != -1) raw = raw.left(frag);
             raw = QUrl::fromPercentEncoding(raw.toUtf8());
-            auto dataBytes = DecodeB64IfValid(raw.toUtf8());
-            if (dataBytes.isEmpty()) dataBytes = DecodeB64IfValid(raw.toUtf8(), QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
-            if (!dataBytes.isEmpty()) {
-                if (dataBytes.size() > 4) {
-                    auto uncompressed = qUncompress(dataBytes);
-                    if (!uncompressed.isEmpty()) dataBytes = uncompressed;
-                }
-                auto doc = QJsonDocument::fromJson(dataBytes);
-                if (doc.isObject() && doc.object().contains("containers")) {
-                    for (const auto &cVal : doc.object()["containers"].toArray()) {
-                        if (!cVal.isObject()) continue;
-                        auto cObj = cVal.toObject();
-                        for (const auto &key : cObj.keys()) {
-                            if (!cObj[key].isObject()) continue;
-                            auto protoObj = cObj[key].toObject();
-                            QString conf;
-                            if (protoObj["last_config"].isString()) {
-                                auto lc = protoObj["last_config"].toString();
-                                auto innerDoc = QJsonDocument::fromJson(lc.toUtf8());
-                                if (innerDoc.isObject() && innerDoc.object().contains("config")) {
-                                    conf = innerDoc.object()["config"].toString();
-                                } else {
-                                    conf = lc;
-                                }
-                            } else if (protoObj["last_config"].isObject()) {
-                                conf = protoObj["last_config"].toObject()["config"].toString();
-                            }
-                            if (!conf.isEmpty()) update(conf.trimmed(), true, true);
-                        }
-                    }
-                    return;
-                }
-                update(QString::fromUtf8(dataBytes).trimmed(), true, true);
+            auto dataBytes = DecodeB64IfValid(raw);
+            if (dataBytes.isEmpty()) dataBytes = DecodeB64IfValid(raw, QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+            if (dataBytes.isEmpty()) {
+                MW_show_log(QObject::tr("Failed to decode the vpn:// link."));
                 return;
             }
+            if (auto uncompressed = uncompressVpnPayload(dataBytes); !uncompressed.isEmpty()) dataBytes = uncompressed;
+            const auto before = updated_order.size();
+            auto doc = QJsonDocument::fromJson(dataBytes);
+            if (doc.isObject() && doc.object().contains("containers")) {
+                for (const auto &cVal : doc.object()["containers"].toArray()) {
+                    if (!cVal.isObject()) continue;
+                    auto cObj = cVal.toObject();
+                    for (const auto &key : cObj.keys()) {
+                        if (!cObj[key].isObject()) continue;
+                        auto protoObj = cObj[key].toObject();
+                        QString conf;
+                        if (protoObj["last_config"].isString()) {
+                            auto lc = protoObj["last_config"].toString();
+                            auto innerDoc = QJsonDocument::fromJson(lc.toUtf8());
+                            if (innerDoc.isObject() && innerDoc.object().contains("config")) {
+                                conf = innerDoc.object()["config"].toString();
+                            } else {
+                                conf = lc;
+                            }
+                        } else if (protoObj["last_config"].isObject()) {
+                            conf = protoObj["last_config"].toObject()["config"].toString();
+                        }
+                        if (!conf.isEmpty()) update(conf.trimmed(), true, true);
+                    }
+                }
+            } else {
+                update(QString::fromUtf8(dataBytes).trimmed(), true, true);
+            }
+            if (updated_order.size() == before) MW_show_log(QObject::tr("No importable profile found in the vpn:// link."));
+            return;
         }
 
         if (str.startsWith("socks5://") || str.startsWith("socks4://") ||
