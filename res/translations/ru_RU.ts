@@ -2,6 +2,69 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru_RU">
 <context>
+    <name>ConnectionsTableModel</name>
+    <message>
+        <source>Close this connection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Destination (Domain)</source>
+        <translation>Пункт назначения (Домен)</translation>
+    </message>
+    <message>
+        <source>Process</source>
+        <translation>Процесс</translation>
+    </message>
+    <message>
+        <source>Protocol</source>
+        <translation>Протокол</translation>
+    </message>
+    <message>
+        <source>Outbound</source>
+        <translation>Outbound</translation>
+    </message>
+    <message>
+        <source>Traffic</source>
+        <translation>Трафик</translation>
+    </message>
+    <message>
+        <source>Speed</source>
+        <translation>Скорость</translation>
+    </message>
+    <message>
+        <source>Click To Sort By Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click To Disable Sorting</source>
+        <translation>Нажмите для отключения сортировки</translation>
+    </message>
+    <message>
+        <source>Click To Sort By Process</source>
+        <translation>Нажмите для сортировки по процессу</translation>
+    </message>
+    <message>
+        <source>Click To Sort By Protocol</source>
+        <translation>Нажмите для сортировки по протоколу</translation>
+    </message>
+    <message>
+        <source>Click To Sort By Outbound</source>
+        <translation>Нажмите для сортировки по Outbound</translation>
+    </message>
+    <message>
+        <source>Click to sort by traffic; right-click to choose total/down/up</source>
+        <translation>Нажмите, чтобы отсортировать по трафику; щелкните правой кнопкой мыши, чтобы настроить сортировку</translation>
+    </message>
+    <message>
+        <source>Click to sort by speed; right-click to choose total/down/up</source>
+        <translation>Нажмите, чтобы отсортировать по скорости; щелкните правой кнопкой мыши, чтобы настроить сортировку</translation>
+    </message>
+</context>
+<context>
     <name>DialogAutoSelector</name>
     <message>
         <source>Auto Selector Stats</source>
@@ -3647,10 +3710,6 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
         <translation>Результат теста</translation>
     </message>
     <message>
-        <source>Traffic</source>
-        <translation>Трафик</translation>
-    </message>
-    <message>
         <source>Share</source>
         <translation>Поделиться</translation>
     </message>
@@ -3733,14 +3792,6 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
     <message>
         <source>Tools</source>
         <translation>Утилиты</translation>
-    </message>
-    <message>
-        <source>Click to sort by traffic; right-click to choose total/down/up</source>
-        <translation>Нажмите, чтобы отсортировать по трафику; щелкните правой кнопкой мыши, чтобы настроить сортировку</translation>
-    </message>
-    <message>
-        <source>Click to sort by speed; right-click to choose total/down/up</source>
-        <translation>Нажмите, чтобы отсортировать по скорости; щелкните правой кнопкой мыши, чтобы настроить сортировку</translation>
     </message>
     <message>
         <source>Manage Groups</source>
@@ -4277,14 +4328,6 @@ Error: %1</source>
         <translation>Подключения</translation>
     </message>
     <message>
-        <source>Click To Disable Sorting</source>
-        <translation>Нажмите для отключения сортировки</translation>
-    </message>
-    <message>
-        <source>Protocol</source>
-        <translation>Протокол</translation>
-    </message>
-    <message>
         <source>Logs</source>
         <translation>Логи</translation>
     </message>
@@ -4307,18 +4350,6 @@ Error: %1</source>
     <message>
         <source>Routing</source>
         <translation>Маршруты</translation>
-    </message>
-    <message>
-        <source>Destination (Domain)</source>
-        <translation>Пункт назначения (Домен)</translation>
-    </message>
-    <message>
-        <source>Process</source>
-        <translation>Процесс</translation>
-    </message>
-    <message>
-        <source>Click To Sort By Process</source>
-        <translation>Нажмите для сортировки по процессу</translation>
     </message>
     <message>
         <source>Operation Mode</source>
@@ -4453,20 +4484,8 @@ Please try again.</source>
         <translation>Невозможно захватить экран</translation>
     </message>
     <message>
-        <source>Outbound</source>
-        <translation>Outbound</translation>
-    </message>
-    <message>
         <source>Please run Throne as admin</source>
         <translation>Пожалуйста, запустите Throne от имени администратора</translation>
-    </message>
-    <message>
-        <source>Click To Sort By Protocol</source>
-        <translation>Нажмите для сортировки по протоколу</translation>
-    </message>
-    <message>
-        <source>Click To Sort By Outbound</source>
-        <translation>Нажмите для сортировки по Outbound</translation>
     </message>
     <message>
         <source>Add profile from File(s)</source>
