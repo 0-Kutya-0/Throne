@@ -8111,11 +8111,11 @@ Release note:
     </message>
     <message>
         <source>Empty</source>
-        <translation type="unfinished">Пусто</translation>
+        <translation>Пусто</translation>
     </message>
     <message numerus="yes">
         <source>%n problem(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n проблема</numerusform>
             <numerusform>%n проблемы</numerusform>
             <numerusform>%n проблем</numerusform>
@@ -8123,7 +8123,7 @@ Release note:
     </message>
     <message numerus="yes">
         <source>%n warning(s)</source>
-        <translation type="unfinished">
+        <translation>
             <numerusform>%n предупреждение</numerusform>
             <numerusform>%n предупреждения</numerusform>
             <numerusform>%n предупреждений</numerusform>
@@ -8131,31 +8131,31 @@ Release note:
     </message>
     <message>
         <source>Valid JSON</source>
-        <translation type="unfinished">Верный JSON</translation>
+        <translation>Верный JSON</translation>
     </message>
     <message>
         <source>Line %1: %2</source>
-        <translation type="unfinished">Строка %1: %2</translation>
+        <translation>Строка %1: %2</translation>
     </message>
     <message>
         <source>JSON Editor</source>
-        <translation type="unfinished">JSON Редактор</translation>
+        <translation>JSON Редактор</translation>
     </message>
     <message>
         <source>Format</source>
-        <translation type="unfinished"></translation>
+        <translation>Форматирование JSON</translation>
     </message>
     <message>
         <source>Invalid JSON</source>
-        <translation type="unfinished">Неверный JSON</translation>
+        <translation>Неверный JSON</translation>
     </message>
     <message>
         <source>Fix the errors before formatting the document.</source>
-        <translation type="unfinished">Исправьте ошибки перед форматированием документа.</translation>
+        <translation>Исправьте ошибки перед форматированием документа.</translation>
     </message>
     <message>
         <source>The document must be a JSON object.</source>
-        <translation type="unfinished">Документ должен представлять собой объект JSON.</translation>
+        <translation>Документ должен представлять собой объект JSON.</translation>
     </message>
 </context>
 <context>
